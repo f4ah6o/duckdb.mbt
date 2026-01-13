@@ -82,7 +82,8 @@ pub fn connect(
   backend? : JsBackend = JsBackend::Auto,
 ) -> Unit {
   let _ = backend
-  let conn = native_connect(@encoding/utf8.encode(path))
+  let path_bytes = @encoding/utf8.encode(path)
+  let conn = native_connect(path_bytes)
   if native_is_null_conn(conn) {
     on_ready(Err(DuckDBError::Message(last_error("duckdb_open failed"))))
   } else {

@@ -10,7 +10,7 @@
   ],
   "link": {
     "native": {
-      "cc-link-flags": "-lduckdb"
+      "cc-link-flags": "-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lduckdb"
     }
   }
 }

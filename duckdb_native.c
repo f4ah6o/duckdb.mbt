@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,9 +58,10 @@ static char *duckdb_mb_bytes_to_cstr(moonbit_bytes_t bytes) {
 }
 
 duckdb_mb_connection *duckdb_mb_connect(moonbit_bytes_t path) {
+  int32_t path_len = path ? Moonbit_array_length(path) : 0;
   char *path_c = NULL;
   const char *path_value = ":memory:";
-  if (path && Moonbit_array_length(path) > 0) {
+  if (path_len > 0) {
     path_c = duckdb_mb_bytes_to_cstr(path);
     if (!path_c) {
       duckdb_mb_set_error("failed to allocate path buffer");
@@ -74,13 +76,43 @@ duckdb_mb_connection *duckdb_mb_connect(moonbit_bytes_t path) {
     duckdb_mb_set_error("failed to allocate connection handle");
     return NULL;
   }
-  duckdb_state state = duckdb_open(path_value, &handle->db);
-  free(path_c);
+  char *open_error = NULL;
+  duckdb_state state =
+      duckdb_open_ext(path_value, &handle->db, NULL, &open_error);
   if (state != DuckDBSuccess) {
-    duckdb_mb_set_error("duckdb_open failed");
+    if (open_error && open_error[0] != '\0') {
+      duckdb_mb_set_error(open_error);
+    } else if (path_c) {
+      char message[256];
+      snprintf(
+        message,
+        sizeof(message),
+        "duckdb_open failed (path_len=%d path=%s)",
+        path_len,
+        path_c
+      );
+      duckdb_mb_set_error(message);
+    } else {
+      char message[128];
+      snprintf(
+        message,
+        sizeof(message),
+        "duckdb_open failed (path_len=%d path=:memory:)",
+        path_len
+      );
+      duckdb_mb_set_error(message);
+    }
+    if (open_error) {
+      duckdb_free(open_error);
+    }
     free(handle);
+    free(path_c);
     return NULL;
   }
+  if (open_error) {
+    duckdb_free(open_error);
+  }
+  free(path_c);
   state = duckdb_connect(handle->db, &handle->conn);
   if (state != DuckDBSuccess) {
     duckdb_mb_set_error("duckdb_connect failed");
@@ -166,11 +198,13 @@ moonbit_bytes_t duckdb_mb_result_column_name(duckdb_result *result,
   return duckdb_mb_make_bytes(name, strlen(name));
 }
 
-bool duckdb_mb_result_is_null(duckdb_result *result, int32_t col, int32_t row) {
+int32_t duckdb_mb_result_is_null(duckdb_result *result,
+                                 int32_t col,
+                                 int32_t row) {
   if (!result) {
-    return true;
+    return 1;
   }
-  return duckdb_value_is_null(result, (idx_t)col, (idx_t)row);
+  return duckdb_value_is_null(result, (idx_t)col, (idx_t)row) ? 1 : 0;
 }
 
 moonbit_bytes_t duckdb_mb_result_value(duckdb_result *result,
@@ -197,10 +231,10 @@ moonbit_bytes_t duckdb_mb_last_error(void) {
                               strlen(duckdb_mb_last_error_message));
 }
 
-bool duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
-  return handle == NULL;
+int32_t duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
+  return handle == NULL ? 1 : 0;
 }
 
-bool duckdb_mb_is_null_result(duckdb_result *result) {
-  return result == NULL;
+int32_t duckdb_mb_is_null_result(duckdb_result *result) {
+  return result == NULL ? 1 : 0;
 }

@@ -5,5 +5,10 @@
       "path": "f4ah6o/duckdb",
       "alias": "lib"
     }
-  ]
+  ],
+  "link": {
+    "native": {
+      "cc-link-flags": "-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lduckdb"
+    }
+  }
 }
