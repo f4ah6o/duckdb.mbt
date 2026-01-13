@@ -4,7 +4,7 @@ pub type Connection
 
 ///|
 /// JS backend selection for `connect`.
-pub enum JsBackend {
+pub(all) enum JsBackend {
   Auto
   Node
   Wasm

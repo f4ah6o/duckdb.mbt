@@ -15,7 +15,7 @@ pub type Connection
 pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 
-pub enum JsBackend {
+pub(all) enum JsBackend {
   Auto
   Node
   Wasm
