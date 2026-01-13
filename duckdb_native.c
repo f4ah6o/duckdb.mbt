@@ -11,12 +11,12 @@ typedef struct {
   duckdb_connection conn;
 } duckdb_mb_connection;
 
-static char *duckdb_mb_last_error = NULL;
+static char *duckdb_mb_last_error_message = NULL;
 
 static void duckdb_mb_set_error(const char *message) {
-  if (duckdb_mb_last_error) {
-    free(duckdb_mb_last_error);
-    duckdb_mb_last_error = NULL;
+  if (duckdb_mb_last_error_message) {
+    free(duckdb_mb_last_error_message);
+    duckdb_mb_last_error_message = NULL;
   }
   if (!message) {
     return;
@@ -28,7 +28,7 @@ static void duckdb_mb_set_error(const char *message) {
   }
   memcpy(buf, message, len);
   buf[len] = '\0';
-  duckdb_mb_last_error = buf;
+  duckdb_mb_last_error_message = buf;
 }
 
 static moonbit_bytes_t duckdb_mb_make_bytes(const char *data, size_t len) {
@@ -190,11 +190,11 @@ moonbit_bytes_t duckdb_mb_result_value(duckdb_result *result,
 }
 
 moonbit_bytes_t duckdb_mb_last_error(void) {
-  if (!duckdb_mb_last_error) {
+  if (!duckdb_mb_last_error_message) {
     return moonbit_make_bytes_raw(0);
   }
-  return duckdb_mb_make_bytes(duckdb_mb_last_error,
-                              strlen(duckdb_mb_last_error));
+  return duckdb_mb_make_bytes(duckdb_mb_last_error_message,
+                              strlen(duckdb_mb_last_error_message));
 }
 
 bool duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
