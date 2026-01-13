@@ -1,0 +1,206 @@
+#include "duckdb.h"
+#include "moonbit.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+  duckdb_database db;
+  duckdb_connection conn;
+} duckdb_mb_connection;
+
+static char *duckdb_mb_last_error = NULL;
+
+static void duckdb_mb_set_error(const char *message) {
+  if (duckdb_mb_last_error) {
+    free(duckdb_mb_last_error);
+    duckdb_mb_last_error = NULL;
+  }
+  if (!message) {
+    return;
+  }
+  size_t len = strlen(message);
+  char *buf = (char *)malloc(len + 1);
+  if (!buf) {
+    return;
+  }
+  memcpy(buf, message, len);
+  buf[len] = '\0';
+  duckdb_mb_last_error = buf;
+}
+
+static moonbit_bytes_t duckdb_mb_make_bytes(const char *data, size_t len) {
+  moonbit_bytes_t bytes = moonbit_make_bytes_raw((int32_t)len);
+  if (len == 0 || !data) {
+    return bytes;
+  }
+  memcpy(bytes, data, len);
+  return bytes;
+}
+
+static char *duckdb_mb_bytes_to_cstr(moonbit_bytes_t bytes) {
+  if (!bytes) {
+    return NULL;
+  }
+  int32_t len = Moonbit_array_length(bytes);
+  char *buf = (char *)malloc((size_t)len + 1);
+  if (!buf) {
+    return NULL;
+  }
+  if (len > 0) {
+    memcpy(buf, bytes, (size_t)len);
+  }
+  buf[len] = '\0';
+  return buf;
+}
+
+duckdb_mb_connection *duckdb_mb_connect(moonbit_bytes_t path) {
+  char *path_c = NULL;
+  const char *path_value = ":memory:";
+  if (path && Moonbit_array_length(path) > 0) {
+    path_c = duckdb_mb_bytes_to_cstr(path);
+    if (!path_c) {
+      duckdb_mb_set_error("failed to allocate path buffer");
+      return NULL;
+    }
+    path_value = path_c;
+  }
+  duckdb_mb_connection *handle =
+      (duckdb_mb_connection *)malloc(sizeof(duckdb_mb_connection));
+  if (!handle) {
+    free(path_c);
+    duckdb_mb_set_error("failed to allocate connection handle");
+    return NULL;
+  }
+  duckdb_state state = duckdb_open(path_value, &handle->db);
+  free(path_c);
+  if (state != DuckDBSuccess) {
+    duckdb_mb_set_error("duckdb_open failed");
+    free(handle);
+    return NULL;
+  }
+  state = duckdb_connect(handle->db, &handle->conn);
+  if (state != DuckDBSuccess) {
+    duckdb_mb_set_error("duckdb_connect failed");
+    duckdb_close(&handle->db);
+    free(handle);
+    return NULL;
+  }
+  return handle;
+}
+
+void duckdb_mb_disconnect(duckdb_mb_connection *handle) {
+  if (!handle) {
+    return;
+  }
+  duckdb_disconnect(&handle->conn);
+  duckdb_close(&handle->db);
+  free(handle);
+}
+
+duckdb_result *duckdb_mb_query(duckdb_mb_connection *handle,
+                               moonbit_bytes_t sql) {
+  if (!handle) {
+    duckdb_mb_set_error("connection is null");
+    return NULL;
+  }
+  char *sql_c = duckdb_mb_bytes_to_cstr(sql);
+  if (!sql_c) {
+    duckdb_mb_set_error("failed to allocate sql buffer");
+    return NULL;
+  }
+  duckdb_result *result = (duckdb_result *)malloc(sizeof(duckdb_result));
+  if (!result) {
+    free(sql_c);
+    duckdb_mb_set_error("failed to allocate result");
+    return NULL;
+  }
+  duckdb_state state = duckdb_query(handle->conn, sql_c, result);
+  free(sql_c);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_result_error(result);
+    if (!error) {
+      error = "duckdb_query failed";
+    }
+    duckdb_mb_set_error(error);
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+  return result;
+}
+
+void duckdb_mb_result_destroy(duckdb_result *result) {
+  if (!result) {
+    return;
+  }
+  duckdb_destroy_result(result);
+  free(result);
+}
+
+int32_t duckdb_mb_result_column_count(duckdb_result *result) {
+  if (!result) {
+    return 0;
+  }
+  return (int32_t)duckdb_column_count(result);
+}
+
+int32_t duckdb_mb_result_row_count(duckdb_result *result) {
+  if (!result) {
+    return 0;
+  }
+  return (int32_t)duckdb_row_count(result);
+}
+
+moonbit_bytes_t duckdb_mb_result_column_name(duckdb_result *result,
+                                             int32_t col) {
+  if (!result) {
+    return moonbit_make_bytes_raw(0);
+  }
+  const char *name = duckdb_column_name(result, (idx_t)col);
+  if (!name) {
+    return moonbit_make_bytes_raw(0);
+  }
+  return duckdb_mb_make_bytes(name, strlen(name));
+}
+
+bool duckdb_mb_result_is_null(duckdb_result *result, int32_t col, int32_t row) {
+  if (!result) {
+    return true;
+  }
+  return duckdb_value_is_null(result, (idx_t)col, (idx_t)row);
+}
+
+moonbit_bytes_t duckdb_mb_result_value(duckdb_result *result,
+                                       int32_t col,
+                                       int32_t row) {
+  if (!result) {
+    return moonbit_make_bytes_raw(0);
+  }
+  char *value = duckdb_value_varchar(result, (idx_t)col, (idx_t)row);
+  if (!value) {
+    return moonbit_make_bytes_raw(0);
+  }
+  size_t len = strlen(value);
+  moonbit_bytes_t bytes = duckdb_mb_make_bytes(value, len);
+  duckdb_free(value);
+  return bytes;
+}
+
+moonbit_bytes_t duckdb_mb_last_error(void) {
+  if (!duckdb_mb_last_error) {
+    return moonbit_make_bytes_raw(0);
+  }
+  return duckdb_mb_make_bytes(duckdb_mb_last_error,
+                              strlen(duckdb_mb_last_error));
+}
+
+bool duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
+  return handle == NULL;
+}
+
+bool duckdb_mb_is_null_result(duckdb_result *result) {
+  return result == NULL;
+}

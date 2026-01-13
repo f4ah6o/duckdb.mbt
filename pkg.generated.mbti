@@ -1,0 +1,36 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "f4ah6o/duckdb"
+
+// Values
+pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
+
+// Errors
+pub suberror DuckDBError {
+  Message(String)
+}
+
+// Types and methods
+#external
+pub type Connection
+pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+
+pub enum JsBackend {
+  Auto
+  Node
+  Wasm
+}
+
+pub struct QueryResult {
+  columns : Array[String]
+  rows : Array[Array[String]]
+  nulls : Array[Array[Bool]]
+}
+pub fn QueryResult::cell(Self, Int, Int) -> String?
+pub fn QueryResult::column_count(Self) -> Int
+pub fn QueryResult::row_count(Self) -> Int
+
+// Type aliases
+
+// Traits
+

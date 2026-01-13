@@ -1,0 +1,16 @@
+{
+  "targets": {
+    "duckdb_native.mbt": ["native"],
+    "duckdb_js.mbt": ["js"],
+    "duckdb_unsupported.mbt": ["or", "wasm", "wasm-gc"],
+    "duckdb_test.mbt": ["native"]
+  },
+  "native-stub": [
+    "duckdb_native.c"
+  ],
+  "link": {
+    "native": {
+      "cc-link-flags": "-lduckdb"
+    }
+  }
+}
