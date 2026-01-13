@@ -5,7 +5,7 @@ pub fn connect(
   backend? : JsBackend = JsBackend::Auto,
 ) -> Unit {
   let _ = path
-  let _ = backend
+  touch_public_types(backend)
   on_ready(
     Err(
       DuckDBError::Message("duckdb bindings are not available for this target"),

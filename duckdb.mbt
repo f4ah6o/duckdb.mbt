@@ -25,6 +25,16 @@ pub struct QueryResult {
 }
 
 ///|
+// Ensure public constructors are referenced in all target builds.
+fn touch_public_types(backend : JsBackend) -> Unit {
+  let _ = backend
+  let _ = JsBackend::Node
+  let _ = JsBackend::Wasm
+  let _ : QueryResult = { columns: [], rows: [], nulls: [] }
+
+}
+
+///|
 pub fn QueryResult::row_count(self : QueryResult) -> Int {
   self.rows.length()
 }

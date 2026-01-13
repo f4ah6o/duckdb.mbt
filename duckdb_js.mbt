@@ -164,6 +164,7 @@ pub fn connect(
   path? : String = ":memory:",
   backend? : JsBackend = JsBackend::Auto,
 ) -> Unit {
+  touch_public_types(backend)
   js_connect(path, backend, fn(conn) { on_ready(Ok(conn)) }, fn(message) {
     on_ready(Err(DuckDBError::Message(message)))
   })

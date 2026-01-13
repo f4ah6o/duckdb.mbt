@@ -81,7 +81,7 @@ pub fn connect(
   path? : String = ":memory:",
   backend? : JsBackend = JsBackend::Auto,
 ) -> Unit {
-  let _ = backend
+  touch_public_types(backend)
   let path_bytes = @encoding/utf8.encode(path)
   let conn = native_connect(path_bytes)
   if native_is_null_conn(conn) {
