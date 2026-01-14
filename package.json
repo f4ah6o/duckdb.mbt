@@ -1,0 +1,25 @@
+{
+  "name": "duckdb",
+  "version": "1.0.0",
+  "description": "MoonBit bindings for DuckDB on native and JavaScript targets.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/f4ah6o/duckdb.mbt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/f4ah6o/duckdb.mbt/issues"
+  },
+  "homepage": "https://github.com/f4ah6o/duckdb.mbt#readme",
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
+    "@duckdb/node-api": "^1.4.3-r.3"
+  }
+}
