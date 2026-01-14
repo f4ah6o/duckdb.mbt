@@ -4,6 +4,7 @@
   "description": "MoonBit bindings for DuckDB on native and JavaScript targets.",
   "main": "index.js",
   "scripts": {
+    "gen:fixtures": "node scripts/generate_duckdb_fixtures.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

@@ -4,6 +4,12 @@ package "f4ah6o/duckdb"
 // Values
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
+pub fn expect_fixture_case(FixtureCase, Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit raise
+
+pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
+
+pub let fixture_cases : Array[FixtureCase]
+
 // Errors
 pub suberror DuckDBError {
   Message(String)
@@ -14,6 +20,14 @@ pub suberror DuckDBError {
 pub type Connection
 pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+
+pub struct FixtureCase {
+  name : String
+  sql : String
+  columns : Array[String]
+  rows : Array[Array[String]]
+  nulls : Array[Array[Bool]]
+}
 
 pub(all) enum JsBackend {
   Auto

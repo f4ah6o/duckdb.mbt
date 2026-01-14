@@ -241,49 +241,37 @@ fn run_js_query(
 }
 
 ///|
-fn cell_from_data(
-  rows : Array[Array[String]],
-  nulls : Array[Array[Bool]],
-  row : Int,
-  col : Int,
-) -> String? {
-  if nulls[row][col] {
-    None
-  } else {
-    Some(rows[row][col])
-  }
-}
-
-///|
-test "js node query" {
-  let sql = "select 1 as a, NULL as b, 'duck' as c"
-  let result = run_js_query(JsBackend::Node, sql)
-  match result {
-    Ok((columns, rows, nulls)) => {
-      inspect(columns, content="[\"a\", \"b\", \"c\"]")
-      inspect(rows, content="[[\"1\", \"\", \"duck\"]]")
-      inspect(nulls, content="[[false, true, false]]")
-      inspect(cell_from_data(rows, nulls, 0, 1), content="None")
-    }
-    Err(message) => {
-      guard message.contains("@duckdb/node-api") else {
-        fail("node backend failed: \{message}")
+test "js node fixtures" {
+  let missing_ref : Ref[Bool] = Ref::new(false)
+  for case in fixture_cases {
+    if missing_ref.val {
+      ()
+    } else {
+      let result = run_js_query(JsBackend::Node, case.sql)
+      match result {
+        Ok((columns, rows, nulls)) =>
+          expect_fixture_case(case, columns, rows, nulls)
+        Err(message) =>
+          if message.contains("@duckdb/node-api") {
+            missing_ref.val = true
+          } else {
+            fail("node backend failed for '\{case.name}': \{message}")
+          }
       }
     }
+  } else {
+    ()
   }
 }
 
 ///|
-test "js wasm query" {
-  let sql = "select 1 as a, NULL as b, 'duck' as c"
-  let result = run_js_query(JsBackend::Wasm, sql)
+test "js wasm fixture" {
+  guard fixture_cases.length() > 0 else { fail("no fixtures defined") }
+  let case = fixture_cases[0]
+  let result = run_js_query(JsBackend::Wasm, case.sql)
   match result {
-    Ok((columns, rows, nulls)) => {
-      inspect(columns, content="[\"a\", \"b\", \"c\"]")
-      inspect(rows, content="[[\"1\", \"\", \"duck\"]]")
-      inspect(nulls, content="[[false, true, false]]")
-      inspect(cell_from_data(rows, nulls, 0, 1), content="None")
-    }
+    Ok((columns, rows, nulls)) =>
+      expect_fixture_case(case, columns, rows, nulls)
     Err(message) =>
       if message.contains("@duckdb/duckdb-wasm") ||
         message.contains("duckdb-wasm requires Worker support") {

@@ -1,13 +1,11 @@
 ///|
-test "query rows" {
+fn run_native_query(sql : String) -> Result[QueryResult, String] {
   let result_ref : Ref[QueryResult?] = Ref::new(None)
   let error_ref : Ref[String?] = Ref::new(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
-        conn.query("select 1 as a, NULL as b, 'duck' as c", on_done=fn(
-          query_result,
-        ) {
+        conn.query(sql, on_done=fn(query_result) {
           match query_result {
             Ok(result) => result_ref.val = Some(result)
             Err(DuckDBError::Message(message)) =>
@@ -27,16 +25,24 @@ test "query rows" {
     }
   })
   match error_ref.val {
-    Some(message) => fail(message)
-    None => ()
+    Some(message) => Err(message)
+    None =>
+      match result_ref.val {
+        Some(result) => Ok(result)
+        None => Err("query returned no result")
+      }
   }
-  match result_ref.val {
-    Some(result) => {
-      inspect(result.columns, content="[\"a\", \"b\", \"c\"]")
-      inspect(result.rows, content="[[\"1\", \"\", \"duck\"]]")
-      inspect(result.nulls, content="[[false, true, false]]")
-      inspect(result.cell(0, 1), content="None")
+}
+
+///|
+test "native fixtures" {
+  for case in fixture_cases {
+    let result = run_native_query(case.sql)
+    match result {
+      Ok(value) => expect_query_result(case, value)
+      Err(message) => fail("fixture '\{case.name}' failed: \{message}")
     }
-    None => fail("query returned no result")
+  } else {
+    ()
   }
 }
