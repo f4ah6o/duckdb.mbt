@@ -2,8 +2,8 @@
   "name": "f4ah6o/duckdb",
   "version": "0.1.0",
   "readme": "README.mbt.md",
-  "repository": "",
+  "repository": "https://github.com/f4ah6o/duckdb.mbt",
   "license": "Apache-2.0",
-  "keywords": [],
+  "keywords": ["duckdb"],
   "description": ""
 }
