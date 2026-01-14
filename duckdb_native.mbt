@@ -99,6 +99,70 @@ extern "C" fn native_appender_append_date(append : Appender, days : Int) -> Bool
 #borrow(append)
 extern "C" fn native_appender_append_timestamp(append : Appender, micros : Int) -> Bool = "duckdb_mb_append_timestamp"
 
+// ============================================================================
+// Advanced Data Types FFI Declarations
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Blob Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_blob(stmt : PreparedStatement, index : Int, data : Bytes, length : Int) -> Bool = "duckdb_mb_bind_blob"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_blob(append : Appender, data : Bytes, length : Int) -> Bool = "duckdb_mb_append_blob"
+
+// ----------------------------------------------------------------------------
+// Decimal Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_decimal(stmt : PreparedStatement, index : Int, width : Int, scale : Int, lower : Int, upper : Int) -> Bool = "duckdb_mb_bind_decimal"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_decimal(append : Appender, width : Int, scale : Int, lower : Int, upper : Int) -> Bool = "duckdb_mb_append_decimal"
+
+// ----------------------------------------------------------------------------
+// Interval Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_interval(stmt : PreparedStatement, index : Int, months : Int, days : Int, micros : Int) -> Bool = "duckdb_mb_bind_interval"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_interval(append : Appender, months : Int, days : Int, micros : Int) -> Bool = "duckdb_mb_append_interval"
+
+// ----------------------------------------------------------------------------
+// List Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_list_varchar(stmt : PreparedStatement, index : Int, values : Array[Bytes], count : Int) -> Bool = "duckdb_mb_bind_list_varchar"
+
+// ----------------------------------------------------------------------------
+// Struct Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_struct_varchar(stmt : PreparedStatement, index : Int, field_names : Array[Bytes], field_values : Array[Bytes], field_count : Int) -> Bool = "duckdb_mb_bind_struct_varchar"
+
+// ----------------------------------------------------------------------------
+// Map Type
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_map_varchar_varchar(stmt : PreparedStatement, index : Int, keys : Array[Bytes], values : Array[Bytes], entry_count : Int) -> Bool = "duckdb_mb_bind_map_varchar_varchar"
+
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -742,5 +806,375 @@ pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
   let second = remaining_seconds % 60
   let (year, month, day) = date_to_ymd(days)
   (year, month, day, hour, minute, second)
+}
+
+// ============================================================================
+// Advanced Data Types API Implementation
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Blob Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_blob(
+  self : PreparedStatement,
+  index : Int,
+  value : Bytes,
+) -> Result[Unit, DuckDBError] {
+  if native_bind_blob(self, index, value, 0) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_blob failed")))
+  }
+}
+
+///|
+pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
+  if native_appender_append_blob(self, value, 0) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_blob failed")))
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Decimal Type
+// ----------------------------------------------------------------------------
+
+// Helper function for power of 10
+fn int_pow10(exp : Int) -> Int {
+  let mut result = 1
+  let mut i = 0
+  while i < exp {
+    result = result * 10
+    i = i + 1
+  }
+  result
+}
+
+///|
+pub fn PreparedStatement::bind_decimal(
+  self : PreparedStatement,
+  index : Int,
+  value : Decimal,
+) -> Result[Unit, DuckDBError] {
+  // Convert Int to duckdb_hugeint representation
+  // For positive values: upper=0, lower=value
+  // For negative values: upper=-1, lower=two's complement
+  let (lower, upper) = if value.value >= 0 {
+    (value.value, 0)
+  } else {
+    let abs_val = -value.value
+    (0 - abs_val, -1)
+  }
+  if native_bind_decimal(self, index, value.width, value.scale, lower, upper) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_decimal failed")))
+  }
+}
+
+///|
+pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit, DuckDBError] {
+  let (lower, upper) = if value.value >= 0 {
+    (value.value, 0)
+  } else {
+    let abs_val = -value.value
+    (0 - abs_val, -1)
+  }
+  if native_appender_append_decimal(self, value.width, value.scale, lower, upper) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_decimal failed")))
+  }
+}
+
+///|
+/// Create a decimal from a floating-point value with specified precision.
+/// Note: This is approximate due to floating-point representation.
+pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
+  let multiplier = int_pow10(scale)
+  let scaled = (value * Double::from_int(multiplier)).to_int()
+  { width, scale, value: scaled }
+}
+
+///|
+/// Convert decimal to floating-point (approximate).
+pub fn decimal_to_double(decimal : Decimal) -> Double {
+  let divisor = Double::from_int(int_pow10(decimal.scale))
+  Double::from_int(decimal.value) / divisor
+}
+
+///|
+/// Create a decimal from integer parts.
+pub fn decimal_from_parts(
+  whole : Int,
+  fractional : Int,
+  scale : Int,
+) -> Decimal {
+  let value = whole * int_pow10(scale) + fractional
+  let width = if whole == 0 {
+    String::length(fractional.to_string())
+  } else {
+    String::length(whole.to_string()) + scale
+  }
+  { width: width.max(1), scale, value }
+}
+
+///|
+/// Get the whole and fractional parts of a decimal.
+pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
+  let divisor = int_pow10(decimal.scale)
+  let whole = decimal.value / divisor
+  let fractional = Int::abs(decimal.value % divisor)
+  (whole, fractional)
+}
+
+// ----------------------------------------------------------------------------
+// Interval Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_interval(
+  self : PreparedStatement,
+  index : Int,
+  value : Interval,
+) -> Result[Unit, DuckDBError] {
+  if native_bind_interval(self, index, value.months, value.days, value.micros) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_interval failed")))
+  }
+}
+
+///|
+pub fn Appender::append_interval(self : Appender, value : Interval) -> Result[Unit, DuckDBError] {
+  if native_appender_append_interval(self, value.months, value.days, value.micros) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_interval failed")))
+  }
+}
+
+///|
+/// Create an interval from months, days, and microseconds.
+pub fn interval_from_parts(months : Int, days : Int, micros : Int) -> Interval {
+  { months, days, micros }
+}
+
+///|
+/// Create an interval from days.
+pub fn interval_from_days(days : Int) -> Interval {
+  { months: 0, days, micros: 0 }
+}
+
+///|
+/// Create an interval from hours.
+pub fn interval_from_hours(hours : Int) -> Interval {
+  let micros = hours * 3600 * int_pow10(6)
+  { months: 0, days: 0, micros }
+}
+
+///|
+/// Create an interval from minutes.
+pub fn interval_from_minutes(minutes : Int) -> Interval {
+  let micros = minutes * 60 * int_pow10(6)
+  { months: 0, days: 0, micros }
+}
+
+///|
+/// Create an interval from seconds.
+pub fn interval_from_seconds(seconds : Int) -> Interval {
+  let micros = seconds * int_pow10(6)
+  { months: 0, days: 0, micros }
+}
+
+///|
+/// Create an interval from months.
+pub fn interval_from_months(months : Int) -> Interval {
+  { months, days: 0, micros: 0 }
+}
+
+///|
+/// Get the total microseconds equivalent of this interval.
+/// Note: This is approximate since months have varying lengths.
+pub fn interval_to_micros(interval : Interval) -> Int {
+  let days_micros = interval.days * 86400 * 1000000
+  interval.micros + days_micros
+}
+
+// ----------------------------------------------------------------------------
+// List Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_list_varchar(
+  self : PreparedStatement,
+  index : Int,
+  values : Array[String],
+) -> Result[Unit, DuckDBError] {
+  let encoded = values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_bind_list_varchar(self, index, encoded, encoded.length()) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_list_varchar failed")))
+  }
+}
+
+///|
+/// Create a list from string array.
+pub fn list_from_strings(elements : Array[String]) -> List {
+  { elements }
+}
+
+///|
+/// Get list length.
+pub fn list_length(list : List) -> Int {
+  list.elements.length()
+}
+
+///|
+/// Get element at index.
+pub fn list_get(list : List, index : Int) -> String? {
+  if index >= 0 && index < list.elements.length() {
+    Some(list.elements[index])
+  } else {
+    None
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Struct Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_struct(
+  self : PreparedStatement,
+  index : Int,
+  value : Struct,
+) -> Result[Unit, DuckDBError] {
+  let encoded_names = value.fields.map(fn(f) { @encoding/utf8.encode(f) })
+  let encoded_values = value.values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_bind_struct_varchar(
+    self,
+    index,
+    encoded_names,
+    encoded_values,
+    value.fields.length(),
+  ) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_struct failed")))
+  }
+}
+
+///|
+/// Create a struct from field names and values.
+pub fn struct_from_arrays(fields : Array[String], values : Array[String]) -> Struct {
+  { fields, values }
+}
+
+///|
+/// Create a struct from key-value pairs.
+pub fn struct_from_pairs(pairs : Array[(String, String)]) -> Struct {
+  let fields = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { fields, values }
+}
+
+// Helper function to find index in array
+fn array_index_of(arr : Array[String], val : String) -> Option[Int] {
+  let mut i = 0
+  while i < arr.length() {
+    if arr[i] == val {
+      return Some(i)
+    }
+    i = i + 1
+  }
+  None
+}
+
+///|
+/// Get field value by name.
+pub fn struct_get(s : Struct, field_name : String) -> Option[String] {
+  let idx = array_index_of(s.fields, field_name)
+  match idx {
+    Some(i) => {
+      if i < s.values.length() {
+        Some(s.values[i])
+      } else {
+        None
+      }
+    }
+    None => None
+  }
+}
+
+///|
+/// Get struct field count.
+pub fn struct_field_count(s : Struct) -> Int {
+  s.fields.length()
+}
+
+// ----------------------------------------------------------------------------
+// Map Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_map(
+  self : PreparedStatement,
+  index : Int,
+  map : Map,
+) -> Result[Unit, DuckDBError] {
+  let encoded_keys = map.keys.map(fn(k) { @encoding/utf8.encode(k) })
+  let encoded_values = map.values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_bind_map_varchar_varchar(
+    self,
+    index,
+    encoded_keys,
+    encoded_values,
+    map.keys.length(),
+  ) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_map failed")))
+  }
+}
+
+///|
+/// Create a map from key and value arrays.
+pub fn map_from_arrays(keys : Array[String], values : Array[String]) -> Map {
+  { keys, values }
+}
+
+///|
+/// Create a map from an array of key-value pairs.
+pub fn map_from_pairs(pairs : Array[(String, String)]) -> Map {
+  let keys = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { keys, values }
+}
+
+///|
+/// Get value by key.
+pub fn map_get(m : Map, key : String) -> String? {
+  let idx = array_index_of(m.keys, key)
+  match idx {
+    Some(i) => {
+      if i < m.values.length() {
+        Some(m.values[i])
+      } else {
+        None
+      }
+    }
+    None => None
+  }
+}
+
+///|
+/// Get map size.
+pub fn map_size(map : Map) -> Int {
+  map.keys.length()
 }
 

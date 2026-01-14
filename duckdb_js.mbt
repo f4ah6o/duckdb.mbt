@@ -1031,3 +1031,301 @@ pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
 pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
   on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
 }
+
+// ============================================================================
+// Advanced Data Types for JS Backend
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Blob Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_blob(
+  self : PreparedStatement,
+  index : Int,
+  value : Bytes,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = value
+  Err(DuckDBError::Message("bind_blob not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+// ----------------------------------------------------------------------------
+// Decimal Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_decimal(
+  self : PreparedStatement,
+  index : Int,
+  value : Decimal,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = value
+  Err(DuckDBError::Message("bind_decimal not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+// Helper function for power of 10
+fn int_pow10(exp : Int) -> Int {
+  let mut result = 1
+  let mut i = 0
+  while i < exp {
+    result = result * 10
+    i = i + 1
+  }
+  result
+}
+
+///|
+pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
+  let multiplier = int_pow10(scale)
+  let scaled = (value * Double::from_int(multiplier)).to_int()
+  { width, scale, value: scaled }
+}
+
+///|
+pub fn decimal_to_double(decimal : Decimal) -> Double {
+  let divisor = Double::from_int(int_pow10(decimal.scale))
+  Double::from_int(decimal.value) / divisor
+}
+
+///|
+pub fn decimal_from_parts(whole : Int, fractional : Int, scale : Int) -> Decimal {
+  let value = whole * int_pow10(scale) + fractional
+  let width = if whole == 0 {
+    String::length(fractional.to_string())
+  } else {
+    String::length(whole.to_string()) + scale
+  }
+  { width: width.max(1), scale, value }
+}
+
+///|
+pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
+  let divisor = int_pow10(decimal.scale)
+  let whole = decimal.value / divisor
+  let fractional = Int::abs(decimal.value % divisor)
+  (whole, fractional)
+}
+
+// ----------------------------------------------------------------------------
+// Interval Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_interval(
+  self : PreparedStatement,
+  index : Int,
+  value : Interval,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = value
+  Err(DuckDBError::Message("bind_interval not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_interval(self : Appender, value : Interval) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn interval_from_parts(months : Int, days : Int, micros : Int) -> Interval {
+  { months, days, micros }
+}
+
+///|
+pub fn interval_from_days(days : Int) -> Interval {
+  { months: 0, days, micros: 0 }
+}
+
+///|
+pub fn interval_from_hours(hours : Int) -> Interval {
+  let micros = hours * 3600 * 1000000
+  { months: 0, days: 0, micros }
+}
+
+///|
+pub fn interval_from_minutes(minutes : Int) -> Interval {
+  let micros = minutes * 60 * 1000000
+  { months: 0, days: 0, micros }
+}
+
+///|
+pub fn interval_from_seconds(seconds : Int) -> Interval {
+  let micros = seconds * 1000000
+  { months: 0, days: 0, micros }
+}
+
+///|
+pub fn interval_from_months(months : Int) -> Interval {
+  { months, days: 0, micros: 0 }
+}
+
+///|
+pub fn interval_to_micros(interval : Interval) -> Int {
+  let days_micros = interval.days * 86400 * 1000000
+  interval.micros + days_micros
+}
+
+// ----------------------------------------------------------------------------
+// List Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_list_varchar(
+  self : PreparedStatement,
+  index : Int,
+  values : Array[String],
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = values
+  Err(DuckDBError::Message("bind_list_varchar not yet supported for JS backend"))
+}
+
+///|
+pub fn list_from_strings(elements : Array[String]) -> List {
+  { elements }
+}
+
+///|
+pub fn list_length(list : List) -> Int {
+  list.elements.length()
+}
+
+///|
+pub fn list_get(list : List, index : Int) -> String? {
+  if index >= 0 && index < list.elements.length() {
+    Some(list.elements[index])
+  } else {
+    None
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Struct Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_struct(
+  self : PreparedStatement,
+  index : Int,
+  value : Struct,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = value
+  Err(DuckDBError::Message("bind_struct not yet supported for JS backend"))
+}
+
+///|
+pub fn struct_from_arrays(fields : Array[String], values : Array[String]) -> Struct {
+  { fields, values }
+}
+
+///|
+pub fn struct_from_pairs(pairs : Array[(String, String)]) -> Struct {
+  let fields = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { fields, values }
+}
+
+// Helper function to find index in array
+fn array_index_of(arr : Array[String], val : String) -> Option[Int] {
+  let mut i = 0
+  while i < arr.length() {
+    if arr[i] == val {
+      return Some(i)
+    }
+    i = i + 1
+  }
+  None
+}
+
+///|
+pub fn struct_get(s : Struct, field_name : String) -> String? {
+  let idx = array_index_of(s.fields, field_name)
+  match idx {
+    Some(i) => {
+      if i < s.values.length() {
+        Some(s.values[i])
+      } else {
+        None
+      }
+    }
+    None => None
+  }
+}
+
+///|
+pub fn struct_field_count(s : Struct) -> Int {
+  s.fields.length()
+}
+
+// ----------------------------------------------------------------------------
+// Map Type
+// ----------------------------------------------------------------------------
+
+///|
+pub fn PreparedStatement::bind_map(
+  self : PreparedStatement,
+  index : Int,
+  map : Map,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = map
+  Err(DuckDBError::Message("bind_map not yet supported for JS backend"))
+}
+
+///|
+pub fn map_from_arrays(keys : Array[String], values : Array[String]) -> Map {
+  { keys, values }
+}
+
+///|
+pub fn map_from_pairs(pairs : Array[(String, String)]) -> Map {
+  let keys = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { keys, values }
+}
+
+///|
+pub fn map_get(m : Map, key : String) -> String? {
+  let idx = array_index_of(m.keys, key)
+  match idx {
+    Some(i) => {
+      if i < m.values.length() {
+        Some(m.values[i])
+      } else {
+        None
+      }
+    }
+    None => None
+  }
+}
+
+///|
+pub fn map_size(m : Map) -> Int {
+  m.keys.length()
+}

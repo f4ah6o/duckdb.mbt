@@ -893,3 +893,86 @@ test "native appender append timestamp" {
     Err(message) => fail("appender timestamp test failed: \{message}")
   }
 }
+
+// ============================================================================
+// Advanced Data Types Helper Tests
+// ============================================================================
+
+///|
+test "decimal helpers" {
+  let d1 = decimal_from_double(123.456, 10, 3)
+  let (whole, _frac) = decimal_to_parts(d1)
+  if whole != 123 {
+    fail("expected whole part 123, got \{whole}")
+  }
+  let d2 = decimal_to_double(d1)
+  if d2 < 123.0 || d2 > 124.0 {
+    fail("expected decimal ~123.456, got \{d2}")
+  }
+  ()
+}
+
+///|
+test "interval helpers" {
+  let i1 = interval_from_days(1)
+  if i1.days != 1 {
+    fail("expected 1 day, got \{i1.days}")
+  }
+  let i2 = interval_from_seconds(1)
+  // 1 second = 1000000 micros
+  if i2.micros != 1000000 {
+    fail("expected 1000000 micros, got \{i2.micros}")
+  }
+  ()
+}
+
+///|
+test "list helpers" {
+  let l = list_from_strings(["a", "b", "c"])
+  if list_length(l) != 3 {
+    fail("expected length 3, got \{list_length(l)}")
+  }
+  match list_get(l, 1) {
+    Some(v) => {
+      if v != "b" {
+        fail("expected 'b', got '\{v}'")
+      }
+    }
+    None => fail("expected Some value, got None")
+  }
+  ()
+}
+
+///|
+test "struct helpers" {
+  let s = struct_from_arrays(["x", "y"], ["1", "2"])
+  if struct_field_count(s) != 2 {
+    fail("expected 2 fields, got \{struct_field_count(s)}")
+  }
+  match struct_get(s, "x") {
+    Some(v) => {
+      if v != "1" {
+        fail("expected '1', got '\{v}'")
+      }
+    }
+    None => fail("expected Some value, got None")
+  }
+  ()
+}
+
+///|
+test "map helpers" {
+  let m = map_from_arrays(["k1", "k2"], ["v1", "v2"])
+  if map_size(m) != 2 {
+    fail("expected size 2, got \{map_size(m)}")
+  }
+  match map_get(m, "k1") {
+    Some(v) => {
+      if v != "v1" {
+        fail("expected 'v1', got '\{v}'")
+      }
+    }
+    None => fail("expected Some value, got None")
+  }
+  ()
+}

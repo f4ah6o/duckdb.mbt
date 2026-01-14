@@ -946,6 +946,368 @@ int32_t duckdb_mb_append_timestamp(duckdb_mb_appender *mb_append,
 }
 
 // ============================================================================
+// Advanced Data Types Functions
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Blob Type
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_blob(duckdb_mb_statement *mb_stmt, int32_t index,
+                             moonbit_bytes_t data, int32_t length) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  void *data_ptr = data;
+  duckdb_state state = duckdb_bind_blob(mb_stmt->stmt, (idx_t)index, data_ptr, (idx_t)length);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_blob(duckdb_mb_appender *mb_append,
+                                moonbit_bytes_t data, int32_t length) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  void *data_ptr = data;
+  duckdb_state state = duckdb_append_blob(mb_append->appender, data_ptr, (idx_t)length);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Decimal Type (using duckdb_hugeint)
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_decimal(duckdb_mb_statement *mb_stmt, int32_t index,
+                                uint8_t width, uint8_t scale,
+                                int64_t lower, int64_t upper) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  duckdb_decimal decimal;
+  decimal.width = width;
+  decimal.scale = scale;
+  decimal.value.lower = (uint64_t)lower;
+  decimal.value.upper = upper;
+
+  duckdb_state state = duckdb_bind_decimal(mb_stmt->stmt, (idx_t)index, decimal);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_decimal(duckdb_mb_appender *mb_append,
+                                  uint8_t width, uint8_t scale,
+                                  int64_t lower, int64_t upper) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  duckdb_decimal decimal;
+  decimal.width = width;
+  decimal.scale = scale;
+  decimal.value.lower = (uint64_t)lower;
+  decimal.value.upper = upper;
+
+  // Create value from decimal
+  duckdb_value val = duckdb_create_decimal(decimal);
+  if (!val) {
+    strncpy(mb_append->error, "failed to create decimal value",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  duckdb_state state = duckdb_append_value(mb_append->appender, val);
+  duckdb_destroy_value(&val);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Interval Type
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_interval(duckdb_mb_statement *mb_stmt, int32_t index,
+                                 int32_t months, int32_t days, int64_t micros) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  duckdb_interval interval;
+  interval.months = months;
+  interval.days = days;
+  interval.micros = micros;
+
+  duckdb_state state = duckdb_bind_interval(mb_stmt->stmt, (idx_t)index, interval);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_interval(duckdb_mb_appender *mb_append,
+                                  int32_t months, int32_t days, int64_t micros) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  duckdb_interval interval;
+  interval.months = months;
+  interval.days = days;
+  interval.micros = micros;
+
+  duckdb_state state = duckdb_append_interval(mb_append->appender, interval);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// List Type (VARCHAR list for simplicity)
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_list_varchar(duckdb_mb_statement *mb_stmt, int32_t index,
+                                     moonbit_bytes_t *values, int32_t count) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  // For now, serialize list as JSON string for VARCHAR compatibility
+  // Calculate total length needed
+  size_t total_len = 2; // '[' + ']'
+  for (int32_t i = 0; i < count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    total_len += (size_t)len + 2; // quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_stmt->error, "failed to allocate list buffer",
+            sizeof(mb_stmt->error) - 1);
+    mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '[';
+  for (int32_t i = 0; i < count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    for (int32_t j = 0; j < len; j++) {
+      buffer[pos++] = ((char*)values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = ']';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_bind_varchar(mb_stmt->stmt, (idx_t)index, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Struct Type
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_struct_varchar(duckdb_mb_statement *mb_stmt, int32_t index,
+                                       moonbit_bytes_t *field_names,
+                                       moonbit_bytes_t *field_values,
+                                       int32_t field_count) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  // For now, serialize struct as JSON string for VARCHAR compatibility
+  // Calculate total length needed
+  size_t total_len = 2; // '{' + '}'
+  for (int32_t i = 0; i < field_count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t name_len = field_names[i] ? Moonbit_array_length(field_names[i]) : 0;
+    int32_t val_len = field_values[i] ? Moonbit_array_length(field_values[i]) : 0;
+    total_len += (size_t)name_len + (size_t)val_len + 4; // name, ": ", quotes, quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_stmt->error, "failed to allocate struct buffer",
+            sizeof(mb_stmt->error) - 1);
+    mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '{';
+  for (int32_t i = 0; i < field_count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t name_len = field_names[i] ? Moonbit_array_length(field_names[i]) : 0;
+    for (int32_t j = 0; j < name_len; j++) {
+      buffer[pos++] = ((char*)field_names[i])[j];
+    }
+    buffer[pos++] = '"';
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    buffer[pos++] = '"';
+    int32_t val_len = field_values[i] ? Moonbit_array_length(field_values[i]) : 0;
+    for (int32_t j = 0; j < val_len; j++) {
+      buffer[pos++] = ((char*)field_values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = '}';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_bind_varchar(mb_stmt->stmt, (idx_t)index, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Map Type (represented as list of struct entries with key/value fields)
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_bind_map_varchar_varchar(duckdb_mb_statement *mb_stmt, int32_t index,
+                                            moonbit_bytes_t *keys,
+                                            moonbit_bytes_t *values,
+                                            int32_t entry_count) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+
+  // For now, serialize map as JSON string for VARCHAR compatibility
+  // Calculate total length needed
+  size_t total_len = 2; // '{' + '}'
+  for (int32_t i = 0; i < entry_count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t key_len = keys[i] ? Moonbit_array_length(keys[i]) : 0;
+    int32_t val_len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    total_len += (size_t)key_len + (size_t)val_len + 6; // key, ": ", value, quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_stmt->error, "failed to allocate map buffer",
+            sizeof(mb_stmt->error) - 1);
+    mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '{';
+  for (int32_t i = 0; i < entry_count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t key_len = keys[i] ? Moonbit_array_length(keys[i]) : 0;
+    for (int32_t j = 0; j < key_len; j++) {
+      buffer[pos++] = ((char*)keys[i])[j];
+    }
+    buffer[pos++] = '"';
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    buffer[pos++] = '"';
+    int32_t val_len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    for (int32_t j = 0; j < val_len; j++) {
+      buffer[pos++] = ((char*)values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = '}';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_bind_varchar(mb_stmt->stmt, (idx_t)index, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ============================================================================
 // Arrow Integration
 // ============================================================================
 
