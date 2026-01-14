@@ -85,6 +85,83 @@ extern "js" fn js_arrow_destroy(result : ArrowResult) -> Unit =
   #|  }
   #|}
 
+///|
+extern "js" fn js_arrow_get_schema(result : ArrowResult) -> String =
+  #|(result) => {
+  #|  if (!result?.result?.schema?.fields) return "[]";
+  #|  const fields = result.result.schema.fields.map(field => {
+  #|    let typeId = "string";
+  #|    // Arrow type detection
+  #|    if (field.type) {
+  #|      const t = field.type;
+  #|      // Check Arrow type by various properties
+  #|      if (t.typeId === 1 || t.bitWidth === 1 || t.constructor?.name === "Bool") typeId = "bool";
+  #|      else if (t.typeId === 2 || t.bitWidth === 32 || t.constructor?.name === "Int") typeId = "int32";
+  #|      else if (t.typeId === 3 || t.bitWidth === 64 || t.constructor?.name === "Int64" || t.constructor?.name === "BigInt") typeId = "int64";
+  #|      else if (t.typeId === 7 || t.typeId === 8 || t.typeId === 9 || t.constructor?.name === "Float" || t.constructor?.name === "Float64") typeId = "double";
+  #|      else if (t.typeId === 5 || t.typeId === 6 || t.constructor?.name === "Utf8") typeId = "string";
+  #|    }
+  #|    return {
+  #|      name: field.name || "",
+  #|      nullable: field.nullable ?? true,
+  #|      type_id: typeId
+  #|    };
+  #|  });
+  #|  return JSON.stringify(fields);
+  #|}
+
+///|
+extern "js" fn js_arrow_get_column_int32(result : ArrowResult, col : Int) -> String =
+  #|(result, col) => {
+  #|  if (!result?.result) return "[]";
+  #|  const vector = result.result.getChild(col);
+  #|  if (!vector) return "[]";
+  #|  const arr = vector.toArray();
+  #|  return JSON.stringify(arr || []);
+  #|}
+
+///|
+extern "js" fn js_arrow_get_column_int64(result : ArrowResult, col : Int) -> String =
+  #|(result, col) => {
+  #|  if (!result?.result) return "[]";
+  #|  const vector = result.result.getChild(col);
+  #|  if (!vector) return "[]";
+  #|  const arr = vector.toArray();
+  #|  // Convert BigInt values to strings for JSON serialization
+  #|  const converted = arr.map(v => typeof v === "bigint" ? v.toString() : v);
+  #|  return JSON.stringify(converted || []);
+  #|}
+
+///|
+extern "js" fn js_arrow_get_column_double(result : ArrowResult, col : Int) -> String =
+  #|(result, col) => {
+  #|  if (!result?.result) return "[]";
+  #|  const vector = result.result.getChild(col);
+  #|  if (!vector) return "[]";
+  #|  const arr = vector.toArray();
+  #|  return JSON.stringify(arr || []);
+  #|}
+
+///|
+extern "js" fn js_arrow_get_column_string(result : ArrowResult, col : Int) -> String =
+  #|(result, col) => {
+  #|  if (!result?.result) return "[]";
+  #|  const vector = result.result.getChild(col);
+  #|  if (!vector) return "[]";
+  #|  const arr = vector.toArray();
+  #|  return JSON.stringify(arr || []);
+  #|}
+
+///|
+extern "js" fn js_arrow_get_column_bool(result : ArrowResult, col : Int) -> String =
+  #|(result, col) => {
+  #|  if (!result?.result) return "[]";
+  #|  const vector = result.result.getChild(col);
+  #|  if (!vector) return "[]";
+  #|  const arr = vector.toArray();
+  #|  return JSON.stringify(arr || []);
+  #|}
+
 // ============================================================================
 // Public API (JavaScript Backend)
 // ============================================================================
@@ -125,34 +202,231 @@ pub fn ArrowResult::row_count(self : ArrowResult) -> Int {
 
 ///|
 pub fn ArrowResult::get_schema(self : ArrowResult) -> Result[ArrowSchemaInfo, DuckDBError] {
-  // For JS backend, schema extraction requires Arrow schema traversal
-  Ok(ArrowSchemaInfo::{ fields: [] })
+  let json_str = js_arrow_get_schema(self)
+  parse_arrow_schema_json(json_str)
+}
+
+// Parse Arrow schema JSON into ArrowSchemaInfo
+fn parse_arrow_schema_json(json : String) -> Result[ArrowSchemaInfo, DuckDBError] {
+  let parsed = @json.parse(json) catch {
+    err => return Err(DuckDBError::Message("schema parse failed: " + err.to_string()))
+  }
+  match parsed {
+    Json::Array(items) => {
+      let fields : Array[ArrowField] = []
+      for item in items {
+        match item {
+          Json::Object(obj) => {
+            let name = match obj["name"] {
+              Json::String(n) => n
+              _ => ""
+            }
+            let nullable = match obj["nullable"] {
+              Json::True => true
+              Json::False => false
+              _ => true
+            }
+            let type_id = match obj["type_id"] {
+              Json::String(t) => t
+              _ => "string"
+            }
+            fields.push(ArrowField::{ name: name, nullable: nullable, type_id: type_id })
+          }
+          _ => return Err(DuckDBError::Message("invalid field format"))
+        }
+      } else {
+        ()
+      }
+      Ok(ArrowSchemaInfo::{ fields: fields })
+    }
+    _ => Ok(ArrowSchemaInfo::{ fields: [] })
+  }
 }
 
 ///|
 pub fn ArrowResult::get_column_int32(self : ArrowResult, col : Int) -> Array[Int] {
-  // TODO: Extract from Arrow data
-  []
+  let json_str = js_arrow_get_column_int32(self, col)
+  parse_json_int_array(json_str)
 }
 
 ///|
 pub fn ArrowResult::get_column_int64(self : ArrowResult, col : Int) -> Array[Int] {
-  []
+  let json_str = js_arrow_get_column_int64(self, col)
+  parse_json_int_array(json_str)
 }
 
 ///|
 pub fn ArrowResult::get_column_double(self : ArrowResult, col : Int) -> Array[Double] {
-  []
+  let json_str = js_arrow_get_column_double(self, col)
+  parse_json_double_array(json_str)
 }
 
 ///|
 pub fn ArrowResult::get_column_string(self : ArrowResult, col : Int) -> Array[String] {
-  []
+  let json_str = js_arrow_get_column_string(self, col)
+  parse_json_string_array(json_str)
 }
 
 ///|
 pub fn ArrowResult::get_column_bool(self : ArrowResult, col : Int) -> Array[Bool] {
-  []
+  let json_str = js_arrow_get_column_bool(self, col)
+  parse_json_bool_array(json_str)
+}
+
+// ============================================================================
+// JSON Parsing Helpers
+// ============================================================================
+
+// Simple string to Int parser
+fn parse_str_to_int(s : String) -> Int {
+  let mut result = 0
+  let mut i = 0
+  let negative = if s.length() > 0 && s[0] == '-' {
+    i = 1
+    true
+  } else {
+    false
+  }
+  while i < s.length() {
+    let c = s[i]
+    if c >= '0' && c <= '9' {
+      result = result * 10 + (c.to_int() - '0'.to_int())
+    }
+    i = i + 1
+  }
+  if negative { -result } else { result }
+}
+
+// Simple string to Double parser
+fn parse_str_to_double(s : String) -> Double {
+  // Find dot position and parse integer part in one pass
+  let mut dot_idx = -1
+  let mut int_val = 0
+  let mut i = 0
+  let negative = if s.length() > 0 && s[0] == '-' {
+    i = 1
+    true
+  } else {
+    false
+  }
+  while i < s.length() {
+    let c = s[i]
+    if c == '.' {
+      dot_idx = i
+      break
+    }
+    if c >= '0' && c <= '9' {
+      int_val = int_val * 10 + (c.to_int() - '0'.to_int())
+    }
+    i = i + 1
+  }
+  if dot_idx >= 0 {
+    // Parse fractional part
+    let mut frac_val = 0.0
+    let mut divisor = 10.0
+    i = dot_idx + 1
+    while i < s.length() {
+      let c = s[i]
+      if c >= '0' && c <= '9' {
+        frac_val = frac_val + (c.to_int() - '0'.to_int()).to_double() / divisor
+        divisor = divisor * 10.0
+      }
+      i = i + 1
+    }
+    let sign = if negative { -1.0 } else { 1.0 }
+    sign * (int_val.to_double() + frac_val)
+  } else {
+    if negative { -int_val.to_double() } else { int_val.to_double() }
+  }
+}
+
+fn parse_json_int_array(json : String) -> Array[Int] {
+  let parsed = @json.parse(json) catch { _ => return [] }
+  match parsed {
+    Json::Array(items) => {
+      let result : Array[Int] = []
+      for item in items {
+        match item {
+          Json::Number(n) => {
+            result.push(parse_str_to_int(n.to_string()))
+          }
+          Json::String(s) => {
+            // Handle BigInt strings
+            result.push(parse_str_to_int(s))
+          }
+          Json::Null => result.push(0)
+          _ => result.push(0)
+        }
+      } else {
+        ()
+      }
+      result
+    }
+    _ => []
+  }
+}
+
+fn parse_json_double_array(json : String) -> Array[Double] {
+  let parsed = @json.parse(json) catch { _ => return [] }
+  match parsed {
+    Json::Array(items) => {
+      let result : Array[Double] = []
+      for item in items {
+        match item {
+          Json::Number(n) => {
+            result.push(n)
+          }
+          Json::Null => result.push(0.0)
+          _ => result.push(0.0)
+        }
+      } else {
+        ()
+      }
+      result
+    }
+    _ => []
+  }
+}
+
+fn parse_json_string_array(json : String) -> Array[String] {
+  let parsed = @json.parse(json) catch { _ => return [] }
+  match parsed {
+    Json::Array(items) => {
+      let result : Array[String] = []
+      for item in items {
+        match item {
+          Json::String(s) => result.push(s)
+          Json::Null => result.push("")
+          _ => result.push("")
+        }
+      } else {
+        ()
+      }
+      result
+    }
+    _ => []
+  }
+}
+
+fn parse_json_bool_array(json : String) -> Array[Bool] {
+  let parsed = @json.parse(json) catch { _ => return [] }
+  match parsed {
+    Json::Array(items) => {
+      let result : Array[Bool] = []
+      for item in items {
+        match item {
+          Json::True => result.push(true)
+          Json::False => result.push(false)
+          Json::Null => result.push(false)
+          _ => result.push(false)
+        }
+      } else {
+        ()
+      }
+      result
+    }
+    _ => []
+  }
 }
 
 ///|
