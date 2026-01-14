@@ -428,6 +428,375 @@ extern "js" fn js_bind_timestamp(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
+// ============================================================================
+// Advanced Type Bindings (Node API only)
+// ============================================================================
+
+extern "js" fn js_bind_blob(
+  stmt : PreparedStatement,
+  index : Int,
+  data : Bytes,
+) -> Result[Unit, String] =
+  #|(stmt, index, data) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const uint8Array = new Uint8Array(data.byteLength);
+  #|      for (let i = 0; i < data.byteLength; i++) {
+  #|        uint8Array[i] = data.readUint8(i);
+  #|      }
+  #|      stmt.statement.bindBlob(index, { bytes: uint8Array });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_blob is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_decimal(
+  stmt : PreparedStatement,
+  index : Int,
+  width : Int,
+  scale : Int,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(stmt, index, width, scale, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDecimal(index, { width, scale, value: BigInt(value) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_decimal is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_interval(
+  stmt : PreparedStatement,
+  index : Int,
+  months : Int,
+  days : Int,
+  micros : Int,
+) -> Result[Unit, String] =
+  #|(stmt, index, months, days, micros) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindInterval(index, { months, days, micros: BigInt(micros) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_interval is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_list_varchar(
+  stmt : PreparedStatement,
+  index : Int,
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bind(index, { items: values }, { typeId: 24 }); // LIST type
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_list_varchar is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_struct(
+  stmt : PreparedStatement,
+  index : Int,
+  fields : Array[String],
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, fields, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const entries = fields.map((name, i) => ({ name, value: values[i] }));
+  #|      stmt.statement.bindStruct(index, { entries });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_struct is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_map(
+  stmt : PreparedStatement,
+  index : Int,
+  keys : Array[String],
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, keys, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const entries = keys.map((key, i) => ({ key, value: values[i] }));
+  #|      stmt.statement.bindMap(index, { entries });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_map is only supported for Node backend" };
+  #|}
+
+// ============================================================================
+// Appender API (Node API only)
+// ============================================================================
+
+extern "js" fn js_create_appender(
+  conn : Connection,
+  table : String,
+  on_ok : (Appender) -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(conn, table, on_ok, on_err) => {
+  #|  const toError = (err) => err && err.message ? err.message : String(err);
+  #|  const run = async () => {
+  #|    if (conn && conn.kind === "node") {
+  #|      try {
+  #|        const appender = await conn.connection.createAppender(table);
+  #|        on_ok({ kind: "appender", connection: conn, appender });
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(toError(e));
+  #|        return;
+  #|      }
+  #|    }
+  #|    if (conn && conn.kind === "wasm") {
+  #|      on_err("Appender is not supported for WASM backend. Use INSERT statements, insertCSVFromPath(), insertJSONFromPath(), or insertArrowTable() instead.");
+  #|      return;
+  #|    }
+  #|    on_err("unknown connection backend");
+  #|  };
+  #|  run().catch((err) => on_err(toError(err)));
+  #|}
+
+extern "js" fn js_appender_begin_row(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      // No-op in Node API, but kept for API compatibility
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_int(
+  appender : Appender,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendInteger(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_bigint(
+  appender : Appender,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendBigInt(BigInt(value));
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_double(
+  appender : Appender,
+  value : Double,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendDouble(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_varchar(
+  appender : Appender,
+  value : String,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendVarchar(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_bool(
+  appender : Appender,
+  value : Bool,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendBoolean(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_null(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendNull();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_blob(
+  appender : Appender,
+  data : Bytes,
+) -> Result[Unit, String] =
+  #|(appender, data) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      const uint8Array = new Uint8Array(data.byteLength);
+  #|      for (let i = 0; i < data.byteLength; i++) {
+  #|        uint8Array[i] = data.readUint8(i);
+  #|      }
+  #|      appender.appender.appendBlob({ bytes: uint8Array });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_decimal(
+  appender : Appender,
+  width : Int,
+  scale : Int,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, width, scale, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendDecimal({ width, scale, value: BigInt(value) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_interval(
+  appender : Appender,
+  months : Int,
+  days : Int,
+  micros : Int,
+) -> Result[Unit, String] =
+  #|(appender, months, days, micros) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendInterval({ months, days, micros: BigInt(micros) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_end_row(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.endRow();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_flush(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.flushSync();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_close(
+  appender : Appender,
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(appender, on_ok, on_err) => {
+  #|  const toError = (err) => err && err.message ? err.message : String(err);
+  #|  const run = async () => {
+  #|    if (appender && appender.kind === "appender" && appender.appender) {
+  #|      try {
+  #|        appender.appender.closeSync();
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(toError(e));
+  #|        return;
+  #|      }
+  #|    }
+  #|    on_err("invalid appender");
+  #|  };
+  #|  run().catch((err) => on_err(toError(err)));
+  #|}
+
 extern "js" fn js_execute_prepared(
   stmt : PreparedStatement,
   on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit,
@@ -964,7 +1333,7 @@ pub fn connect_with_config(
 }
 
 // ============================================================================
-// Appender API Implementation (Basic - for future expansion)
+// Appender API Implementation (Node backend only)
 // ============================================================================
 
 ///|
@@ -974,64 +1343,86 @@ pub fn Connection::create_appender(
   table : String,
   on_done~ : (Result[Appender, DuckDBError]) -> Unit,
 ) -> Unit {
-  // JS Appender is complex and requires table schema knowledge
-  // For now, return not supported error
-  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+  // Note: schema parameter is ignored for Node API (uses table name only)
+  let _ = schema
+  js_create_appender(self, table, fn(a) { on_done(Ok(a)) }, fn(e) { on_done(Err(DuckDBError::Message(e))) })
 }
 
 ///|
 pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_begin_row(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_int(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_bigint(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_double(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_varchar(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_bool(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_null(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_end_row(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_flush(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
-  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+  js_appender_close(self, fn() { on_done(Ok(())) }, fn(e) { on_done(Err(DuckDBError::Message(e))) })
 }
 
 // ============================================================================
@@ -1048,17 +1439,18 @@ pub fn PreparedStatement::bind_blob(
   index : Int,
   value : Bytes,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_blob not yet supported for JS backend"))
+  match js_bind_blob(self, index, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_blob(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -1071,17 +1463,18 @@ pub fn PreparedStatement::bind_decimal(
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_decimal not yet supported for JS backend"))
+  match js_bind_decimal(self, index, value.width, value.scale, value.value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_decimal(self, value.width, value.scale, value.value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1126,17 +1519,18 @@ pub fn PreparedStatement::bind_interval(
   index : Int,
   value : Interval,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_interval not yet supported for JS backend"))
+  match js_bind_interval(self, index, value.months, value.days, value.micros) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_interval(self : Appender, value : Interval) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_interval(self, value.months, value.days, value.micros) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1188,10 +1582,10 @@ pub fn PreparedStatement::bind_list_varchar(
   index : Int,
   values : Array[String],
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = values
-  Err(DuckDBError::Message("bind_list_varchar not yet supported for JS backend"))
+  match js_bind_list_varchar(self, index, values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1223,10 +1617,10 @@ pub fn PreparedStatement::bind_struct(
   index : Int,
   value : Struct,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_struct not yet supported for JS backend"))
+  match js_bind_struct(self, index, value.fields, value.values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1283,10 +1677,10 @@ pub fn PreparedStatement::bind_map(
   index : Int,
   map : Map,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = map
-  Err(DuckDBError::Message("bind_map not yet supported for JS backend"))
+  match js_bind_map(self, index, map.keys, map.values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
