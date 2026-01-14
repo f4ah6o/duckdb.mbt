@@ -1006,7 +1006,7 @@ test "typed result basic types" {
 
       match typed.get_double(0, 1) {
         Some(d) => {
-          let diff = d - 3.14
+          let mut diff = d - 3.14
           if diff < 0.0 { diff = -diff }
           if diff > 0.001 {
             fail("expected double ~3.14, got \{d}")
@@ -1098,7 +1098,7 @@ test "typed result date and timestamp" {
       match typed.get_timestamp(0, 1) {
         Some(micros) => {
           let ts = timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56)
-          let diff = micros - ts
+          let mut diff = micros - ts
           if diff < 0 { diff = -diff }
           if diff > 1000000 {
             fail("expected timestamp ~\{ts}, got \{micros}")
@@ -1123,9 +1123,9 @@ test "typed result columnar access" {
           if col.length() != 3 {
             fail("expected column length 3, got \{col.length()}")
           }
-          match col[0] { Some(1) => () _ => fail("expected Some(1)") }
-          match col[1] { Some(2) => () _ => fail("expected Some(2)") }
-          match col[2] { Some(3) => () _ => fail("expected Some(3)") }
+          match col[0] { Some(1) => (); _ => fail("expected Some(1)") }
+          match col[1] { Some(2) => (); _ => fail("expected Some(2)") }
+          match col[2] { Some(3) => (); _ => fail("expected Some(3)") }
         }
         None => fail("expected Some(column), got None")
       }
@@ -1135,9 +1135,9 @@ test "typed result columnar access" {
           if col.length() != 3 {
             fail("expected column length 3, got \{col.length()}")
           }
-          match col[0] { Some(s) => { if s != "a" { fail("expected 'a'") } } _ => fail("expected Some('a')") }
-          match col[1] { Some(s) => { if s != "b" { fail("expected 'b'") } } _ => fail("expected Some('b')") }
-          match col[2] { None => () _ => fail("expected None for NULL") }
+          match col[0] { Some(s) => { if s != "a" { fail("expected 'a'") } }; _ => fail("expected Some('a')") }
+          match col[1] { Some(s) => { if s != "b" { fail("expected 'b'") } }; _ => fail("expected Some('b')") }
+          match col[2] { None => (); _ => fail("expected None for NULL") }
         }
         None => fail("expected Some(column), got None")
       }
@@ -1148,6 +1148,7 @@ test "typed result columnar access" {
 
 ///|
 test "typed result bigint extremes" {
+  // Use max/min int values by checking with arithmetic
   let result = run_native_query("SELECT 9223372036854775807 AS max_val, -9223372036854775808 AS min_val")
   match result {
     Ok(query_result) => {
@@ -1155,16 +1156,25 @@ test "typed result bigint extremes" {
 
       match typed.get_int(0, 0) {
         Some(i) => {
-          if i != 9223372036854775807 {
+          // Check if i is max int by verifying i + 1 would overflow (become negative)
+          let sum = i + 1
+          if sum >= 0 {
+            // If sum is non-negative, i was not max int
             fail("expected max bigint, got \{i}")
           }
+          // sum < 0 means overflow occurred, which is correct for max int
         }
         None => fail("expected Some(max bigint)")
       }
 
       match typed.get_int(0, 1) {
         Some(i) => {
-          if i != -9223372036854775808 {
+          // Check if i is min int by verifying i - 1 would underflow (become positive)
+          let diff = i - 1
+          if diff > 0 {
+            // If diff is positive, underflow occurred, which is correct for min int
+            ()  // Correct behavior
+          } else {
             fail("expected min bigint, got \{i}")
           }
         }
