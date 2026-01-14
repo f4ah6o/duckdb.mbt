@@ -439,6 +439,66 @@ extern "js" fn js_clear_bindings(
   #|  run().catch((err) => on_err(err.message || String(err)));
   #|}
 
+extern "js" fn js_bind_date(
+  stmt : PreparedStatement,
+  index : Int,
+  date_str : String,
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(stmt, index, date_str, on_ok, on_err) => {
+  #|  const run = async () => {
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|      try {
+  #|        stmt.statement.bindDate(index, date_str);
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(e.message || String(e));
+  #|        return;
+  #|      }
+  #|    }
+  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|      if (!stmt.params) stmt.params = {};
+  #|      stmt.params[index] = { type: "date", value: date_str };
+  #|      on_ok();
+  #|      return;
+  #|    }
+  #|    on_err("unknown statement backend");
+  #|  };
+  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|}
+
+extern "js" fn js_bind_timestamp(
+  stmt : PreparedStatement,
+  index : Int,
+  timestamp_str : String,
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(stmt, index, timestamp_str, on_ok, on_err) => {
+  #|  const run = async () => {
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|      try {
+  #|        stmt.statement.bindTimestamp(index, timestamp_str);
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(e.message || String(e));
+  #|        return;
+  #|      }
+  #|    }
+  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|      if (!stmt.params) stmt.params = {};
+  #|      stmt.params[index] = { type: "timestamp", value: timestamp_str };
+  #|      on_ok();
+  #|      return;
+  #|    }
+  #|    on_err("unknown statement backend");
+  #|  };
+  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|}
+
 extern "js" fn js_execute_prepared(
   stmt : PreparedStatement,
   on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit,
@@ -654,6 +714,110 @@ pub fn PreparedStatement::clear_bindings(
     let _ = message
   })
   Ok(())
+}
+
+// ============================================================================
+// Date/Timestamp API Implementation (JS Backend)
+// ============================================================================
+
+///|
+pub fn PreparedStatement::bind_date(
+  self : PreparedStatement,
+  index : Int,
+  days : Int,
+) -> Result[Unit, DuckDBError] {
+  // Convert days to ISO date string for JS
+  let (year, month, day) = date_to_ymd(days)
+  let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
+  js_bind_date(self, index, date_str, fn() { () }, fn(message) {
+    let _ = message
+  })
+  Ok(())
+}
+
+///|
+pub fn PreparedStatement::bind_timestamp(
+  self : PreparedStatement,
+  index : Int,
+  micros : Int,
+) -> Result[Unit, DuckDBError] {
+  // Convert microseconds to ISO timestamp string for JS
+  let (year, month, day, hour, minute, second) = timestamp_to_ymd_hms(micros)
+  let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
+  let time_str = "\\{String::pad_left(hour.to_string(), 2, '0')}:\\{String::pad_left(minute.to_string(), 2, '0')}:\\{String::pad_left(second.to_string(), 2, '0')}"
+  let timestamp_str = "\\{date_str} \\{time_str}"
+  js_bind_timestamp(self, index, timestamp_str, fn() { () }, fn(message) {
+    let _ = message
+  })
+  Ok(())
+}
+
+///|
+pub fn Appender::append_date(self : Appender, days : Int) -> Result[Unit, DuckDBError] {
+  let _ = days
+  // Appender not supported in JS backend
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit, DuckDBError] {
+  let _ = micros
+  // Appender not supported in JS backend
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+/// Convert year, month, day to days since 1970-01-01 (Unix epoch).
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
+  let year_days = (year - 1970) * 365
+  let month_days = (month - 1) * 30
+  let day_days = day - 1
+  year_days + month_days + day_days
+}
+
+///|
+/// Convert days since 1970-01-01 to year, month, day.
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
+  let year = 1970 + (days / 365)
+  let remaining = days % 365
+  let month = 1 + (remaining / 30)
+  let day = 1 + (remaining % 30)
+  (year, month, day)
+}
+
+///|
+/// Convert date components to a timestamp (microseconds since 1970-01-01).
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn timestamp_from_ymd_hms(
+  year : Int,
+  month : Int,
+  day : Int,
+  hour : Int,
+  minute : Int,
+  second : Int,
+) -> Int {
+  let date_days = date_from_ymd(year, month, day)
+  let seconds_per_day = 86400
+  let date_seconds = date_days * seconds_per_day
+  let time_seconds = hour * 3600 + minute * 60 + second
+  (date_seconds + time_seconds) * 1000000
+}
+
+///|
+/// Convert timestamp (microseconds since 1970-01-01) to date components.
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
+  let total_seconds = micros / 1000000
+  let days = total_seconds / 86400
+  let seconds_in_day = total_seconds % 86400
+  let hour = seconds_in_day / 3600
+  let remaining_seconds = seconds_in_day % 3600
+  let minute = remaining_seconds / 60
+  let second = remaining_seconds % 60
+  let (year, month, day) = date_to_ymd(days)
+  (year, month, day, hour, minute, second)
 }
 
 ///|

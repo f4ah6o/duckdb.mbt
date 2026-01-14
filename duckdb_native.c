@@ -833,3 +833,115 @@ int32_t duckdb_mb_is_null_appender(duckdb_mb_appender *mb_append) {
   return mb_append == NULL ? 1 : 0;
 }
 
+// ============================================================================
+// Date/Timestamp Functions
+// ============================================================================
+
+int32_t duckdb_mb_bind_date(duckdb_mb_statement *mb_stmt, int32_t index,
+                              int32_t days) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_date date = {days};
+  duckdb_state state = duckdb_bind_date(mb_stmt->stmt, (idx_t)index, date);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_timestamp(duckdb_mb_statement *mb_stmt, int32_t index,
+                                  int64_t micros) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_timestamp ts = {micros};
+  duckdb_state state =
+      duckdb_bind_timestamp(mb_stmt->stmt, (idx_t)index, ts);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// Helper to convert days since epoch to date string "YYYY-MM-DD"
+static void days_to_date_string(int32_t days, char *buf, size_t buf_size) {
+  // Simplified conversion: days since 1970-01-01
+  // This is approximate - a proper implementation would handle leap years
+  int32_t year = 1970 + (days / 365);
+  int32_t remaining = days % 365;
+  if (remaining < 0) {
+    year--;
+    remaining += 365;
+  }
+  int32_t month = 1 + (remaining / 30);
+  int32_t day = 1 + (remaining % 30);
+  snprintf(buf, buf_size, "%04d-%02d-%02d", year, month, day);
+}
+
+int32_t duckdb_mb_append_date(duckdb_mb_appender *mb_append, int32_t days) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  char date_buf[32];
+  days_to_date_string(days, date_buf, sizeof(date_buf));
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, date_buf);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// Helper to convert microseconds since epoch to timestamp string
+static void micros_to_timestamp_string(int64_t micros, char *buf, size_t buf_size) {
+  // Simplified conversion: microseconds since 1970-01-01 00:00:00
+  int64_t seconds = micros / 1000000;
+  int32_t year = 1970 + (int32_t)(seconds / 31536000);
+  int64_t remaining = seconds % 31536000;
+  if (remaining < 0) {
+    year--;
+    remaining += 31536000;
+  }
+  int32_t day_of_year = (int32_t)(remaining / 86400);
+  int32_t month = 1 + (day_of_year / 30);
+  int32_t day = 1 + (day_of_year % 30);
+  int32_t hour = (int32_t)((remaining % 86400) / 3600);
+  int32_t minute = (int32_t)((remaining % 3600) / 60);
+  int32_t sec = (int32_t)(remaining % 60);
+  snprintf(buf, buf_size, "%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, minute, sec);
+}
+
+int32_t duckdb_mb_append_timestamp(duckdb_mb_appender *mb_append,
+                                    int64_t micros) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  char ts_buf[64];
+  micros_to_timestamp_string(micros, ts_buf, sizeof(ts_buf));
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, ts_buf);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+

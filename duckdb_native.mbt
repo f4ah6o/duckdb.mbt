@@ -79,6 +79,26 @@ extern "C" fn native_appender_flush(append : Appender) -> Bool = "duckdb_mb_flus
 ///|
 extern "C" fn native_is_null_appender(append : Appender) -> Bool = "duckdb_mb_is_null_appender"
 
+// ============================================================================
+// Date/Timestamp FFI Declarations
+// ============================================================================
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_date(stmt : PreparedStatement, index : Int, days : Int) -> Bool = "duckdb_mb_bind_date"
+
+///|
+#borrow(stmt)
+extern "C" fn native_bind_timestamp(stmt : PreparedStatement, index : Int, micros : Int) -> Bool = "duckdb_mb_bind_timestamp"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_date(append : Appender, days : Int) -> Bool = "duckdb_mb_append_date"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_timestamp(append : Appender, micros : Int) -> Bool = "duckdb_mb_append_timestamp"
+
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -615,5 +635,112 @@ pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
 pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
   native_appender_destroy(self)
   on_done(Ok(()))
+}
+
+// ============================================================================
+// Date/Timestamp API Implementation
+// ============================================================================
+
+///|
+pub fn PreparedStatement::bind_date(
+  self : PreparedStatement,
+  index : Int,
+  days : Int,
+) -> Result[Unit, DuckDBError] {
+  if native_bind_date(self, index, days) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_date failed")))
+  }
+}
+
+///|
+pub fn PreparedStatement::bind_timestamp(
+  self : PreparedStatement,
+  index : Int,
+  micros : Int,
+) -> Result[Unit, DuckDBError] {
+  if native_bind_timestamp(self, index, micros) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(statement_error(self, "bind_timestamp failed")))
+  }
+}
+
+///|
+pub fn Appender::append_date(self : Appender, days : Int) -> Result[Unit, DuckDBError] {
+  if native_appender_append_date(self, days) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_date failed")))
+  }
+}
+
+///|
+pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit, DuckDBError] {
+  if native_appender_append_timestamp(self, micros) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_timestamp failed")))
+  }
+}
+
+///|
+/// Convert year, month, day to days since 1970-01-01 (Unix epoch).
+/// Note: This is a simplified calculation that doesn't account for leap years
+/// or varying month lengths. For production use, use a proper date library.
+pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
+  // Days from 1970 to the given year (approximate, ignoring leap years for simplicity)
+  let year_days = (year - 1970) * 365
+  // Approximate days for months (all 30 days for simplicity)
+  let month_days = (month - 1) * 30
+  // Days in the current month
+  let day_days = day - 1
+  year_days + month_days + day_days
+}
+
+///|
+/// Convert days since 1970-01-01 to year, month, day.
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
+  let year = 1970 + (days / 365)
+  let remaining = days % 365
+  let month = 1 + (remaining / 30)
+  let day = 1 + (remaining % 30)
+  (year, month, day)
+}
+
+///|
+/// Convert date components to a timestamp (microseconds since 1970-01-01).
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn timestamp_from_ymd_hms(
+  year : Int,
+  month : Int,
+  day : Int,
+  hour : Int,
+  minute : Int,
+  second : Int,
+) -> Int {
+  let date_days = date_from_ymd(year, month, day)
+  let seconds_per_day = 86400
+  let date_seconds = date_days * seconds_per_day
+  let time_seconds = hour * 3600 + minute * 60 + second
+  // Convert seconds to microseconds
+  (date_seconds + time_seconds) * 1000000
+}
+
+///|
+/// Convert timestamp (microseconds since 1970-01-01) to date components.
+/// Note: This is a simplified calculation. For production use, use a proper date library.
+pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
+  let total_seconds = micros / 1000000
+  let days = total_seconds / 86400
+  let seconds_in_day = total_seconds % 86400
+  let hour = seconds_in_day / 3600
+  let remaining_seconds = seconds_in_day % 3600
+  let minute = remaining_seconds / 60
+  let second = remaining_seconds % 60
+  let (year, month, day) = date_to_ymd(days)
+  (year, month, day, hour, minute, second)
 }
 

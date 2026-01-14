@@ -297,3 +297,86 @@ pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -
   )
 }
 
+// ============================================================================
+// Date/Timestamp Stubs
+// ============================================================================
+
+///|
+pub fn PreparedStatement::bind_date(
+  self : PreparedStatement,
+  index : Int,
+  days : Int,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = days
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn PreparedStatement::bind_timestamp(
+  self : PreparedStatement,
+  index : Int,
+  micros : Int,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = index
+  let _ = micros
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_date(self : Appender, days : Int) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = days
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_timestamp(
+  self : Appender,
+  micros : Int,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = micros
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
+  let _ = year
+  let _ = month
+  let _ = day
+  0
+}
+
+///|
+pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
+  let _ = days
+  (1970, 1, 1)
+}
+
+///|
+pub fn timestamp_from_ymd_hms(
+  year : Int,
+  month : Int,
+  day : Int,
+  hour : Int,
+  minute : Int,
+  second : Int,
+) -> Int {
+  let _ = year
+  let _ = month
+  let _ = day
+  let _ = hour
+  let _ = minute
+  let _ = second
+  0
+}
+
+///|
+pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
+  let _ = micros
+  (1970, 1, 1, 0, 0, 0)
+}
+
