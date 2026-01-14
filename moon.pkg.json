@@ -4,7 +4,11 @@
     "duckdb_js.mbt": ["js"],
     "duckdb_unsupported.mbt": ["or", "wasm", "wasm-gc"],
     "duckdb_test.mbt": ["native"],
-    "duckdb_js_test.mbt": ["js"]
+    "duckdb_js_test.mbt": ["js"],
+    "duckdb_arrow_native.mbt": ["native"],
+    "duckdb_arrow_js.mbt": ["js"],
+    "duckdb_arrow_unsupported.mbt": ["or", "wasm", "wasm-gc"],
+    "duckdb_arrow_test.mbt": ["native"]
   },
   "native-stub": [
     "duckdb_native.c"
