@@ -598,3 +598,238 @@ int32_t duckdb_mb_is_null_statement(duckdb_mb_statement *mb_stmt) {
   return mb_stmt == NULL ? 1 : 0;
 }
 
+// ============================================================================
+// Appender Functions
+// ============================================================================
+
+typedef struct {
+  duckdb_appender appender;
+  duckdb_connection conn;
+  char error[256];
+} duckdb_mb_appender;
+
+duckdb_mb_appender *duckdb_mb_appender_create(duckdb_mb_connection *handle,
+                                             moonbit_bytes_t schema,
+                                             moonbit_bytes_t table) {
+  if (!handle) {
+    return NULL;
+  }
+
+  char *schema_c = duckdb_mb_bytes_to_cstr(schema);
+  if (!schema_c) {
+    return NULL;
+  }
+
+  char *table_c = duckdb_mb_bytes_to_cstr(table);
+  if (!table_c) {
+    free(schema_c);
+    return NULL;
+  }
+
+  duckdb_mb_appender *mb_append =
+      (duckdb_mb_appender *)malloc(sizeof(duckdb_mb_appender));
+  if (!mb_append) {
+    free(schema_c);
+    free(table_c);
+    return NULL;
+  }
+
+  duckdb_state state = duckdb_appender_create(handle->conn, schema_c, table_c,
+                                             &mb_append->appender);
+  free(schema_c);
+  free(table_c);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error && error[0] != '\0') {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    } else {
+      strncpy(mb_append->error, "duckdb_appender_create failed",
+              sizeof(mb_append->error));
+    }
+    mb_append->appender = NULL;
+    mb_append->conn = NULL;
+    free(mb_append);
+    return NULL;
+  }
+
+  mb_append->conn = handle->conn;
+  mb_append->error[0] = '\0';
+  return mb_append;
+}
+
+void duckdb_mb_appender_destroy(duckdb_mb_appender *mb_append) {
+  if (!mb_append) {
+    return;
+  }
+  if (mb_append->appender) {
+    duckdb_appender_destroy(&mb_append->appender);
+  }
+  free(mb_append);
+}
+
+moonbit_bytes_t duckdb_mb_appender_error(duckdb_mb_appender *mb_append) {
+  if (!mb_append) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+  return duckdb_mb_make_bytes(mb_append->error, strlen(mb_append->error));
+}
+
+int32_t duckdb_mb_begin_row(duckdb_mb_appender *mb_append) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_appender_begin_row(mb_append->appender);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_int(duckdb_mb_appender *mb_append, int32_t value) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_append_int32(mb_append->appender, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_bigint(duckdb_mb_appender *mb_append, int64_t value) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_append_int64(mb_append->appender, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_double(duckdb_mb_appender *mb_append, double value) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_append_double(mb_append->appender, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_varchar(duckdb_mb_appender *mb_append, moonbit_bytes_t value) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  char *val_c = duckdb_mb_bytes_to_cstr(value);
+  if (!val_c) {
+    strncpy(mb_append->error, "failed to allocate varchar buffer",
+            sizeof(mb_append->error));
+    return 0;
+  }
+
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, val_c);
+  free(val_c);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_bool(duckdb_mb_appender *mb_append, bool value) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_append_bool(mb_append->appender, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_append_null(duckdb_mb_appender *mb_append) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_append_null(mb_append->appender);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_end_row(duckdb_mb_appender *mb_append) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_appender_end_row(mb_append->appender);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_flush(duckdb_mb_appender *mb_append) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  duckdb_state state = duckdb_appender_flush(mb_append->appender);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_is_null_appender(duckdb_mb_appender *mb_append) {
+  return mb_append == NULL ? 1 : 0;
+}
+

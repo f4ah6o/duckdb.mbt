@@ -11,6 +11,10 @@ pub type PreparedStatement
 pub type Config
 
 ///|
+#external
+pub type Appender
+
+///|
 /// JS backend selection for `connect`.
 pub(all) enum JsBackend {
   Auto

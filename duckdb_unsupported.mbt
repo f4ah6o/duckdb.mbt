@@ -205,3 +205,95 @@ pub fn connect_with_config(
   )
 }
 
+// ============================================================================
+// Appender Stubs
+// ============================================================================
+
+type Appender = Connection
+
+///|
+pub fn Connection::create_appender(
+  self : Connection,
+  schema : String,
+  table : String,
+  on_done~ : (Result[Appender, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  let _ = schema
+  let _ = table
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
+///|
+pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
+  let _ = self
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
+  let _ = self
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
+  let _ = self
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
+  let _ = self
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
+  let _ = self
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+

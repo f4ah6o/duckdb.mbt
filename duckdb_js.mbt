@@ -796,3 +796,74 @@ pub fn connect_with_config(
     }
   }
 }
+
+// ============================================================================
+// Appender API Implementation (Basic - for future expansion)
+// ============================================================================
+
+///|
+pub fn Connection::create_appender(
+  self : Connection,
+  schema : String,
+  table : String,
+  on_done~ : (Result[Appender, DuckDBError]) -> Unit,
+) -> Unit {
+  // JS Appender is complex and requires table schema knowledge
+  // For now, return not supported error
+  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+}
+
+///|
+pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
+  let _ = value
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
+  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+}
+
+///|
+pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
+  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+}

@@ -24,6 +24,61 @@ extern "C" fn native_config_set(config : Config, key : Bytes, value : Bytes) -> 
 ///|
 extern "C" fn native_config_error(config : Config) -> Bytes = "duckdb_mb_config_error"
 
+// ============================================================================
+// Appender FFI Declarations
+// ============================================================================
+
+///|
+#borrow(conn, schema, table)
+extern "C" fn native_appender_create(conn : Connection, schema : Bytes, table : Bytes) -> Appender = "duckdb_mb_appender_create"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_destroy(append : Appender) = "duckdb_mb_appender_destroy"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_error(append : Appender) -> Bytes = "duckdb_mb_appender_error"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_begin_row(append : Appender) -> Bool = "duckdb_mb_begin_row"
+
+///|
+#borrow(append, value)
+extern "C" fn native_appender_append_int(append : Appender, value : Int) -> Bool = "duckdb_mb_append_int"
+
+///|
+#borrow(append, value)
+extern "C" fn native_appender_append_bigint(append : Appender, value : Int) -> Bool = "duckdb_mb_append_bigint"
+
+///|
+#borrow(append, value)
+extern "C" fn native_appender_append_double(append : Appender, value : Double) -> Bool = "duckdb_mb_append_double"
+
+///|
+#borrow(append, val)
+extern "C" fn native_appender_append_varchar(append : Appender, val : Bytes) -> Bool = "duckdb_mb_append_varchar"
+
+///|
+#borrow(append, value)
+extern "C" fn native_appender_append_bool(append : Appender, value : Bool) -> Bool = "duckdb_mb_append_bool"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_append_null(append : Appender) -> Bool = "duckdb_mb_append_null"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_end_row(append : Appender) -> Bool = "duckdb_mb_end_row"
+
+///|
+#borrow(append)
+extern "C" fn native_appender_flush(append : Appender) -> Bool = "duckdb_mb_flush"
+
+///|
+extern "C" fn native_is_null_appender(append : Appender) -> Bool = "duckdb_mb_is_null_appender"
+
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -444,6 +499,121 @@ pub fn PreparedStatement::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   native_statement_destroy(self)
+  on_done(Ok(()))
+}
+
+// ============================================================================
+// Appender API Implementation
+// ============================================================================
+
+fn appender_error(append : Appender, fallback : String) -> String {
+  let msg = bytes_to_string(native_appender_error(append))
+  if msg is "" {
+    fallback
+  } else {
+    msg
+  }
+}
+
+///|
+pub fn Connection::create_appender(
+  self : Connection,
+  schema : String,
+  table : String,
+  on_done~ : (Result[Appender, DuckDBError]) -> Unit,
+) -> Unit {
+  let append = native_appender_create(self, @encoding/utf8.encode(schema), @encoding/utf8.encode(table))
+  if native_is_null_appender(append) {
+    on_done(Err(DuckDBError::Message("create_appender failed")))
+  } else {
+    on_done(Ok(append))
+  }
+}
+
+///|
+pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
+  if native_appender_begin_row(self) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "begin_row failed")))
+  }
+}
+
+///|
+pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  if native_appender_append_int(self, value) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_int failed")))
+  }
+}
+
+///|
+pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+  if native_appender_append_bigint(self, value) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_bigint failed")))
+  }
+}
+
+///|
+pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
+  if native_appender_append_double(self, value) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_double failed")))
+  }
+}
+
+///|
+pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
+  if native_appender_append_varchar(self, @encoding/utf8.encode(value)) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_varchar failed")))
+  }
+}
+
+///|
+pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
+  if native_appender_append_bool(self, value) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_bool failed")))
+  }
+}
+
+///|
+pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
+  if native_appender_append_null(self) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_null failed")))
+  }
+}
+
+///|
+pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
+  if native_appender_end_row(self) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "end_row failed")))
+  }
+}
+
+///|
+pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
+  if native_appender_flush(self) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "flush failed")))
+  }
+}
+
+///|
+pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
+  native_appender_destroy(self)
   on_done(Ok(()))
 }
 
