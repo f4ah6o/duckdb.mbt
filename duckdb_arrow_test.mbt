@@ -116,3 +116,228 @@ test "native arrow query error" {
     Err(_) => { () }  // Expected error
   }
 }
+
+// ============================================================================
+// Schema Extraction Tests
+// ============================================================================
+
+///|
+test "native arrow schema extraction" {
+  let result = run_native_arrow_query("SELECT 42::INTEGER AS a, 3.14::DOUBLE AS b")
+  match result {
+    Ok(result) => {
+      match result.get_schema() {
+        Ok(schema) => {
+          let fields = schema.fields
+          if fields.length() != 2 {
+            fail("expected 2 fields, got \{fields.length()}")
+          } else {
+            let f0 = fields[0]
+            if f0.name != "a" {
+              fail("expected field name 'a', got '\{f0.name}'")
+            } else if f0.type_id != "int32" {
+              fail("expected type_id 'int32', got '\{f0.type_id}'")
+            } else {
+              let f1 = fields[1]
+              if f1.name != "b" {
+                fail("expected field name 'b', got '\{f1.name}'")
+              } else if f1.type_id != "double" {
+                fail("expected type_id 'double', got '\{f1.type_id}'")
+              } else {
+                ()
+              }
+            }
+          }
+        }
+        Err(err) => {
+          match err {
+            Message(msg) => fail("schema failed: \{msg}")
+          }
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow schema multiple types" {
+  let result = run_native_arrow_query("SELECT 1::INTEGER AS i, 2::BIGINT AS bi, 3.0::DOUBLE AS d, true::BOOLEAN AS b, 'text'::VARCHAR AS s")
+  match result {
+    Ok(result) => {
+      match result.get_schema() {
+        Ok(schema) => {
+          let fields = schema.fields
+          if fields.length() != 5 {
+            fail("expected 5 fields, got \{fields.length()}")
+          } else {
+            if fields[0].type_id != "int32" {
+              fail("expected int32, got \{fields[0].type_id}")
+            } else if fields[1].type_id != "int64" {
+              fail("expected int64, got \{fields[1].type_id}")
+            } else if fields[2].type_id != "double" {
+              fail("expected double, got \{fields[2].type_id}")
+            } else if fields[3].type_id != "bool" {
+              fail("expected bool, got \{fields[3].type_id}")
+            } else if fields[4].type_id != "string" {
+              fail("expected string, got \{fields[4].type_id}")
+            } else {
+              ()
+            }
+          }
+        }
+        Err(err) => {
+          match err {
+            Message(msg) => fail("schema failed: \{msg}")
+          }
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+// ============================================================================
+// Column Data Extraction Tests
+// ============================================================================
+
+///|
+test "native arrow int32 column data" {
+  let result = run_native_arrow_query("SELECT * FROM RANGE(5)")
+  match result {
+    Ok(result) => {
+      let values = result.get_column_int32(0)
+      if values.length() != 5 {
+        fail("expected 5 values, got \{values.length()}")
+      } else {
+        if values[0] != 0 {
+          fail("expected values[0] = 0, got \{values[0]}")
+        } else if values[4] != 4 {
+          fail("expected values[4] = 4, got \{values[4]}")
+        } else {
+          ()
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow int64 column data" {
+  let result = run_native_arrow_query("SELECT 100::BIGINT AS x")
+  match result {
+    Ok(result) => {
+      let values = result.get_column_int64(0)
+      if values.length() != 1 {
+        fail("expected 1 value, got \{values.length()}")
+      } else {
+        if values[0] != 100 {
+          fail("expected 100, got \{values[0]}")
+        } else {
+          ()
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow double column data" {
+  let result = run_native_arrow_query("SELECT 3.14::DOUBLE AS x")
+  match result {
+    Ok(result) => {
+      let values = result.get_column_double(0)
+      if values.length() != 1 {
+        fail("expected 1 value, got \{values.length()}")
+      } else {
+        let v = values[0]
+        if v < 3.13 || v > 3.15 {
+          fail("expected ~3.14, got \{v}")
+        } else {
+          ()
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow bool column data" {
+  let result = run_native_arrow_query("SELECT true::BOOLEAN AS t, false::BOOLEAN AS f")
+  match result {
+    Ok(result) => {
+      // First column should be true
+      let t_values = result.get_column_bool(0)
+      if t_values.length() != 1 {
+        fail("expected 1 value in column 0, got \{t_values.length()}")
+      } else {
+        if t_values[0] != true {
+          fail("expected true, got \{t_values[0]}")
+        }
+      }
+      // Second column should be false
+      let f_values = result.get_column_bool(1)
+      if f_values.length() != 1 {
+        fail("expected 1 value in column 1, got \{f_values.length()}")
+      } else {
+        if f_values[0] != false {
+          fail("expected false, got \{f_values[0]}")
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow string column data" {
+  let result = run_native_arrow_query("SELECT 'hello'::VARCHAR AS s")
+  match result {
+    Ok(result) => {
+      let values = result.get_column_string(0)
+      if values.length() != 1 {
+        fail("expected 1 value, got \{values.length()}")
+      } else {
+        if values[0] != "hello" {
+          fail("expected 'hello', got '\{values[0]}'")
+        } else {
+          ()
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow multiple rows int32" {
+  let result = run_native_arrow_query("SELECT * FROM RANGE(100)")
+  match result {
+    Ok(result) => {
+      let values = result.get_column_int32(0)
+      if values.length() != 100 {
+        fail("expected 100 values, got \{values.length()}")
+      } else {
+        if values[0] != 0 {
+          fail("expected 0, got \{values[0]}")
+        } else if values[99] != 99 {
+          fail("expected 99, got \{values[99]}")
+        } else {
+          ()
+        }
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}

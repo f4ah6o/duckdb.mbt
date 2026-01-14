@@ -160,3 +160,18 @@ connect_with_config(
   path=":memory:",
 )
 ```
+
+## Error Handling
+
+All `bind_*` methods and `Config::set` return `Result[Unit, DuckDBError]` on both native and JS targets:
+- **Success**: Returns `Ok(())`
+- **Failure**: Returns `Err(DuckDBError::Message(reason))`
+
+On JS targets, bind operations are synchronous and errors are properly propagated. Use the `?` operator or pattern matching to handle errors:
+
+```mbt nocheck
+match stmt.bind_int(1, 42) {
+  Ok(_) => stmt.bind_varchar(2, "hello")?  // Chain binds with ?
+  Err(e) => println("bind failed")
+}
+```

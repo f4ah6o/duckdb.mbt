@@ -750,27 +750,119 @@ pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit,
 }
 
 ///|
+/// Check if a year is a leap year in the Gregorian calendar.
+fn _is_leap_year(year : Int) -> Bool {
+  (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+///|
+/// Get the number of days in each month (for non-leap years).
+fn _days_in_month(m : Int) -> Int {
+  match m {
+    1 => 31
+    2 => 28
+    3 => 31
+    4 => 30
+    5 => 31
+    6 => 30
+    7 => 31
+    8 => 31
+    9 => 30
+    10 => 31
+    11 => 30
+    12 => 31
+    _ => 30
+  }
+}
+
+///|
+/// Cumulative days before each month (for non-leap years).
+fn days_before_month(m : Int) -> Int {
+  match m {
+    1 => 0
+    2 => 31
+    3 => 59
+    4 => 90
+    5 => 120
+    6 => 151
+    7 => 181
+    8 => 212
+    9 => 243
+    10 => 273
+    11 => 304
+    12 => 334
+    _ => 0
+  }
+}
+
+///|
+/// Count leap years between year 1 and the given year (exclusive).
+fn count_leap_years_before(year : Int) -> Int {
+  let y = year - 1
+  (y / 4) - (y / 100) + (y / 400)
+}
+
+///|
 /// Convert year, month, day to days since 1970-01-01 (Unix epoch).
-/// Note: This is a simplified calculation that doesn't account for leap years
-/// or varying month lengths. For production use, use a proper date library.
+/// Uses accurate Gregorian calendar calculation with leap year support.
 pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
-  // Days from 1970 to the given year (approximate, ignoring leap years for simplicity)
-  let year_days = (year - 1970) * 365
-  // Approximate days for months (all 30 days for simplicity)
-  let month_days = (month - 1) * 30
-  // Days in the current month
+  // Days from 1970 to the beginning of the given year
+  let year_delta = year - 1970
+  let leap_years = count_leap_years_before(year) - count_leap_years_before(1970)
+  let year_days = year_delta * 365 + leap_years
+
+  // Days from beginning of year to beginning of month
+  let month_days = days_before_month(month)
+
+  // Add leap day if past February in a leap year
+  let leap_day = if month > 2 && _is_leap_year(year) { 1 } else { 0 }
+
+  // Day of month (0-indexed)
   let day_days = day - 1
-  year_days + month_days + day_days
+
+  year_days + month_days + leap_day + day_days
 }
 
 ///|
 /// Convert days since 1970-01-01 to year, month, day.
-/// Note: This is a simplified calculation. For production use, use a proper date library.
-pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
-  let year = 1970 + (days / 365)
-  let remaining = days % 365
-  let month = 1 + (remaining / 30)
-  let day = 1 + (remaining % 30)
+/// Uses accurate Gregorian calendar calculation with leap year support.
+pub fn date_to_ymd(total_days : Int) -> (Int, Int, Int) {
+  // Use a simpler algorithm: count years from 1970
+  let mut days = total_days
+  let mut year = 1970
+
+  // Count years forward
+  while days >= 365 {
+    let leap = if _is_leap_year(year) { 1 } else { 0 }
+    let days_in_year = 365 + leap
+    if days >= days_in_year {
+      days = days - days_in_year
+      year = year + 1
+    } else {
+      break
+    }
+  }
+
+  // Find month
+  let is_leap = _is_leap_year(year)
+  let mut month = 1
+  let mut remaining = days
+
+  // Cumulative days for each month
+  while month <= 12 {
+    let dim = match month {
+      2 => if is_leap { 29 } else { 28 }
+      4 | 6 | 9 | 11 => 30
+      _ => 31
+    }
+    if remaining < dim {
+      break
+    }
+    remaining = remaining - dim
+    month = month + 1
+  }
+
+  let day = remaining + 1
   (year, month, day)
 }
 
@@ -843,7 +935,7 @@ pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, Duc
 // ----------------------------------------------------------------------------
 
 // Helper function for power of 10
-fn int_pow10(exp : Int) -> Int {
+fn _int_pow10(exp : Int) -> Int {
   let mut result = 1
   let mut i = 0
   while i < exp {
@@ -894,7 +986,7 @@ pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit
 /// Create a decimal from a floating-point value with specified precision.
 /// Note: This is approximate due to floating-point representation.
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = int_pow10(scale)
+  let multiplier = _int_pow10(scale)
   let scaled = (value * Double::from_int(multiplier)).to_int()
   { width, scale, value: scaled }
 }
@@ -902,7 +994,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
 ///|
 /// Convert decimal to floating-point (approximate).
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(int_pow10(decimal.scale))
+  let divisor = Double::from_int(_int_pow10(decimal.scale))
   Double::from_int(decimal.value) / divisor
 }
 
@@ -913,7 +1005,7 @@ pub fn decimal_from_parts(
   fractional : Int,
   scale : Int,
 ) -> Decimal {
-  let value = whole * int_pow10(scale) + fractional
+  let value = whole * _int_pow10(scale) + fractional
   let width = if whole == 0 {
     String::length(fractional.to_string())
   } else {
@@ -925,7 +1017,7 @@ pub fn decimal_from_parts(
 ///|
 /// Get the whole and fractional parts of a decimal.
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = int_pow10(decimal.scale)
+  let divisor = _int_pow10(decimal.scale)
   let whole = decimal.value / divisor
   let fractional = Int::abs(decimal.value % divisor)
   (whole, fractional)
@@ -972,21 +1064,21 @@ pub fn interval_from_days(days : Int) -> Interval {
 ///|
 /// Create an interval from hours.
 pub fn interval_from_hours(hours : Int) -> Interval {
-  let micros = hours * 3600 * int_pow10(6)
+  let micros = hours * 3600 * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from minutes.
 pub fn interval_from_minutes(minutes : Int) -> Interval {
-  let micros = minutes * 60 * int_pow10(6)
+  let micros = minutes * 60 * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from seconds.
 pub fn interval_from_seconds(seconds : Int) -> Interval {
-  let micros = seconds * int_pow10(6)
+  let micros = seconds * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 

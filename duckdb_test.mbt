@@ -976,3 +976,244 @@ test "map helpers" {
   }
   ()
 }
+
+// ============================================================================
+// Typed Result API Tests
+// ============================================================================
+
+///|
+test "typed result basic types" {
+  let result = run_native_query("SELECT 42 AS int_col, 3.14 AS double_col, true AS bool_col, 'hello' AS str_col")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      if typed.row_count() != 1 {
+        fail("expected 1 row, got \{typed.row_count()}")
+      }
+      if typed.column_count() != 4 {
+        fail("expected 4 columns, got \{typed.column_count()}")
+      }
+
+      match typed.get_int(0, 0) {
+        Some(i) => {
+          if i != 42 {
+            fail("expected int 42, got \{i}")
+          }
+        }
+        None => fail("expected Some(42), got None")
+      }
+
+      match typed.get_double(0, 1) {
+        Some(d) => {
+          let mut diff = d - 3.14
+          if diff < 0.0 { diff = -diff }
+          if diff > 0.001 {
+            fail("expected double ~3.14, got \{d}")
+          }
+        }
+        None => fail("expected Some(3.14), got None")
+      }
+
+      match typed.get_bool(0, 2) {
+        Some(b) => {
+          if !b {
+            fail("expected true, got false")
+          }
+        }
+        None => fail("expected Some(true), got None")
+      }
+
+      match typed.get_string(0, 3) {
+        Some(s) => {
+          if s != "hello" {
+            fail("expected 'hello', got '\{s}'")
+          }
+        }
+        None => fail("expected Some('hello'), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
+test "typed result null values" {
+  let result = run_native_query("SELECT 1 AS a, NULL AS b, 2 AS c")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      match typed.get_int(0, 0) {
+        Some(i) => {
+          if i != 1 {
+            fail("expected 1, got \{i}")
+          }
+        }
+        None => fail("expected Some(1), got None")
+      }
+
+      match typed.get_int(0, 1) {
+        Some(_) => fail("expected None for NULL, got Some")
+        None => ()
+      }
+
+      if typed.is_null(0, 0) {
+        fail("expected non-null at (0, 0)")
+      }
+      if !typed.is_null(0, 1) {
+        fail("expected null at (0, 1)")
+      }
+
+      match typed.get_int(0, 2) {
+        Some(i) => {
+          if i != 2 {
+            fail("expected 2, got \{i}")
+          }
+        }
+        None => fail("expected Some(2), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
+test "typed result date and timestamp" {
+  let result = run_native_query("SELECT DATE '2024-06-03' AS dt, TIMESTAMP '2024-06-03 12:34:56' AS ts")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      match typed.get_date(0, 0) {
+        Some(days) => {
+          let date = date_from_ymd(2024, 6, 3)
+          if days != date {
+            fail("expected date \{date}, got \{days}")
+          }
+        }
+        None => fail("expected Some(date), got None")
+      }
+
+      match typed.get_timestamp(0, 1) {
+        Some(micros) => {
+          let ts = timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56)
+          let mut diff = micros - ts
+          if diff < 0 { diff = -diff }
+          if diff > 1000000 {
+            fail("expected timestamp ~\{ts}, got \{micros}")
+          }
+        }
+        None => fail("expected Some(timestamp), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
+test "typed result columnar access" {
+  let result = run_native_query("SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, NULL)) AS t(id, name)")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      match typed.get_int_column(0) {
+        Some(col) => {
+          if col.length() != 3 {
+            fail("expected column length 3, got \{col.length()}")
+          }
+          match col[0] { Some(1) => (); _ => fail("expected Some(1)") }
+          match col[1] { Some(2) => (); _ => fail("expected Some(2)") }
+          match col[2] { Some(3) => (); _ => fail("expected Some(3)") }
+        }
+        None => fail("expected Some(column), got None")
+      }
+
+      match typed.get_string_column(1) {
+        Some(col) => {
+          if col.length() != 3 {
+            fail("expected column length 3, got \{col.length()}")
+          }
+          match col[0] { Some(s) => { if s != "a" { fail("expected 'a'") } }; _ => fail("expected Some('a')") }
+          match col[1] { Some(s) => { if s != "b" { fail("expected 'b'") } }; _ => fail("expected Some('b')") }
+          match col[2] { None => (); _ => fail("expected None for NULL") }
+        }
+        None => fail("expected Some(column), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
+test "typed result bigint extremes" {
+  // Use max/min int values by checking with arithmetic
+  let result = run_native_query("SELECT 9223372036854775807 AS max_val, -9223372036854775808 AS min_val")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      match typed.get_int(0, 0) {
+        Some(i) => {
+          // Check if i is max int by verifying i + 1 would overflow (become negative)
+          let sum = i + 1
+          if sum >= 0 {
+            // If sum is non-negative, i was not max int
+            fail("expected max bigint, got \{i}")
+          }
+          // sum < 0 means overflow occurred, which is correct for max int
+        }
+        None => fail("expected Some(max bigint)")
+      }
+
+      match typed.get_int(0, 1) {
+        Some(i) => {
+          // Check if i is min int by verifying i - 1 would underflow (become positive)
+          let diff = i - 1
+          if diff > 0 {
+            // If diff is positive, underflow occurred, which is correct for min int
+            ()  // Correct behavior
+          } else {
+            fail("expected min bigint, got \{i}")
+          }
+        }
+        None => fail("expected Some(min bigint)")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
+test "typed result get_value" {
+  let result = run_native_query("SELECT 42 AS num, 'text' AS str, NULL AS nul")
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+
+      match typed.get_value(0, 0) {
+        Some(Value::Int(42)) => ()
+        Some(_) => fail("expected Value::Int(42), got other value")
+        None => fail("expected Some(value), got None")
+      }
+
+      match typed.get_value(0, 1) {
+        Some(Value::String(s)) => {
+          if s != "text" {
+            fail("expected 'text', got '\{s}'")
+          }
+        }
+        Some(_) => fail("expected Value::String, got other")
+        None => fail("expected Some(value), got None")
+      }
+
+      match typed.get_value(0, 2) {
+        Some(Value::Null) => ()
+        Some(_) => fail("expected Value::Null, got other")
+        None => fail("expected Some(value), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}

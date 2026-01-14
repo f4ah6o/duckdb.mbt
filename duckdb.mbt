@@ -48,6 +48,9 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ : List = { elements: [] }
   let _ : Struct = { fields: [], values: [] }
   let _ : Map = { keys: [], values: [] }
+  // Typed result API types
+  let _ : Value = Value::Null
+  let _ : TypedQueryResult = { columns: [], data: [] }
 }
 
 // ============================================================================
@@ -94,6 +97,32 @@ pub struct Map {
   values : Array[String]
 }
 
+// ============================================================================
+// Typed Result API
+// ============================================================================
+
+///|
+/// Typed value representing a single DuckDB cell.
+pub enum Value {
+  Int(Int)
+  Double(Double)
+  Bool(Bool)
+  String(String)
+  Date(Int)      // Days since 1970-01-01
+  Timestamp(Int) // Microseconds since 1970-01-01
+  Decimal(Decimal)
+  Blob(Bytes)
+  Null
+}
+
+///|
+/// Type-safe query result with typed value access.
+/// Stores data column-wise for efficient columnar access.
+pub struct TypedQueryResult {
+  columns : Array[String]
+  data : Array[Array[Value]]  // Column-major storage
+}
+
 ///|
 pub fn QueryResult::row_count(self : QueryResult) -> Int {
   self.rows.length()
@@ -110,6 +139,953 @@ pub fn QueryResult::cell(self : QueryResult, row : Int, col : Int) -> String? {
     None
   } else {
     Some(self.rows[row][col])
+  }
+}
+
+// ============================================================================
+// Type Parsing
+// ============================================================================
+
+///|
+/// Infer and parse a string value into an appropriate Value type.
+fn parse_value(s : String) -> Value {
+  if s == "true" {
+    Value::Bool(true)
+  } else if s == "false" {
+    Value::Bool(false)
+  } else if is_integer(s) {
+    Value::Int(parse_int(s))
+  } else if is_double(s) {
+    Value::Double(parse_double(s))
+  } else if is_date(s) {
+    match parse_date(s) {
+      Ok(days) => Value::Date(days)
+      Err(_) => Value::String(s)
+    }
+  } else if is_timestamp(s) {
+    match parse_timestamp(s) {
+      Ok(micros) => Value::Timestamp(micros)
+      Err(_) => Value::String(s)
+    }
+  } else {
+    Value::String(s)
+  }
+}
+
+///|
+/// Check if string represents an integer.
+fn is_integer(s : String) -> Bool {
+  if s.length() == 0 {
+    false
+  } else {
+    let mut has_digit = false
+    let mut i = 0
+    let start = if s[0] == '-' || s[0] == '+' { 1 } else { 0 }
+    while i < s.length() {
+      let c = s[i]
+      if c < '0' || c > '9' {
+        if i >= start {
+          return false
+        }
+      } else {
+        has_digit = true
+      }
+      i = i + 1
+    }
+    has_digit
+  }
+}
+
+///|
+/// Check if string represents a double.
+fn is_double(s : String) -> Bool {
+  if s.length() == 0 {
+    false
+  } else {
+    let mut has_dot = false
+    let mut has_digit = false
+    let mut i = 0
+    let start = if s[0] == '-' || s[0] == '+' { 1 } else { 0 }
+    while i < s.length() {
+      let c = s[i]
+      if c == '.' {
+        if has_dot {
+          return false
+        }
+        has_dot = true
+      } else if c < '0' || c > '9' {
+        if i >= start {
+          return false
+        }
+      } else {
+        has_digit = true
+      }
+      i = i + 1
+    }
+    has_digit && has_dot
+  }
+}
+
+///|
+/// Parse string to Int.
+fn parse_int(s : String) -> Int {
+  let mut result = 0
+  let mut i = 0
+  let negative = if s.length() > 0 && s[0] == '-' {
+    i = 1
+    true
+  } else {
+    false
+  }
+  while i < s.length() {
+    let c = s[i]
+    if c >= '0' && c <= '9' {
+      result = result * 10 + (c.to_int() - '0'.to_int())
+    }
+    i = i + 1
+  }
+  if negative { -result } else { result }
+}
+
+///|
+/// Parse string to Double.
+fn parse_double(s : String) -> Double {
+  // For simplicity, use Int parsing and add fractional part
+  let dot_index = find_dot(s)
+  match dot_index {
+    Some(idx) => {
+      let int_part = s.substring(start = 0, end = idx)
+      let frac_part = s.substring(start = idx + 1, end = s.length())
+      let int_val = parse_int(int_part)
+      let frac_val = parse_fractional(frac_part)
+      let sign = if s.length() > 0 && s[0] == '-' { -1.0 } else { 1.0 }
+      sign * (int_val.to_double() + frac_val)
+    }
+    None => parse_int(s).to_double()
+  }
+}
+
+///|
+/// Find dot position in string.
+fn find_dot(s : String) -> Option[Int] {
+  let mut i = 0
+  while i < s.length() {
+    if s[i] == '.' {
+      return Some(i)
+    }
+    i = i + 1
+  }
+  None
+}
+
+///|
+/// Parse fractional part of double.
+fn parse_fractional(s : String) -> Double {
+  let mut result = 0.0
+  let mut divisor = 1.0
+  let mut i = 0
+  while i < s.length() {
+    let c = s[i]
+    if c >= '0' && c <= '9' {
+      divisor = divisor * 10.0
+      result = result + (c.to_int() - '0'.to_int()).to_double() / divisor
+    }
+    i = i + 1
+  }
+  result
+}
+
+///|
+/// Check if string matches ISO date format (YYYY-MM-DD).
+fn is_date(s : String) -> Bool {
+  s.length() == 10 && s[4] == '-' && s[7] == '-'
+}
+
+///|
+/// Parse ISO date string to days since epoch.
+fn parse_date(s : String) -> Result[Int, String] {
+  if !is_date(s) {
+    Err("invalid date format")
+  } else {
+    let year_str = s.substring(start = 0, end = 4)
+    let month_str = s.substring(start = 5, end = 7)
+    let day_str = s.substring(start = 8, end = 10)
+
+    let year = parse_int(year_str)
+    let month = parse_int(month_str)
+    let day = parse_int(day_str)
+
+    Ok(date_to_days(year, month, day))
+  }
+}
+
+///|
+/// Convert year, month, day to days since epoch (1970-01-01).
+fn date_to_days(year : Int, month : Int, day : Int) -> Int {
+  // Simplified calculation - days from 1970-01-01
+  let y = year - 1970
+  let mut days = y * 365
+
+  // Add leap days
+  let mut leap_years = 0
+  let mut ly = 1970
+  while ly < year {
+    if typed_is_leap_year(ly) {
+      leap_years = leap_years + 1
+    }
+    ly = ly + 1
+  }
+
+  days = days + leap_years
+
+  // Add days for months in current year
+  let mut m = 1
+  while m < month {
+    days = days + typed_days_in_month(year, m)
+    m = m + 1
+  }
+
+  days = days + (day - 1)
+  days
+}
+
+///|
+/// Check if a year is a leap year.
+fn typed_is_leap_year(year : Int) -> Bool {
+  (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+///|
+/// Get the number of days in a month.
+fn typed_days_in_month(year : Int, month : Int) -> Int {
+  if month == 2 {
+    if typed_is_leap_year(year) {
+      29
+    } else {
+      28
+    }
+  } else if month == 4 || month == 6 || month == 9 || month == 11 {
+    30
+  } else {
+    31
+  }
+}
+
+///|
+/// Check if string matches ISO timestamp format.
+fn is_timestamp(s : String) -> Bool {
+  s.length() >= 19 && s[4] == '-' && s[7] == '-' && s[10] == ' ' && s[13] == ':' && s[16] == ':'
+}
+
+///|
+/// Parse ISO timestamp string to microseconds since epoch.
+fn parse_timestamp(s : String) -> Result[Int, String] {
+  if !is_timestamp(s) {
+    Err("invalid timestamp format")
+  } else {
+    let date_part = s.substring(start = 0, end = 10)
+    match parse_date(date_part) {
+      Ok(days) => {
+        let time_part = s.substring(start = 11, end = s.length())
+        match parse_time_to_micros(time_part) {
+          Ok(micros) => {
+            // days * 24 * 60 * 60 * 1000000
+            let seconds_per_day = 86400
+            let micros_per_second = 1000000
+            let days_micros = days * seconds_per_day * micros_per_second
+            Ok(days_micros + micros)
+          }
+          Err(e) => Err(e)
+        }
+      }
+      Err(e) => Err(e)
+    }
+  }
+}
+
+///|
+/// Parse time string (HH:MM:SS[.sss...]) to microseconds since midnight.
+fn parse_time_to_micros(s : String) -> Result[Int, String] {
+  // Manual parsing since split() returns Iter
+  let mut colon_count = 0
+  let mut colon1 = -1
+  let mut colon2 = -1
+  let mut i = 0
+  while i < s.length() {
+    if s[i] == ':' {
+      if colon1 < 0 {
+        colon1 = i
+      } else {
+        colon2 = i
+      }
+      colon_count = colon_count + 1
+    }
+    i = i + 1
+  }
+
+  if colon_count < 2 {
+    Err("invalid time format")
+  } else {
+    let hour_str = s.substring(start = 0, end = colon1)
+    let minute_str = s.substring(start = colon1 + 1, end = colon2)
+    let sec_part = s.substring(start = colon2 + 1, end = s.length())
+
+    // Parse seconds (may have fractional part)
+    let dot_idx = find_dot(sec_part)
+    let second = match dot_idx {
+      Some(idx) => parse_int(sec_part.substring(start = 0, end = idx))
+      None => parse_int(sec_part)
+    }
+
+    let hour = parse_int(hour_str)
+    let minute = parse_int(minute_str)
+    let micros = (hour * 3600 + minute * 60 + second) * 1000000
+    Ok(micros)
+  }
+}
+
+// ============================================================================
+// TypedQueryResult Conversion
+// ============================================================================
+
+///|
+/// Convert a QueryResult to a TypedQueryResult by parsing string values.
+pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
+  let column_count = self.column_count()
+  let row_count = self.row_count()
+
+  // Initialize column arrays
+  let data : Array[Array[Value]] = []
+  for col = 0; col < column_count; col = col + 1 {
+    data.push([])
+  } else {
+    ()
+  }
+
+  // Parse each cell and populate column-wise
+  for row = 0; row < row_count; row = row + 1 {
+    for col = 0; col < column_count; col = col + 1 {
+      let is_null = self.nulls[row][col]
+      let value = if is_null {
+        Value::Null
+      } else {
+        parse_value(self.rows[row][col])
+      }
+      data[col].push(value)
+    } else {
+      ()
+    }
+  } else {
+    ()
+  }
+
+  { columns: self.columns, data }
+}
+
+// ============================================================================
+// TypedQueryResult Row-Major Access
+// ============================================================================
+
+///|
+/// Get the number of rows in the result.
+pub fn TypedQueryResult::row_count(self : TypedQueryResult) -> Int {
+  if self.data.length() == 0 {
+    0
+  } else {
+    self.data[0].length()
+  }
+}
+
+///|
+/// Get the number of columns in the result.
+pub fn TypedQueryResult::column_count(self : TypedQueryResult) -> Int {
+  self.columns.length()
+}
+
+///|
+/// Get a value at the specified row and column.
+pub fn TypedQueryResult::get_value(self : TypedQueryResult, row : Int, col : Int) -> Value? {
+  if row < 0 || row >= self.row_count() || col < 0 || col >= self.column_count() {
+    None
+  } else {
+    Some(self.data[col][row])
+  }
+}
+
+///|
+/// Get an Int value at the specified position.
+pub fn TypedQueryResult::get_int(self : TypedQueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Value::Int(i)) => Some(i)
+    _ => None
+  }
+}
+
+///|
+/// Get a Double value at the specified position.
+pub fn TypedQueryResult::get_double(self : TypedQueryResult, row : Int, col : Int) -> Double? {
+  match self.get_value(row, col) {
+    Some(Value::Double(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get a Bool value at the specified position.
+pub fn TypedQueryResult::get_bool(self : TypedQueryResult, row : Int, col : Int) -> Bool? {
+  match self.get_value(row, col) {
+    Some(Value::Bool(b)) => Some(b)
+    _ => None
+  }
+}
+
+///|
+/// Get a String value at the specified position.
+pub fn TypedQueryResult::get_string(self : TypedQueryResult, row : Int, col : Int) -> String? {
+  match self.get_value(row, col) {
+    Some(Value::String(s)) => Some(s)
+    _ => None
+  }
+}
+
+///|
+/// Get a Date value (days since epoch) at the specified position.
+pub fn TypedQueryResult::get_date(self : TypedQueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Value::Date(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get a Timestamp value (microseconds since epoch) at the specified position.
+pub fn TypedQueryResult::get_timestamp(self : TypedQueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Value::Timestamp(t)) => Some(t)
+    _ => None
+  }
+}
+
+///|
+/// Get a Decimal value at the specified position.
+pub fn TypedQueryResult::get_decimal(self : TypedQueryResult, row : Int, col : Int) -> Decimal? {
+  match self.get_value(row, col) {
+    Some(Value::Decimal(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get a Blob value at the specified position.
+pub fn TypedQueryResult::get_blob(self : TypedQueryResult, row : Int, col : Int) -> Bytes? {
+  match self.get_value(row, col) {
+    Some(Value::Blob(b)) => Some(b)
+    _ => None
+  }
+}
+
+///|
+/// Check if the value at the specified position is NULL.
+pub fn TypedQueryResult::is_null(self : TypedQueryResult, row : Int, col : Int) -> Bool {
+  match self.get_value(row, col) {
+    Some(Value::Null) => true
+    _ => false
+  }
+}
+
+// ============================================================================
+// TypedQueryResult Columnar Access
+// ============================================================================
+
+///|
+/// Get an entire column as typed values.
+pub fn TypedQueryResult::get_column(self : TypedQueryResult, col : Int) -> Array[Value]? {
+  if col < 0 || col >= self.column_count() {
+    None
+  } else {
+    Some(self.data[col])
+  }
+}
+
+///|
+/// Get an entire column as Option[Int] values.
+pub fn TypedQueryResult::get_int_column(self : TypedQueryResult, col : Int) -> Array[Int?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Int?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Int(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[Double] values.
+pub fn TypedQueryResult::get_double_column(self : TypedQueryResult, col : Int) -> Array[Double?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Double?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Double(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[Bool] values.
+pub fn TypedQueryResult::get_bool_column(self : TypedQueryResult, col : Int) -> Array[Bool?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Bool?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Bool(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[String] values.
+pub fn TypedQueryResult::get_string_column(self : TypedQueryResult, col : Int) -> Array[String?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[String?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::String(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[Int] date values.
+pub fn TypedQueryResult::get_date_column(self : TypedQueryResult, col : Int) -> Array[Int?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Int?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Date(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[Int] timestamp values.
+pub fn TypedQueryResult::get_timestamp_column(self : TypedQueryResult, col : Int) -> Array[Int?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Int?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Timestamp(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+///|
+/// Get an entire column as Option[Decimal] values.
+pub fn TypedQueryResult::get_decimal_column(self : TypedQueryResult, col : Int) -> Array[Decimal?]? {
+  match self.get_column(col) {
+    Some(column) => {
+      let result : Array[Decimal?] = []
+      for i = 0; i < column.length(); i = i + 1 {
+        match column[i] {
+          Value::Decimal(v) => result.push(Some(v))
+          Value::Null => result.push(None)
+          _ => result.push(None)
+        }
+      } else {
+        ()
+      }
+      Some(result)
+    }
+    None => None
+  }
+}
+
+// ============================================================================
+// Value Helper Methods
+// ============================================================================
+
+///|
+/// Get the integer value if present, None otherwise.
+pub fn Value::as_int(self : Value) -> Int? {
+  match self {
+    Int(i) => Some(i)
+    _ => None
+  }
+}
+
+///|
+/// Get the double value if present, None otherwise.
+pub fn Value::as_double(self : Value) -> Double? {
+  match self {
+    Double(d) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the boolean value if present, None otherwise.
+pub fn Value::as_bool(self : Value) -> Bool? {
+  match self {
+    Bool(b) => Some(b)
+    _ => None
+  }
+}
+
+///|
+/// Get the string value if present, None otherwise.
+pub fn Value::as_string(self : Value) -> String? {
+  match self {
+    String(s) => Some(s)
+    _ => None
+  }
+}
+
+///|
+/// Get the date value if present, None otherwise.
+pub fn Value::as_date(self : Value) -> Int? {
+  match self {
+    Date(d) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the timestamp value if present, None otherwise.
+pub fn Value::as_timestamp(self : Value) -> Int? {
+  match self {
+    Timestamp(t) => Some(t)
+    _ => None
+  }
+}
+
+///|
+/// Get the decimal value if present, None otherwise.
+pub fn Value::as_decimal(self : Value) -> Decimal? {
+  match self {
+    Decimal(d) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the blob value if present, None otherwise.
+pub fn Value::as_blob(self : Value) -> Bytes? {
+  match self {
+    Blob(b) => Some(b)
+    _ => None
+  }
+}
+
+///|
+/// Check if the value is null.
+pub fn Value::is_null(self : Value) -> Bool {
+  match self {
+    Null => true
+    _ => false
+  }
+}
+
+///|
+/// Convert a Value to its string representation.
+pub fn Value::to_string(self : Value) -> String {
+  match self {
+    Int(n) => n.to_string()
+    Double(d) => d.to_string()
+    Bool(b) => if b { "true" } else { "false" }
+    String(s) => s
+    Date(days) => {
+      // Convert days since epoch to YYYY-MM-DD
+      let (y, m, d) = days_to_ymd(days)
+      "\{y}-\{pad_int_2(m)}-\{pad_int_2(d)}"
+    }
+    Timestamp(micros) => {
+      // Convert microseconds since epoch to timestamp string
+      timestamp_to_string(micros)
+    }
+    Decimal(dec) => {
+      // Convert decimal to string representation
+      let divisor = int_pow10(dec.scale)
+      let whole = dec.value / divisor
+      let frac = Int::abs(dec.value % divisor)
+      if dec.scale == 0 {
+        whole.to_string()
+      } else {
+        "\{whole}.\{pad_int(frac.to_string(), dec.scale)}"
+      }
+    }
+    Blob(bytes) => {
+      // Convert bytes to hex string representation (simplified)
+      "<blob>"
+    }
+    Null => "NULL"
+  }
+}
+
+///|
+/// Pad an integer with leading zeros to 2 digits.
+fn pad_int_2(n : Int) -> String {
+  if n < 10 {
+    "0\{n}"
+  } else {
+    n.to_string()
+  }
+}
+
+///|
+/// Pad a string with leading zeros to specified length.
+fn pad_int(s : String, len : Int) -> String {
+  if s.length() >= len {
+    s
+  } else {
+    let mut result = s
+    while result.length() < len {
+      result = "0" + result
+    }
+    result
+  }
+}
+
+///|
+/// Convert days since epoch to year, month, day.
+fn days_to_ymd(days : Int) -> (Int, Int, Int) {
+  // Simplified calculation - accurate for dates after 1970
+  let days_per_4_years = 365 * 4 + 1  // Include one leap year
+  let mut remaining = days
+  let mut year = 1970
+
+  // Add years in 4-year chunks for efficiency
+  while remaining >= days_per_4_years {
+    remaining = remaining - days_per_4_years
+    year = year + 4
+  }
+
+  // Add remaining years
+  while remaining >= 365 {
+    let days_in_year = if is_leap_year(year) { 366 } else { 365 }
+    if remaining < days_in_year {
+      break
+    }
+    remaining = remaining - days_in_year
+    year = year + 1
+  }
+
+  // Add months
+  let mut month = 1
+  while remaining >= days_in_month(year, month) {
+    remaining = remaining - days_in_month(year, month)
+    month = month + 1
+  }
+
+  let day = remaining + 1
+  (year, month, day)
+}
+
+///|
+/// Convert microseconds since epoch to timestamp string.
+fn timestamp_to_string(micros : Int) -> String {
+  let seconds = micros / 1000000
+  let days = seconds / 86400
+  let secs_in_day = seconds % 86400
+
+  let (year, month, day) = days_to_ymd(days)
+  let hour = secs_in_day / 3600
+  let minute = (secs_in_day % 3600) / 60
+  let second = secs_in_day % 60
+
+  "\{year}-\{pad_int_2(month)}-\{pad_int_2(day)} \{pad_int_2(hour)}:\{pad_int_2(minute)}:\{pad_int_2(second)}"
+}
+
+///|
+/// Check if a year is a leap year.
+fn is_leap_year(year : Int) -> Bool {
+  (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+}
+
+///|
+/// Get the number of days in a month.
+fn days_in_month(year : Int, month : Int) -> Int {
+  if month == 2 {
+    if is_leap_year(year) {
+      29
+    } else {
+      28
+    }
+  } else if month == 4 || month == 6 || month == 9 || month == 11 {
+    30
+  } else {
+    31
+  }
+}
+
+///|
+/// Compute 10^n for decimal scaling.
+pub fn int_pow10(n : Int) -> Int {
+  if n <= 0 { 1 }
+  else if n == 1 { 10 }
+  else if n == 2 { 100 }
+  else if n == 3 { 1000 }
+  else if n == 4 { 10000 }
+  else if n == 5 { 100000 }
+  else if n == 6 { 1000000 }
+  else if n == 7 { 10000000 }
+  else if n == 8 { 10000000 }
+  else if n == 9 { 100000000 }
+  else if n == 10 { 1000000000 }
+  else { 1 }  // Limit for now
+}
+
+// ============================================================================
+// QueryResult Direct Typed Access
+// ============================================================================
+
+///|
+/// Get the typed value at the specified row and column.
+/// Returns the Value directly without requiring to_typed() conversion.
+pub fn QueryResult::get_value(self : QueryResult, row : Int, col : Int) -> Value? {
+  if row < 0 || row >= self.rows.length() || col < 0 || col >= self.columns.length() {
+    None
+  } else {
+    if self.nulls[row][col] {
+      Some(Value::Null)
+    } else {
+      Some(parse_value(self.rows[row][col]))
+    }
+  }
+}
+
+///|
+/// Get the integer value at the specified row and column.
+/// Returns None if the value is null or not an integer.
+pub fn QueryResult::get_int(self : QueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Int(n)) => Some(n)
+    _ => None
+  }
+}
+
+///|
+/// Get the double value at the specified row and column.
+/// Returns None if the value is null or not a double.
+pub fn QueryResult::get_double(self : QueryResult, row : Int, col : Int) -> Double? {
+  match self.get_value(row, col) {
+    Some(Double(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the boolean value at the specified row and column.
+/// Returns None if the value is null or not a boolean.
+pub fn QueryResult::get_bool(self : QueryResult, row : Int, col : Int) -> Bool? {
+  match self.get_value(row, col) {
+    Some(Bool(b)) => Some(b)
+    _ => None
+  }
+}
+
+///|
+/// Get the string value at the specified row and column.
+/// Returns None if the value is null.
+pub fn QueryResult::get_string(self : QueryResult, row : Int, col : Int) -> String? {
+  match self.get_value(row, col) {
+    Some(String(s)) => Some(s)
+    Some(Value::Null) => None
+    Some(other) => Some(other.to_string())
+    None => None
+  }
+}
+
+///|
+/// Get the date value at the specified row and column.
+/// Returns None if the value is null or not a date.
+pub fn QueryResult::get_date(self : QueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Date(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the timestamp value at the specified row and column.
+/// Returns None if the value is null or not a timestamp.
+pub fn QueryResult::get_timestamp(self : QueryResult, row : Int, col : Int) -> Int? {
+  match self.get_value(row, col) {
+    Some(Timestamp(t)) => Some(t)
+    _ => None
+  }
+}
+
+///|
+/// Get the decimal value at the specified row and column.
+/// Returns None if the value is null or not a decimal.
+pub fn QueryResult::get_decimal(self : QueryResult, row : Int, col : Int) -> Decimal? {
+  match self.get_value(row, col) {
+    Some(Decimal(d)) => Some(d)
+    _ => None
+  }
+}
+
+///|
+/// Get the blob value at the specified row and column.
+/// Returns None if the value is null or not a blob.
+pub fn QueryResult::get_blob(self : QueryResult, row : Int, col : Int) -> Bytes? {
+  match self.get_value(row, col) {
+    Some(Blob(b)) => Some(b)
+    _ => None
   }
 }
 

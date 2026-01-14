@@ -219,8 +219,9 @@ extern "js" fn js_prepare(
   #|    }
   #|    if (conn && conn.kind === "wasm") {
   #|      try {
-  #|        // WASM doesn't have true prepared statements, use query with parameters
-  #|        on_ok({ kind: "prepared", connection: conn, sql, params: {} });
+  #|        // Use real duckdb-wasm prepared statements
+  #|        const statement = await conn.conn.prepare(sql);
+  #|        on_ok({ kind: "prepared", connection: conn, statement, sql, params: {} });
   #|        return;
   #|      } catch (e) {
   #|        on_err(toError(e));
@@ -236,267 +237,564 @@ extern "js" fn js_bind_int(
   stmt : PreparedStatement,
   index : Int,
   value : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindInteger(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindInteger(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      // WASM: store parameters for later use in execute
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "int", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    // WASM: store parameters for later use in execute
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "int", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_bigint(
   stmt : PreparedStatement,
   index : Int,
   value : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindBigInt(index, BigInt(value));
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindBigInt(index, BigInt(value));
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "bigint", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "bigint", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_double(
   stmt : PreparedStatement,
   index : Int,
   value : Double,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindDouble(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDouble(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "double", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_varchar(
   stmt : PreparedStatement,
   index : Int,
   value : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindVarchar(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindVarchar(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "varchar", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "varchar", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_bool(
   stmt : PreparedStatement,
   index : Int,
   value : Bool,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindBoolean(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindBoolean(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "bool", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_null(
   stmt : PreparedStatement,
   index : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindNull(index);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindNull(index);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "null", value: null };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_clear_bindings(
   stmt : PreparedStatement,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.clearBindings();
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.clearBindings();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      stmt.params = {};
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    stmt.params = {};
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_date(
   stmt : PreparedStatement,
   index : Int,
   date_str : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, date_str, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindDate(index, date_str);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, date_str) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDate(index, date_str);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "date", value: date_str };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_timestamp(
   stmt : PreparedStatement,
   index : Int,
   timestamp_str : String,
-  on_ok : () -> Unit,
+) -> Result[Unit, String] =
+  #|(stmt, index, timestamp_str) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindTimestamp(index, timestamp_str);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
+  #|      stmt.params[index] = { type: "timestamp", value: timestamp_str };
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
+  #|}
+
+// ============================================================================
+// Advanced Type Bindings (Node API only)
+// ============================================================================
+
+extern "js" fn js_bind_blob(
+  stmt : PreparedStatement,
+  index : Int,
+  data : Bytes,
+) -> Result[Unit, String] =
+  #|(stmt, index, data) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const uint8Array = new Uint8Array(data.byteLength);
+  #|      for (let i = 0; i < data.byteLength; i++) {
+  #|        uint8Array[i] = data.readUint8(i);
+  #|      }
+  #|      stmt.statement.bindBlob(index, { bytes: uint8Array });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_blob is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_decimal(
+  stmt : PreparedStatement,
+  index : Int,
+  width : Int,
+  scale : Int,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(stmt, index, width, scale, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDecimal(index, { width, scale, value: BigInt(value) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_decimal is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_interval(
+  stmt : PreparedStatement,
+  index : Int,
+  months : Int,
+  days : Int,
+  micros : Int,
+) -> Result[Unit, String] =
+  #|(stmt, index, months, days, micros) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindInterval(index, { months, days, micros: BigInt(micros) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_interval is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_list_varchar(
+  stmt : PreparedStatement,
+  index : Int,
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bind(index, { items: values }, { typeId: 24 }); // LIST type
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_list_varchar is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_struct(
+  stmt : PreparedStatement,
+  index : Int,
+  fields : Array[String],
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, fields, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const entries = fields.map((name, i) => ({ name, value: values[i] }));
+  #|      stmt.statement.bindStruct(index, { entries });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_struct is only supported for Node backend" };
+  #|}
+
+extern "js" fn js_bind_map(
+  stmt : PreparedStatement,
+  index : Int,
+  keys : Array[String],
+  values : Array[String],
+) -> Result[Unit, String] =
+  #|(stmt, index, keys, values) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      const entries = keys.map((key, i) => ({ key, value: values[i] }));
+  #|      stmt.statement.bindMap(index, { entries });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "bind_map is only supported for Node backend" };
+  #|}
+
+// ============================================================================
+// Appender API (Node API only)
+// ============================================================================
+
+extern "js" fn js_create_appender(
+  conn : Connection,
+  table : String,
+  on_ok : (Appender) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
-  #|(stmt, index, timestamp_str, on_ok, on_err) => {
+  #|(conn, table, on_ok, on_err) => {
+  #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    if (conn && conn.kind === "node") {
   #|      try {
-  #|        stmt.statement.bindTimestamp(index, timestamp_str);
-  #|        on_ok();
+  #|        const appender = await conn.connection.createAppender(table);
+  #|        on_ok({ kind: "appender", connection: conn, appender });
   #|        return;
   #|      } catch (e) {
-  #|        on_err(e.message || String(e));
+  #|        on_err(toError(e));
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "timestamp", value: timestamp_str };
-  #|      on_ok();
+  #|    if (conn && conn.kind === "wasm") {
+  #|      on_err("Appender is not supported for WASM backend. Use INSERT statements, insertCSVFromPath(), insertJSONFromPath(), or insertArrowTable() instead.");
   #|      return;
   #|    }
-  #|    on_err("unknown statement backend");
+  #|    on_err("unknown connection backend");
   #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  run().catch((err) => on_err(toError(err)));
+  #|}
+
+extern "js" fn js_appender_begin_row(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      // No-op in Node API, but kept for API compatibility
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_int(
+  appender : Appender,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendInteger(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_bigint(
+  appender : Appender,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendBigInt(BigInt(value));
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_double(
+  appender : Appender,
+  value : Double,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendDouble(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_varchar(
+  appender : Appender,
+  value : String,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendVarchar(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_bool(
+  appender : Appender,
+  value : Bool,
+) -> Result[Unit, String] =
+  #|(appender, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendBoolean(value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_null(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendNull();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_blob(
+  appender : Appender,
+  data : Bytes,
+) -> Result[Unit, String] =
+  #|(appender, data) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      const uint8Array = new Uint8Array(data.byteLength);
+  #|      for (let i = 0; i < data.byteLength; i++) {
+  #|        uint8Array[i] = data.readUint8(i);
+  #|      }
+  #|      appender.appender.appendBlob({ bytes: uint8Array });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_decimal(
+  appender : Appender,
+  width : Int,
+  scale : Int,
+  value : Int,
+) -> Result[Unit, String] =
+  #|(appender, width, scale, value) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendDecimal({ width, scale, value: BigInt(value) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_append_interval(
+  appender : Appender,
+  months : Int,
+  days : Int,
+  micros : Int,
+) -> Result[Unit, String] =
+  #|(appender, months, days, micros) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.appendInterval({ months, days, micros: BigInt(micros) });
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_end_row(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.endRow();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_flush(
+  appender : Appender,
+) -> Result[Unit, String] =
+  #|(appender) => {
+  #|  if (appender && appender.kind === "appender" && appender.appender) {
+  #|    try {
+  #|      appender.appender.flushSync();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
+  #|    }
+  #|  }
+  #|  return { ok: false, error: "invalid appender" };
+  #|}
+
+extern "js" fn js_appender_close(
+  appender : Appender,
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(appender, on_ok, on_err) => {
+  #|  const toError = (err) => err && err.message ? err.message : String(err);
+  #|  const run = async () => {
+  #|    if (appender && appender.kind === "appender" && appender.appender) {
+  #|      try {
+  #|        appender.appender.closeSync();
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(toError(e));
+  #|        return;
+  #|      }
+  #|    }
+  #|    on_err("invalid appender");
+  #|  };
+  #|  run().catch((err) => on_err(toError(err)));
   #|}
 
 extern "js" fn js_execute_prepared(
@@ -546,24 +844,27 @@ extern "js" fn js_execute_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.sql) {
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
-  #|        // For WASM, construct the query with parameters
-  #|        let sql = stmt.sql;
+  #|        // For WASM, use prepared statement with parameters
+  #|        const params = [];
   #|        if (stmt.params) {
-  #|          const params = Object.keys(stmt.params).map(Number).sort((a, b) => a - b);
-  #|          for (const index of params) {
+  #|          const indices = Object.keys(stmt.params).map(Number).sort((a, b) => a - b);
+  #|          for (const index of indices) {
   #|            const param = stmt.params[index];
+  #|            // Convert typed parameters to values for duckdb-wasm
   #|            if (param.type === "null") {
-  #|              sql = sql.replace(/\?/, "NULL");
-  #|            } else if (param.type === "varchar") {
-  #|              sql = sql.replace(/\?/, "'" + String(param.value).replace(/'/g, "''") + "'");
+  #|              params.push(null);
+  #|            } else if (param.type === "bigint") {
+  #|              params.push(BigInt(param.value));
+  #|            } else if (param.type === "date" || param.type === "timestamp") {
+  #|              params.push(param.value);  // ISO string format
   #|            } else {
-  #|              sql = sql.replace(/\?/, String(param.value));
+  #|              params.push(param.value);
   #|            }
   #|          }
   #|        }
-  #|        const arrowResult = await stmt.connection.conn.query(sql);
+  #|        const arrowResult = await stmt.statement.query(...params);
   #|        let columns = [];
   #|        if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {
   #|          columns = arrowResult.schema.fields.map((field) => field.name);
@@ -607,11 +908,16 @@ extern "js" fn js_close_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      // WASM: just clear params
-  #|      stmt.params = {};
-  #|      on_ok();
-  #|      return;
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|      try {
+  #|        // WASM: no close method on AsyncPreparedStatement, just clear params
+  #|        stmt.params = {};
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(e.message || String(e));
+  #|        return;
+  #|      }
   #|    }
   #|    on_err("unknown statement backend");
   #|  };
@@ -639,12 +945,10 @@ pub fn PreparedStatement::bind_int(
   index : Int,
   value : Int,
 ) -> Result[Unit, DuckDBError] {
-  // Note: JS bind functions use callbacks, but the MoonBit API is synchronous
-  // This is a known limitation - the bind happens asynchronously but errors are silently ignored
-  js_bind_int(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_int(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -653,10 +957,10 @@ pub fn PreparedStatement::bind_bigint(
   index : Int,
   value : Int,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_bigint(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_bigint(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -665,10 +969,10 @@ pub fn PreparedStatement::bind_double(
   index : Int,
   value : Double,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_double(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_double(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -677,10 +981,10 @@ pub fn PreparedStatement::bind_varchar(
   index : Int,
   value : String,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_varchar(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_varchar(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -689,10 +993,10 @@ pub fn PreparedStatement::bind_bool(
   index : Int,
   value : Bool,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_bool(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_bool(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -700,20 +1004,20 @@ pub fn PreparedStatement::bind_null(
   self : PreparedStatement,
   index : Int,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_null(self, index, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_null(self, index) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
 pub fn PreparedStatement::clear_bindings(
   self : PreparedStatement,
 ) -> Result[Unit, DuckDBError] {
-  js_clear_bindings(self, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_clear_bindings(self) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 // ============================================================================
@@ -729,10 +1033,10 @@ pub fn PreparedStatement::bind_date(
   // Convert days to ISO date string for JS
   let (year, month, day) = date_to_ymd(days)
   let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
-  js_bind_date(self, index, date_str, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_date(self, index, date_str) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -746,10 +1050,10 @@ pub fn PreparedStatement::bind_timestamp(
   let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
   let time_str = "\\{String::pad_left(hour.to_string(), 2, '0')}:\\{String::pad_left(minute.to_string(), 2, '0')}:\\{String::pad_left(second.to_string(), 2, '0')}"
   let timestamp_str = "\\{date_str} \\{time_str}"
-  js_bind_timestamp(self, index, timestamp_str, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_timestamp(self, index, timestamp_str) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -767,23 +1071,93 @@ pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit,
 }
 
 ///|
+/// Cumulative days before each month (for non-leap years).
+fn days_before_month(m : Int) -> Int {
+  match m {
+    1 => 0
+    2 => 31
+    3 => 59
+    4 => 90
+    5 => 120
+    6 => 151
+    7 => 181
+    8 => 212
+    9 => 243
+    10 => 273
+    11 => 304
+    12 => 334
+    _ => 0
+  }
+}
+
+///|
+/// Count leap years between year 1 and the given year (exclusive).
+fn count_leap_years_before(year : Int) -> Int {
+  let y = year - 1
+  (y / 4) - (y / 100) + (y / 400)
+}
+
+///|
 /// Convert year, month, day to days since 1970-01-01 (Unix epoch).
-/// Note: This is a simplified calculation. For production use, use a proper date library.
+/// Uses accurate Gregorian calendar calculation with leap year support.
 pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
-  let year_days = (year - 1970) * 365
-  let month_days = (month - 1) * 30
+  // Days from 1970 to the beginning of the given year
+  let year_delta = year - 1970
+  let leap_years = count_leap_years_before(year) - count_leap_years_before(1970)
+  let year_days = year_delta * 365 + leap_years
+
+  // Days from beginning of year to beginning of month
+  let month_days = days_before_month(month)
+
+  // Add leap day if past February in a leap year
+  let leap_day = if month > 2 && is_leap_year(year) { 1 } else { 0 }
+
+  // Day of month (0-indexed)
   let day_days = day - 1
-  year_days + month_days + day_days
+
+  year_days + month_days + leap_day + day_days
 }
 
 ///|
 /// Convert days since 1970-01-01 to year, month, day.
-/// Note: This is a simplified calculation. For production use, use a proper date library.
-pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
-  let year = 1970 + (days / 365)
-  let remaining = days % 365
-  let month = 1 + (remaining / 30)
-  let day = 1 + (remaining % 30)
+/// Uses accurate Gregorian calendar calculation with leap year support.
+pub fn date_to_ymd(total_days : Int) -> (Int, Int, Int) {
+  // Use a simpler algorithm: count years from 1970
+  let mut days = total_days
+  let mut year = 1970
+
+  // Count years forward
+  while days >= 365 {
+    let leap = if is_leap_year(year) { 1 } else { 0 }
+    let days_in_year = 365 + leap
+    if days >= days_in_year {
+      days = days - days_in_year
+      year = year + 1
+    } else {
+      break
+    }
+  }
+
+  // Find month
+  let is_leap = is_leap_year(year)
+  let mut month = 1
+  let mut remaining = days
+
+  // Cumulative days for each month
+  while month <= 12 {
+    let dim = match month {
+      2 => if is_leap { 29 } else { 28 }
+      4 | 6 | 9 | 11 => 30
+      _ => 31
+    }
+    if remaining < dim {
+      break
+    }
+    remaining = remaining - dim
+    month = month + 1
+  }
+
+  let day = remaining + 1
   (year, month, day)
 }
 
@@ -855,15 +1229,13 @@ extern "js" fn js_config_set(
   cfg : Config,
   key : String,
   value : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(cfg, key, value, on_ok, on_err) => {
+) -> Result[Unit, String] =
+  #|(cfg, key, value) => {
   #|  try {
   #|    cfg.options[key] = value;
-  #|    on_ok();
+  #|    return { ok: true };
   #|  } catch (e) {
-  #|    on_err(e.message || String(e));
+  #|    return { ok: false, error: e.message || String(e) };
   #|  }
   #|}
 
@@ -931,11 +1303,10 @@ pub fn Config::set(
   key : String,
   value : String,
 ) -> Result[Unit, DuckDBError] {
-  // JS uses callbacks, ignore errors silently for now
-  js_config_set(self, key, value, fn() { () }, fn(msg) {
-    let _ = msg
-  })
-  Ok(())
+  match js_config_set(self, key, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -962,7 +1333,7 @@ pub fn connect_with_config(
 }
 
 // ============================================================================
-// Appender API Implementation (Basic - for future expansion)
+// Appender API Implementation (Node backend only)
 // ============================================================================
 
 ///|
@@ -972,64 +1343,86 @@ pub fn Connection::create_appender(
   table : String,
   on_done~ : (Result[Appender, DuckDBError]) -> Unit,
 ) -> Unit {
-  // JS Appender is complex and requires table schema knowledge
-  // For now, return not supported error
-  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+  // Note: schema parameter is ignored for Node API (uses table name only)
+  let _ = schema
+  js_create_appender(self, table, fn(a) { on_done(Ok(a)) }, fn(e) { on_done(Err(DuckDBError::Message(e))) })
 }
 
 ///|
 pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_begin_row(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_int(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_bigint(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_double(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_varchar(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_bool(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_null(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_end_row(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_flush(self) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
-  on_done(Err(DuckDBError::Message("Appender not yet supported for JS backend")))
+  js_appender_close(self, fn() { on_done(Ok(())) }, fn(e) { on_done(Err(DuckDBError::Message(e))) })
 }
 
 // ============================================================================
@@ -1046,17 +1439,18 @@ pub fn PreparedStatement::bind_blob(
   index : Int,
   value : Bytes,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_blob not yet supported for JS backend"))
+  match js_bind_blob(self, index, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_blob(self, value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -1069,28 +1463,18 @@ pub fn PreparedStatement::bind_decimal(
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_decimal not yet supported for JS backend"))
+  match js_bind_decimal(self, index, value.width, value.scale, value.value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
-}
-
-// Helper function for power of 10
-fn int_pow10(exp : Int) -> Int {
-  let mut result = 1
-  let mut i = 0
-  while i < exp {
-    result = result * 10
-    i = i + 1
+  match js_appender_append_decimal(self, value.width, value.scale, value.value) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
   }
-  result
 }
 
 ///|
@@ -1135,17 +1519,18 @@ pub fn PreparedStatement::bind_interval(
   index : Int,
   value : Interval,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_interval not yet supported for JS backend"))
+  match js_bind_interval(self, index, value.months, value.days, value.micros) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
 pub fn Appender::append_interval(self : Appender, value : Interval) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = value
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  match js_appender_append_interval(self, value.months, value.days, value.micros) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1197,10 +1582,10 @@ pub fn PreparedStatement::bind_list_varchar(
   index : Int,
   values : Array[String],
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = values
-  Err(DuckDBError::Message("bind_list_varchar not yet supported for JS backend"))
+  match js_bind_list_varchar(self, index, values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1232,10 +1617,10 @@ pub fn PreparedStatement::bind_struct(
   index : Int,
   value : Struct,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = value
-  Err(DuckDBError::Message("bind_struct not yet supported for JS backend"))
+  match js_bind_struct(self, index, value.fields, value.values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
@@ -1292,10 +1677,10 @@ pub fn PreparedStatement::bind_map(
   index : Int,
   map : Map,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
-  let _ = index
-  let _ = map
-  Err(DuckDBError::Message("bind_map not yet supported for JS backend"))
+  match js_bind_map(self, index, map.keys, map.values) {
+    Ok(_) => Ok(())
+    Err(e) => Err(DuckDBError::Message(e))
+  }
 }
 
 ///|
