@@ -751,13 +751,13 @@ pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit,
 
 ///|
 /// Check if a year is a leap year in the Gregorian calendar.
-fn is_leap_year(year : Int) -> Bool {
+fn _is_leap_year(year : Int) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
 
 ///|
 /// Get the number of days in each month (for non-leap years).
-fn days_in_month(m : Int) -> Int {
+fn _days_in_month(m : Int) -> Int {
   match m {
     1 => 31
     2 => 28
@@ -815,7 +815,7 @@ pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
   let month_days = days_before_month(month)
 
   // Add leap day if past February in a leap year
-  let leap_day = if month > 2 && is_leap_year(year) { 1 } else { 0 }
+  let leap_day = if month > 2 && _is_leap_year(year) { 1 } else { 0 }
 
   // Day of month (0-indexed)
   let day_days = day - 1
@@ -833,7 +833,7 @@ pub fn date_to_ymd(total_days : Int) -> (Int, Int, Int) {
 
   // Count years forward
   while days >= 365 {
-    let leap = if is_leap_year(year) { 1 } else { 0 }
+    let leap = if _is_leap_year(year) { 1 } else { 0 }
     let days_in_year = 365 + leap
     if days >= days_in_year {
       days = days - days_in_year
@@ -844,7 +844,7 @@ pub fn date_to_ymd(total_days : Int) -> (Int, Int, Int) {
   }
 
   // Find month
-  let is_leap = is_leap_year(year)
+  let is_leap = _is_leap_year(year)
   let mut month = 1
   let mut remaining = days
 
@@ -935,7 +935,7 @@ pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, Duc
 // ----------------------------------------------------------------------------
 
 // Helper function for power of 10
-fn int_pow10(exp : Int) -> Int {
+fn _int_pow10(exp : Int) -> Int {
   let mut result = 1
   let mut i = 0
   while i < exp {
@@ -986,7 +986,7 @@ pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit
 /// Create a decimal from a floating-point value with specified precision.
 /// Note: This is approximate due to floating-point representation.
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = int_pow10(scale)
+  let multiplier = _int_pow10(scale)
   let scaled = (value * Double::from_int(multiplier)).to_int()
   { width, scale, value: scaled }
 }
@@ -994,7 +994,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
 ///|
 /// Convert decimal to floating-point (approximate).
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(int_pow10(decimal.scale))
+  let divisor = Double::from_int(_int_pow10(decimal.scale))
   Double::from_int(decimal.value) / divisor
 }
 
@@ -1005,7 +1005,7 @@ pub fn decimal_from_parts(
   fractional : Int,
   scale : Int,
 ) -> Decimal {
-  let value = whole * int_pow10(scale) + fractional
+  let value = whole * _int_pow10(scale) + fractional
   let width = if whole == 0 {
     String::length(fractional.to_string())
   } else {
@@ -1017,7 +1017,7 @@ pub fn decimal_from_parts(
 ///|
 /// Get the whole and fractional parts of a decimal.
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = int_pow10(decimal.scale)
+  let divisor = _int_pow10(decimal.scale)
   let whole = decimal.value / divisor
   let fractional = Int::abs(decimal.value % divisor)
   (whole, fractional)
@@ -1064,21 +1064,21 @@ pub fn interval_from_days(days : Int) -> Interval {
 ///|
 /// Create an interval from hours.
 pub fn interval_from_hours(hours : Int) -> Interval {
-  let micros = hours * 3600 * int_pow10(6)
+  let micros = hours * 3600 * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from minutes.
 pub fn interval_from_minutes(minutes : Int) -> Interval {
-  let micros = minutes * 60 * int_pow10(6)
+  let micros = minutes * 60 * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from seconds.
 pub fn interval_from_seconds(seconds : Int) -> Interval {
-  let micros = seconds * int_pow10(6)
+  let micros = seconds * _int_pow10(6)
   { months: 0, days: 0, micros }
 }
 

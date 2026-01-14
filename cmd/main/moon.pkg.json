@@ -8,7 +8,7 @@
   ],
   "link": {
     "native": {
-      "cc-link-flags": "-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lduckdb"
+      "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lduckdb"
     }
   }
 }

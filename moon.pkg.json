@@ -1,4 +1,5 @@
 {
+  "is-main": false,
   "targets": {
     "duckdb_native.mbt": ["native"],
     "duckdb_js.mbt": ["js"],
@@ -15,7 +16,8 @@
   ],
   "link": {
     "native": {
-      "cc-link-flags": "-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lduckdb"
+      "stub-cc-flags": "-I/opt/homebrew/include",
+      "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lduckdb"
     }
   }
 }
