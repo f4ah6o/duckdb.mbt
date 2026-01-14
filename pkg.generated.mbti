@@ -4,11 +4,65 @@ package "f4ah6o/duckdb"
 // Values
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
+pub fn connect_with_config(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, Config?, path? : String, backend? : JsBackend) -> Unit
+
+pub fn date_from_ymd(Int, Int, Int) -> Int
+
+pub fn date_to_ymd(Int) -> (Int, Int, Int)
+
+pub fn decimal_from_double(Double, Int, Int) -> Decimal
+
+pub fn decimal_from_parts(Int, Int, Int) -> Decimal
+
+pub fn decimal_to_double(Decimal) -> Double
+
+pub fn decimal_to_parts(Decimal) -> (Int, Int)
+
 pub fn expect_fixture_case(FixtureCase, Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit raise
 
 pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
 
 pub let fixture_cases : Array[FixtureCase]
+
+pub fn interval_from_days(Int) -> Interval
+
+pub fn interval_from_hours(Int) -> Interval
+
+pub fn interval_from_minutes(Int) -> Interval
+
+pub fn interval_from_months(Int) -> Interval
+
+pub fn interval_from_parts(Int, Int, Int) -> Interval
+
+pub fn interval_from_seconds(Int) -> Interval
+
+pub fn interval_to_micros(Interval) -> Int
+
+pub fn list_from_strings(Array[String]) -> List
+
+pub fn list_get(List, Int) -> String?
+
+pub fn list_length(List) -> Int
+
+pub fn map_from_arrays(Array[String], Array[String]) -> Map
+
+pub fn map_from_pairs(Array[(String, String)]) -> Map
+
+pub fn map_get(Map, String) -> String?
+
+pub fn map_size(Map) -> Int
+
+pub fn struct_field_count(Struct) -> Int
+
+pub fn struct_from_arrays(Array[String], Array[String]) -> Struct
+
+pub fn struct_from_pairs(Array[(String, String)]) -> Struct
+
+pub fn struct_get(Struct, String) -> String?
+
+pub fn timestamp_from_ymd_hms(Int, Int, Int, Int, Int, Int) -> Int
+
+pub fn timestamp_to_ymd_hms(Int) -> (Int, Int, Int, Int, Int, Int)
 
 // Errors
 pub suberror DuckDBError {
@@ -17,9 +71,63 @@ pub suberror DuckDBError {
 
 // Types and methods
 #external
+pub type Appender
+pub fn Appender::append_bigint(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_blob(Self, Bytes) -> Result[Unit, DuckDBError]
+pub fn Appender::append_bool(Self, Bool) -> Result[Unit, DuckDBError]
+pub fn Appender::append_date(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_decimal(Self, Decimal) -> Result[Unit, DuckDBError]
+pub fn Appender::append_double(Self, Double) -> Result[Unit, DuckDBError]
+pub fn Appender::append_int(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_interval(Self, Interval) -> Result[Unit, DuckDBError]
+pub fn Appender::append_null(Self) -> Result[Unit, DuckDBError]
+pub fn Appender::append_timestamp(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_varchar(Self, String) -> Result[Unit, DuckDBError]
+pub fn Appender::begin_row(Self) -> Result[Unit, DuckDBError]
+pub fn Appender::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Appender::end_row(Self) -> Result[Unit, DuckDBError]
+pub fn Appender::flush(Self) -> Result[Unit, DuckDBError]
+
+pub struct ArrowField {
+  name : String
+  nullable : Bool
+  type_id : String
+}
+
+#external
+pub type ArrowResult
+pub fn ArrowResult::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn ArrowResult::column_count(Self) -> Int
+pub fn ArrowResult::get_column_bool(Self, Int) -> Array[Bool]
+pub fn ArrowResult::get_column_double(Self, Int) -> Array[Double]
+pub fn ArrowResult::get_column_int32(Self, Int) -> Array[Int]
+pub fn ArrowResult::get_column_int64(Self, Int) -> Array[Int]
+pub fn ArrowResult::get_column_string(Self, Int) -> Array[String]
+pub fn ArrowResult::get_schema(Self) -> Result[ArrowSchemaInfo, DuckDBError]
+pub fn ArrowResult::row_count(Self) -> Int
+
+pub struct ArrowSchemaInfo {
+  fields : Array[ArrowField]
+}
+
+#external
+pub type Config
+pub fn Config::create() -> Self
+pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
+
+#external
 pub type Connection
 pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::create_appender(Self, String, String, on_done~ : (Result[Appender, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::prepare(Self, String, on_done~ : (Result[PreparedStatement, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::query_arrow(Self, String, on_done~ : (Result[ArrowResult, DuckDBError]) -> Unit) -> Unit
+
+pub struct Decimal {
+  width : Int
+  scale : Int
+  value : Int
+}
 
 pub struct FixtureCase {
   name : String
@@ -29,11 +137,46 @@ pub struct FixtureCase {
   nulls : Array[Array[Bool]]
 }
 
+pub struct Interval {
+  months : Int
+  days : Int
+  micros : Int
+}
+
 pub(all) enum JsBackend {
   Auto
   Node
   Wasm
 }
+
+pub struct List {
+  elements : Array[String]
+}
+
+pub struct Map {
+  keys : Array[String]
+  values : Array[String]
+}
+
+#external
+pub type PreparedStatement
+pub fn PreparedStatement::bind_bigint(Self, Int, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_blob(Self, Int, Bytes) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_bool(Self, Int, Bool) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_date(Self, Int, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_decimal(Self, Int, Decimal) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_double(Self, Int, Double) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_int(Self, Int, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_interval(Self, Int, Interval) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_list_varchar(Self, Int, Array[String]) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_map(Self, Int, Map) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_null(Self, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_struct(Self, Int, Struct) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_timestamp(Self, Int, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_varchar(Self, Int, String) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn PreparedStatement::execute(Self, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 
 pub struct QueryResult {
   columns : Array[String]
@@ -43,6 +186,11 @@ pub struct QueryResult {
 pub fn QueryResult::cell(Self, Int, Int) -> String?
 pub fn QueryResult::column_count(Self) -> Int
 pub fn QueryResult::row_count(Self) -> Int
+
+pub struct Struct {
+  fields : Array[String]
+  values : Array[String]
+}
 
 // Type aliases
 
