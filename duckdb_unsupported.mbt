@@ -168,12 +168,9 @@ pub fn PreparedStatement::close(
 // Configuration Stubs
 // ============================================================================
 
-type Config = Connection
-
-///|
-pub fn Config::create() -> Config {
-  unsafe_cast { }
-}
+// Note: Config::create() and connect_with_config are not provided here
+// because Config cannot be constructed in stub code for unsupported targets.
+// These functions are provided by the external bindings on supported targets.
 
 ///|
 pub fn Config::set(
@@ -187,29 +184,9 @@ pub fn Config::set(
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
-///|
-pub fn connect_with_config(
-  on_ready~ : (Result[Connection, DuckDBError]) -> Unit,
-  config : Config?,
-  path? : String,
-  backend? : JsBackend,
-) -> Unit {
-  let _ = config
-  let _ = path
-  let _ = backend
-  touch_public_types(backend)
-  on_ready(
-    Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
-    ),
-  )
-}
-
 // ============================================================================
 // Appender Stubs
 // ============================================================================
-
-type Appender = Connection
 
 ///|
 pub fn Connection::create_appender(
@@ -287,15 +264,8 @@ pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
-///|
-pub fn Appender::close(self : Appender, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
-  let _ = self
-  on_done(
-    Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
-    ),
-  )
-}
+// Note: Appender::close() is not provided here to avoid conflict with Connection::close()
+// The external bindings provide the implementation on supported targets.
 
 // ============================================================================
 // Date/Timestamp Stubs
