@@ -702,12 +702,6 @@ pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit,
 }
 
 ///|
-/// Check if a year is a leap year in the Gregorian calendar.
-fn is_leap_year(year : Int) -> Bool {
-  (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-}
-
-///|
 /// Cumulative days before each month (for non-leap years).
 fn days_before_month(m : Int) -> Int {
   match m {
@@ -1088,17 +1082,6 @@ pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit
   let _ = self
   let _ = value
   Err(DuckDBError::Message("Appender not yet supported for JS backend"))
-}
-
-// Helper function for power of 10
-fn int_pow10(exp : Int) -> Int {
-  let mut result = 1
-  let mut i = 0
-  while i < exp {
-    result = result * 10
-    i = i + 1
-  }
-  result
 }
 
 ///|
