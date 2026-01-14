@@ -767,23 +767,99 @@ pub fn Appender::append_timestamp(self : Appender, micros : Int) -> Result[Unit,
 }
 
 ///|
+/// Check if a year is a leap year in the Gregorian calendar.
+fn is_leap_year(year : Int) -> Bool {
+  (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+///|
+/// Cumulative days before each month (for non-leap years).
+fn days_before_month(m : Int) -> Int {
+  match m {
+    1 => 0
+    2 => 31
+    3 => 59
+    4 => 90
+    5 => 120
+    6 => 151
+    7 => 181
+    8 => 212
+    9 => 243
+    10 => 273
+    11 => 304
+    12 => 334
+    _ => 0
+  }
+}
+
+///|
+/// Count leap years between year 1 and the given year (exclusive).
+fn count_leap_years_before(year : Int) -> Int {
+  let y = year - 1
+  (y / 4) - (y / 100) + (y / 400)
+}
+
+///|
 /// Convert year, month, day to days since 1970-01-01 (Unix epoch).
-/// Note: This is a simplified calculation. For production use, use a proper date library.
+/// Uses accurate Gregorian calendar calculation with leap year support.
 pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
-  let year_days = (year - 1970) * 365
-  let month_days = (month - 1) * 30
+  // Days from 1970 to the beginning of the given year
+  let year_delta = year - 1970
+  let leap_years = count_leap_years_before(year) - count_leap_years_before(1970)
+  let year_days = year_delta * 365 + leap_years
+
+  // Days from beginning of year to beginning of month
+  let month_days = days_before_month(month)
+
+  // Add leap day if past February in a leap year
+  let leap_day = if month > 2 && is_leap_year(year) { 1 } else { 0 }
+
+  // Day of month (0-indexed)
   let day_days = day - 1
-  year_days + month_days + day_days
+
+  year_days + month_days + leap_day + day_days
 }
 
 ///|
 /// Convert days since 1970-01-01 to year, month, day.
-/// Note: This is a simplified calculation. For production use, use a proper date library.
-pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
-  let year = 1970 + (days / 365)
-  let remaining = days % 365
-  let month = 1 + (remaining / 30)
-  let day = 1 + (remaining % 30)
+/// Uses accurate Gregorian calendar calculation with leap year support.
+pub fn date_to_ymd(total_days : Int) -> (Int, Int, Int) {
+  // Use a simpler algorithm: count years from 1970
+  let mut days = total_days
+  let mut year = 1970
+
+  // Count years forward
+  while days >= 365 {
+    let leap = if is_leap_year(year) { 1 } else { 0 }
+    let days_in_year = 365 + leap
+    if days >= days_in_year {
+      days = days - days_in_year
+      year = year + 1
+    } else {
+      break
+    }
+  }
+
+  // Find month
+  let is_leap = is_leap_year(year)
+  let mut month = 1
+  let mut remaining = days
+
+  // Cumulative days for each month
+  while month <= 12 {
+    let dim = match month {
+      2 => if is_leap { 29 } else { 28 }
+      4 | 6 | 9 | 11 => 30
+      _ => 31
+    }
+    if remaining < dim {
+      break
+    }
+    remaining = remaining - dim
+    month = month + 1
+  }
+
+  let day = remaining + 1
   (year, month, day)
 }
 
