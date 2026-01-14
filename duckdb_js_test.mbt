@@ -597,3 +597,30 @@ test "js wasm prepare bind varchar" {
       }
   }
 }
+
+// ============================================================================
+// Error Propagation Tests
+// ============================================================================
+
+///|
+test "js node prepare bind chain with ? operator" {
+  let result = run_js_prepare_query(JsBackend::Node, "SELECT ? + ? AS x", [("10", "int"), ("20", "int")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "30" {
+        fail("expected '30', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node bind chain failed: \{message}")
+      }
+  }
+}

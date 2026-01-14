@@ -236,267 +236,195 @@ extern "js" fn js_bind_int(
   stmt : PreparedStatement,
   index : Int,
   value : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindInteger(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindInteger(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      // WASM: store parameters for later use in execute
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "int", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    // WASM: store parameters for later use in execute
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "int", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_bigint(
   stmt : PreparedStatement,
   index : Int,
   value : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindBigInt(index, BigInt(value));
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindBigInt(index, BigInt(value));
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "bigint", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "bigint", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_double(
   stmt : PreparedStatement,
   index : Int,
   value : Double,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindDouble(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDouble(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "double", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_varchar(
   stmt : PreparedStatement,
   index : Int,
   value : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindVarchar(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindVarchar(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "varchar", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
+  #|    stmt.params[index] = { type: "varchar", value };
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_bool(
   stmt : PreparedStatement,
   index : Int,
   value : Bool,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, value, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindBoolean(index, value);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, value) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindBoolean(index, value);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "bool", value };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_null(
   stmt : PreparedStatement,
   index : Int,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindNull(index);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindNull(index);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "null", value: null };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_clear_bindings(
   stmt : PreparedStatement,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.clearBindings();
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.clearBindings();
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      stmt.params = {};
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    stmt.params = {};
+  #|    return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_date(
   stmt : PreparedStatement,
   index : Int,
   date_str : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, date_str, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindDate(index, date_str);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, date_str) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindDate(index, date_str);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "date", value: date_str };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_bind_timestamp(
   stmt : PreparedStatement,
   index : Int,
   timestamp_str : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, index, timestamp_str, on_ok, on_err) => {
-  #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        stmt.statement.bindTimestamp(index, timestamp_str);
-  #|        on_ok();
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
+) -> Result[Unit, String] =
+  #|(stmt, index, timestamp_str) => {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|    try {
+  #|      stmt.statement.bindTimestamp(index, timestamp_str);
+  #|      return { ok: true };
+  #|    } catch (e) {
+  #|      return { ok: false, error: e.message || String(e) };
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      if (!stmt.params) stmt.params = {};
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|    if (!stmt.params) stmt.params = {};
   #|      stmt.params[index] = { type: "timestamp", value: timestamp_str };
-  #|      on_ok();
-  #|      return;
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
+  #|      return { ok: true };
+  #|  }
+  #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
 extern "js" fn js_execute_prepared(
@@ -639,12 +567,10 @@ pub fn PreparedStatement::bind_int(
   index : Int,
   value : Int,
 ) -> Result[Unit, DuckDBError] {
-  // Note: JS bind functions use callbacks, but the MoonBit API is synchronous
-  // This is a known limitation - the bind happens asynchronously but errors are silently ignored
-  js_bind_int(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_int(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -653,10 +579,10 @@ pub fn PreparedStatement::bind_bigint(
   index : Int,
   value : Int,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_bigint(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_bigint(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -665,10 +591,10 @@ pub fn PreparedStatement::bind_double(
   index : Int,
   value : Double,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_double(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_double(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -677,10 +603,10 @@ pub fn PreparedStatement::bind_varchar(
   index : Int,
   value : String,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_varchar(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_varchar(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -689,10 +615,10 @@ pub fn PreparedStatement::bind_bool(
   index : Int,
   value : Bool,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_bool(self, index, value, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_bool(self, index, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -700,20 +626,20 @@ pub fn PreparedStatement::bind_null(
   self : PreparedStatement,
   index : Int,
 ) -> Result[Unit, DuckDBError] {
-  js_bind_null(self, index, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_null(self, index) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
 pub fn PreparedStatement::clear_bindings(
   self : PreparedStatement,
 ) -> Result[Unit, DuckDBError] {
-  js_clear_bindings(self, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_clear_bindings(self) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 // ============================================================================
@@ -729,10 +655,10 @@ pub fn PreparedStatement::bind_date(
   // Convert days to ISO date string for JS
   let (year, month, day) = date_to_ymd(days)
   let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
-  js_bind_date(self, index, date_str, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_date(self, index, date_str) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -746,10 +672,10 @@ pub fn PreparedStatement::bind_timestamp(
   let date_str = "\\{year}-\\{String::pad_left(month.to_string(), 2, '0')}-\\{String::pad_left(day.to_string(), 2, '0')}"
   let time_str = "\\{String::pad_left(hour.to_string(), 2, '0')}:\\{String::pad_left(minute.to_string(), 2, '0')}:\\{String::pad_left(second.to_string(), 2, '0')}"
   let timestamp_str = "\\{date_str} \\{time_str}"
-  js_bind_timestamp(self, index, timestamp_str, fn() { () }, fn(message) {
-    let _ = message
-  })
-  Ok(())
+  match js_bind_timestamp(self, index, timestamp_str) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
@@ -931,15 +857,13 @@ extern "js" fn js_config_set(
   cfg : Config,
   key : String,
   value : String,
-  on_ok : () -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(cfg, key, value, on_ok, on_err) => {
+) -> Result[Unit, String] =
+  #|(cfg, key, value) => {
   #|  try {
   #|    cfg.options[key] = value;
-  #|    on_ok();
+  #|    return { ok: true };
   #|  } catch (e) {
-  #|    on_err(e.message || String(e));
+  #|    return { ok: false, error: e.message || String(e) };
   #|  }
   #|}
 
@@ -1007,11 +931,10 @@ pub fn Config::set(
   key : String,
   value : String,
 ) -> Result[Unit, DuckDBError] {
-  // JS uses callbacks, ignore errors silently for now
-  js_config_set(self, key, value, fn() { () }, fn(msg) {
-    let _ = msg
-  })
-  Ok(())
+  match js_config_set(self, key, value) {
+    Ok(_) => Ok(())
+    Err(message) => Err(DuckDBError::Message(message))
+  }
 }
 
 ///|
