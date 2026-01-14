@@ -219,8 +219,9 @@ extern "js" fn js_prepare(
   #|    }
   #|    if (conn && conn.kind === "wasm") {
   #|      try {
-  #|        // WASM doesn't have true prepared statements, use query with parameters
-  #|        on_ok({ kind: "prepared", connection: conn, sql, params: {} });
+  #|        // Use real duckdb-wasm prepared statements
+  #|        const statement = await conn.conn.prepare(sql);
+  #|        on_ok({ kind: "prepared", connection: conn, statement, sql, params: {} });
   #|        return;
   #|      } catch (e) {
   #|        on_err(toError(e));
@@ -474,24 +475,27 @@ extern "js" fn js_execute_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.sql) {
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
-  #|        // For WASM, construct the query with parameters
-  #|        let sql = stmt.sql;
+  #|        // For WASM, use prepared statement with parameters
+  #|        const params = [];
   #|        if (stmt.params) {
-  #|          const params = Object.keys(stmt.params).map(Number).sort((a, b) => a - b);
-  #|          for (const index of params) {
+  #|          const indices = Object.keys(stmt.params).map(Number).sort((a, b) => a - b);
+  #|          for (const index of indices) {
   #|            const param = stmt.params[index];
+  #|            // Convert typed parameters to values for duckdb-wasm
   #|            if (param.type === "null") {
-  #|              sql = sql.replace(/\?/, "NULL");
-  #|            } else if (param.type === "varchar") {
-  #|              sql = sql.replace(/\?/, "'" + String(param.value).replace(/'/g, "''") + "'");
+  #|              params.push(null);
+  #|            } else if (param.type === "bigint") {
+  #|              params.push(BigInt(param.value));
+  #|            } else if (param.type === "date" || param.type === "timestamp") {
+  #|              params.push(param.value);  // ISO string format
   #|            } else {
-  #|              sql = sql.replace(/\?/, String(param.value));
+  #|              params.push(param.value);
   #|            }
   #|          }
   #|        }
-  #|        const arrowResult = await stmt.connection.conn.query(sql);
+  #|        const arrowResult = await stmt.statement.query(...params);
   #|        let columns = [];
   #|        if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {
   #|          columns = arrowResult.schema.fields.map((field) => field.name);
@@ -535,11 +539,16 @@ extern "js" fn js_close_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
-  #|      // WASM: just clear params
-  #|      stmt.params = {};
-  #|      on_ok();
-  #|      return;
+  #|    if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|      try {
+  #|        // WASM: no close method on AsyncPreparedStatement, just clear params
+  #|        stmt.params = {};
+  #|        on_ok();
+  #|        return;
+  #|      } catch (e) {
+  #|        on_err(e.message || String(e));
+  #|        return;
+  #|      }
   #|    }
   #|    on_err("unknown statement backend");
   #|  };

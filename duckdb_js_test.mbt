@@ -366,22 +366,27 @@ extern "js" fn js_run_prepare_query(
   #|    "    const db = new duckdb.AsyncDuckDB(logger, worker);",
   #|    "    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);",
   #|    "    const conn = await db.connect();",
-  #|    "    // For WASM, replace ? with bound values",
-  #|    "    let querySql = sql;",
+  #|    "    // For WASM, use real prepared statements",
+  #|    "    const stmt = await conn.prepare(sql);",
+  #|    "    const params = [];",
   #|    "    const binds = " + JSON.stringify(binds) + ";",
   #|    "    const bindTypes = " + JSON.stringify(bind_types) + ";",
   #|    "    for (let i = 0; i < binds.length; i++) {",
   #|    "      const t = bindTypes[i];",
   #|    "      const v = binds[i];",
   #|    "      if (t === 'null') {",
-  #|    "        querySql = querySql.replace(/?/, 'NULL');",
+  #|    "        params.push(null);",
+  #|    "      } else if (t === 'bigint') {",
+  #|    "        params.push(BigInt(v));",
   #|    "      } else if (t === 'varchar') {",
-  #|    "        querySql = querySql.replace(/?/, `'${String(v).replace(/'/g, \"''\")}'`);",
+  #|    "        params.push(v);",
+  #|    "      } else if (t === 'int' || t === 'double' || t === 'bool') {",
+  #|    "        params.push(eval(v));",
   #|    "      } else {",
-  #|    "        querySql = querySql.replace(/?/, String(v));",
+  #|    "        params.push(v);",
   #|    "      }",
   #|    "    }",
-  #|    "    const arrowResult = await conn.query(querySql);",
+  #|    "    const arrowResult = await stmt.query(...params);",
   #|    "    let columns = [];",
   #|    "    if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {",
   #|    "      columns = arrowResult.schema.fields.map((field) => field.name);",
@@ -621,6 +626,77 @@ test "js node prepare bind chain with ? operator" {
         ()
       } else {
         fail("node bind chain failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wasm prepare multiple params" {
+  let result = run_js_prepare_query(JsBackend::Wasm, "SELECT ? + ? + ? AS x", [("10", "int"), ("20", "int"), ("30", "int")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "60" {
+        fail("expected '60', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm prepare multiple params failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wasm prepare with quotes" {
+  let result = run_js_prepare_query(JsBackend::Wasm, "SELECT ? AS x", [("it's a test", "varchar")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "it's a test" {
+        fail("expected \"it's a test\", got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm prepare with quotes failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wasm prepare sql injection safe" {
+  let malicious = "'; DROP TABLE users; --"
+  let result = run_js_prepare_query(JsBackend::Wasm, "SELECT ? AS x", [(malicious, "varchar")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if rows[0][0] != malicious {
+        fail("SQL injection vulnerability detected! expected '\{malicious}', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm prepare sql injection test failed: \{message}")
       }
   }
 }
