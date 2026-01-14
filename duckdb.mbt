@@ -3,6 +3,10 @@
 pub type Connection
 
 ///|
+#external
+pub type PreparedStatement
+
+///|
 /// JS backend selection for `connect`.
 pub(all) enum JsBackend {
   Auto
@@ -52,3 +56,4 @@ pub fn QueryResult::cell(self : QueryResult, row : Int, col : Int) -> String? {
     Some(self.rows[row][col])
   }
 }
+

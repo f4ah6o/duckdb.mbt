@@ -238,3 +238,220 @@ int32_t duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
 int32_t duckdb_mb_is_null_result(duckdb_result *result) {
   return result == NULL ? 1 : 0;
 }
+
+// ============================================================================
+// Prepared Statement Functions
+// ============================================================================
+
+typedef struct {
+  duckdb_prepared_statement stmt;
+  duckdb_connection conn;
+  char error[256];
+} duckdb_mb_statement;
+
+duckdb_mb_statement *duckdb_mb_prepare(duckdb_mb_connection *handle,
+                                      moonbit_bytes_t sql) {
+  if (!handle) {
+    return NULL;
+  }
+  char *sql_c = duckdb_mb_bytes_to_cstr(sql);
+  if (!sql_c) {
+    return NULL;
+  }
+
+  duckdb_mb_statement *mb_stmt =
+      (duckdb_mb_statement *)malloc(sizeof(duckdb_mb_statement));
+  if (!mb_stmt) {
+    free(sql_c);
+    return NULL;
+  }
+
+  duckdb_state state = duckdb_prepare(handle->conn, sql_c, &mb_stmt->stmt);
+  free(sql_c);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error && error[0] != '\0') {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    } else {
+      strncpy(mb_stmt->error, "duckdb_prepare failed", sizeof(mb_stmt->error));
+    }
+    duckdb_destroy_prepare(&mb_stmt->stmt);
+    mb_stmt->stmt = NULL;
+    mb_stmt->conn = NULL;
+    free(mb_stmt);
+    return NULL;
+  }
+
+  mb_stmt->conn = handle->conn;
+  mb_stmt->error[0] = '\0';
+  return mb_stmt;
+}
+
+void duckdb_mb_statement_destroy(duckdb_mb_statement *mb_stmt) {
+  if (!mb_stmt) {
+    return;
+  }
+  if (mb_stmt->stmt) {
+    duckdb_destroy_prepare(&mb_stmt->stmt);
+  }
+  free(mb_stmt);
+}
+
+moonbit_bytes_t duckdb_mb_statement_error(duckdb_mb_statement *mb_stmt) {
+  if (!mb_stmt) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+  return duckdb_mb_make_bytes(mb_stmt->error, strlen(mb_stmt->error));
+}
+
+int32_t duckdb_mb_bind_int(duckdb_mb_statement *mb_stmt, int32_t index,
+                          int32_t value) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_state state = duckdb_bind_int32(mb_stmt->stmt, (idx_t)index, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_bigint(duckdb_mb_statement *mb_stmt, int32_t index,
+                              int64_t value) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_state state = duckdb_bind_int64(mb_stmt->stmt, (idx_t)index, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_double(duckdb_mb_statement *mb_stmt, int32_t index,
+                              double value) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_state state = duckdb_bind_double(mb_stmt->stmt, (idx_t)index, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_varchar(duckdb_mb_statement *mb_stmt, int32_t index,
+                               moonbit_bytes_t value) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  char *val_c = duckdb_mb_bytes_to_cstr(value);
+  if (!val_c) {
+    strncpy(mb_stmt->error, "failed to allocate varchar buffer",
+            sizeof(mb_stmt->error));
+    return 0;
+  }
+  duckdb_state state =
+      duckdb_bind_varchar(mb_stmt->stmt, (idx_t)index, val_c);
+  free(val_c);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_bool(duckdb_mb_statement *mb_stmt, int32_t index,
+                            bool value) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_state state = duckdb_bind_boolean(mb_stmt->stmt, (idx_t)index, value);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_bind_null(duckdb_mb_statement *mb_stmt, int32_t index) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_state state = duckdb_bind_null(mb_stmt->stmt, (idx_t)index);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(mb_stmt->stmt);
+    if (error) {
+      strncpy(mb_stmt->error, error, sizeof(mb_stmt->error) - 1);
+      mb_stmt->error[sizeof(mb_stmt->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+int32_t duckdb_mb_clear_bindings(duckdb_mb_statement *mb_stmt) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    return 0;
+  }
+  duckdb_clear_bindings(mb_stmt->stmt);
+  return 1;
+}
+
+duckdb_result *duckdb_mb_execute_prepared(duckdb_mb_statement *mb_stmt) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    duckdb_mb_set_error("statement is null");
+    return NULL;
+  }
+
+  duckdb_result *result = (duckdb_result *)malloc(sizeof(duckdb_result));
+  if (!result) {
+    duckdb_mb_set_error("failed to allocate result");
+    return NULL;
+  }
+
+  duckdb_state state = duckdb_execute_prepared(mb_stmt->stmt, result);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_result_error(result);
+    if (!error) {
+      error = "duckdb_execute_prepared failed";
+    }
+    duckdb_mb_set_error(error);
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+
+  return result;
+}
+
+int32_t duckdb_mb_is_null_statement(duckdb_mb_statement *mb_stmt) {
+  return mb_stmt == NULL ? 1 : 0;
+}
+

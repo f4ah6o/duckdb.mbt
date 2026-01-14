@@ -281,3 +281,319 @@ test "js wasm fixture" {
       }
   }
 }
+
+// ============================================================================
+// Prepared Statement Tests
+// ============================================================================
+
+///|
+extern "js" fn js_run_prepare_query(
+  backend : JsBackend,
+  sql : String,
+  binds : Array[String],
+  bind_types : Array[String],
+) -> String =
+  #|(backend, sql, binds, bind_types) => {
+  #|  const { execFileSync } = require("child_process");
+  #|  const bindScript = binds.map((v, i) => {
+  #|    const t = bind_types[i];
+  #|    if (t === "null") return `stmt.bindNull(${i + 1});`;
+  #|    if (t === "int") return `stmt.bindInteger(${i + 1}, ${v});`;
+  #|    if (t === "bigint") return `stmt.bindBigInt(${i + 1}, BigInt(${v}));`;
+  #|    if (t === "double") return `stmt.bindDouble(${i + 1}, ${v});`;
+  #|    if (t === "varchar") return `stmt.bindVarchar(${i + 1}, ${JSON.stringify(v)});`;
+  #|    if (t === "bool") return `stmt.bindBoolean(${i + 1}, ${v});`;
+  #|    return `stmt.bindNull(${i + 1});`;
+  #|  }).join("\\n");
+  #|  const script = [
+  #|    "const backend = " + backend + ";",
+  #|    "const sql = " + JSON.stringify(sql) + ";",
+  #|    "const toError = (err) => err && err.message ? err.message : String(err);",
+  #|    "const toCell = (value) => {",
+  #|    "  if (value === null || value === undefined) { return ['', true]; }",
+  #|    "  if (typeof value === 'string') { return [value, false]; }",
+  #|    "  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {",
+  #|    "    return [String(value), false];",
+  #|    "  }",
+  #|    "  return [JSON.stringify(value), false];",
+  #|    "};",
+  #|    "const pushRow = (values, rows, nulls) => {",
+  #|    "  const row = [];",
+  #|    "  const rowNulls = [];",
+  #|    "  for (const value of values) {",
+  #|    "    const cell = toCell(value);",
+  #|    "    row.push(cell[0]);",
+  #|    "    rowNulls.push(cell[1]);",
+  #|    "  }",
+  #|    "  rows.push(row);",
+  #|    "  nulls.push(rowNulls);",
+  #|    "};",
+  #|    "const run = async () => {",
+  #|    "  if (backend === 1) {",
+  #|    "    const api = await import('@duckdb/node-api');",
+  #|    "    const instance = await api.DuckDBInstance.create(':memory:');",
+  #|    "    const connection = await instance.connect();",
+  #|    "    const stmt = connection.createStatement(sql);",
+  #|    bindScript,
+  #|    "    const result = await stmt.run();",
+  #|    "    const columns = result.columnNames();",
+  #|    "    const rowsJson = await result.getRowsJson();",
+  #|    "    const rows = [];",
+  #|    "    const nulls = [];",
+  #|    "    for (const row of rowsJson) {",
+  #|    "      pushRow(Array.isArray(row) ? row : columns.map(n => row[n]), rows, nulls);",
+  #|    "    }",
+  #|    "    if (connection && typeof connection.close === 'function') {",
+  #|    "      await connection.close();",
+  #|    "    }",
+  #|    "    if (connection && typeof connection.closeSync === 'function') {",
+  #|    "      connection.closeSync();",
+  #|    "    }",
+  #|    "    if (instance && typeof instance.close === 'function') {",
+  #|    "      await instance.close();",
+  #|    "    }",
+  #|    "    return { columns, rows, nulls };",
+  #|    "  }",
+  #|    "  if (backend === 2) {",
+  #|    "    if (typeof Worker === 'undefined') {",
+  #|    "      throw new Error('duckdb-wasm requires Worker support');",
+  #|    "    }",
+  #|    "    const duckdb = await import('@duckdb/duckdb-wasm');",
+  #|    "    const bundles = duckdb.getJsDelivrBundles();",
+  #|    "    const bundle = await duckdb.selectBundle(bundles);",
+  #|    "    const logger = new duckdb.ConsoleLogger();",
+  #|    "    const worker = new Worker(bundle.mainWorker);",
+  #|    "    const db = new duckdb.AsyncDuckDB(logger, worker);",
+  #|    "    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);",
+  #|    "    const conn = await db.connect();",
+  #|    "    // For WASM, replace ? with bound values",
+  #|    "    let querySql = sql;",
+  #|    "    const binds = " + JSON.stringify(binds) + ";",
+  #|    "    const bindTypes = " + JSON.stringify(bind_types) + ";",
+  #|    "    for (let i = 0; i < binds.length; i++) {",
+  #|    "      const t = bindTypes[i];",
+  #|    "      const v = binds[i];",
+  #|    "      if (t === 'null') {",
+  #|    "        querySql = querySql.replace(/?/, 'NULL');",
+  #|    "      } else if (t === 'varchar') {",
+  #|    "        querySql = querySql.replace(/?/, `'${String(v).replace(/'/g, \"''\")}'`);",
+  #|    "      } else {",
+  #|    "        querySql = querySql.replace(/?/, String(v));",
+  #|    "      }",
+  #|    "    }",
+  #|    "    const arrowResult = await conn.query(querySql);",
+  #|    "    let columns = [];",
+  #|    "    if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {",
+  #|    "      columns = arrowResult.schema.fields.map((field) => field.name);",
+  #|    "    }",
+  #|    "    const rowObjects = arrowResult.toArray().map((row) => row.toJSON());",
+  #|    "    if (columns.length === 0 && rowObjects.length > 0) {",
+  #|    "      columns = Object.keys(rowObjects[0]);",
+  #|    "    }",
+  #|    "    const rows = [];",
+  #|    "    const nulls = [];",
+  #|    "    for (const row of rowObjects) {",
+  #|    "      const values = columns.map((name) => row[name]);",
+  #|    "      pushRow(values, rows, nulls);",
+  #|    "    }",
+  #|    "    if (conn && typeof conn.close === 'function') {",
+  #|    "      await conn.close();",
+  #|    "    }",
+  #|    "    if (db && typeof db.terminate === 'function') {",
+  #|    "      await db.terminate();",
+  #|    "    }",
+  #|    "    if (worker && typeof worker.terminate === 'function') {",
+  #|    "      worker.terminate();",
+  #|    "    }",
+  #|    "    return { columns, rows, nulls };",
+  #|    "  }",
+  #|    "  throw new Error('unknown backend');",
+  #|    "};",
+  #|    "run()",
+  #|    "  .then((result) => {",
+  #|    "    console.log(JSON.stringify({ ok: true, columns: result.columns, rows: result.rows, nulls: result.nulls }));",
+  #|    "  })",
+  #|    "  .catch((err) => {",
+  #|    "    console.log(JSON.stringify({ ok: false, error: toError(err) }));",
+  #|    "  });"
+  #|  ].join("\\n");
+  #|  try {
+  #|    const output = execFileSync(process.execPath, ["-e", script], {
+  #|      encoding: "utf8",
+  #|      stdio: ["ignore", "pipe", "pipe"],
+  #|    });
+  #|    const lines = output.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  #|    return lines.length ? lines[lines.length - 1] : "";
+  #|  } catch (err) {
+  #|    const message = err && err.stderr
+  #|      ? err.stderr.toString()
+  #|      : (err && err.message ? err.message : String(err));
+  #|    return JSON.stringify({ ok: false, error: message });
+  #|  }
+  #|}
+
+///|
+fn run_js_prepare_query(
+  backend : JsBackend,
+  sql : String,
+  binds : Array[(String, String)],
+) -> Result[(Array[String], Array[Array[String]], Array[Array[Bool]]), String] {
+  let bind_values : Array[String] = []
+  let bind_types : Array[String] = []
+  for bind in binds {
+    match bind {
+      (value, typ) => {
+        bind_values.push(value)
+        bind_types.push(typ)
+      }
+    }
+  } else {
+    ()
+  }
+  let payload = js_run_prepare_query(backend, sql, bind_values, bind_types)
+  if payload is "" {
+    Err("no output from js prepare runner")
+  } else {
+    decode_query_result(payload)
+  }
+}
+
+///|
+test "js node prepare bind int" {
+  let result = run_js_prepare_query(JsBackend::Node, "SELECT ? * 2 AS x", [("21", "int")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "42" {
+        fail("expected '42', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node prepare bind int failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js node prepare bind varchar" {
+  let result = run_js_prepare_query(JsBackend::Node, "SELECT CONCAT(?, 'suffix') AS x", [("prefix", "varchar")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "prefixsuffix" {
+        fail("expected 'prefixsuffix', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node prepare bind varchar failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js node prepare bind null" {
+  let result = run_js_prepare_query(JsBackend::Node, "SELECT ? IS NULL AS x", [("", "null")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value for IS NULL check")
+      } else if rows[0][0] != "true" {
+        fail("expected 'true', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node prepare bind null failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js node prepare multiple params" {
+  let result = run_js_prepare_query(JsBackend::Node, "SELECT ? + ? + ? AS x", [("10", "int"), ("20", "int"), ("30", "int")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "60" {
+        fail("expected '60', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node prepare multiple params failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wasm prepare bind int" {
+  let result = run_js_prepare_query(JsBackend::Wasm, "SELECT ? * 2 AS x", [("21", "int")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "42" {
+        fail("expected '42', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm prepare bind int failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wasm prepare bind varchar" {
+  let result = run_js_prepare_query(JsBackend::Wasm, "SELECT CONCAT(?, 'suffix') AS x", [("prefix", "varchar")])
+  match result {
+    Ok((columns, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "prefixsuffix" {
+        fail("expected 'prefixsuffix', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm prepare bind varchar failed: \{message}")
+      }
+  }
+}
