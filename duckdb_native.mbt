@@ -822,7 +822,7 @@ pub fn PreparedStatement::bind_blob(
   index : Int,
   value : Bytes,
 ) -> Result[Unit, DuckDBError] {
-  if native_bind_blob(self, index, value, 0) {
+  if native_bind_blob(self, index, value, Bytes::length(value)) {
     Ok(())
   } else {
     Err(DuckDBError::Message(statement_error(self, "bind_blob failed")))
@@ -831,7 +831,7 @@ pub fn PreparedStatement::bind_blob(
 
 ///|
 pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
-  if native_appender_append_blob(self, value, 0) {
+  if native_appender_append_blob(self, value, Bytes::length(value)) {
     Ok(())
   } else {
     Err(DuckDBError::Message(appender_error(self, "append_blob failed")))
