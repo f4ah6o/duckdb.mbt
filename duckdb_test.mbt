@@ -976,3 +976,171 @@ test "map helpers" {
   }
   ()
 }
+
+// ============================================================================
+// Typed Result API Tests
+// ============================================================================
+
+///|
+test "typed result api basic" {
+  let result = run_native_query("SELECT 42 AS i, 3.14 AS d, true AS b, 'hello' AS s")
+  match result {
+    Ok(qr) => {
+      // Int値の取得
+      match qr.cell_int(0, 0) {
+        Some(n) => {
+          if n != 42 {
+            fail("expected 42, got \{n}")
+          }
+        }
+        None => fail("expected Some(42)")
+      }
+
+      // Double値の取得
+      match qr.cell_double(0, 1) {
+        Some(d) => {
+          if d < 3.13 || d > 3.15 {
+            fail("expected ~3.14, got \{d}")
+          }
+        }
+        None => fail("expected Some(3.14)")
+      }
+
+      // Bool値の取得
+      match qr.cell_bool(0, 2) {
+        Some(b) => {
+          if !b {
+            fail("expected true")
+          }
+        }
+        None => fail("expected Some(true)")
+      }
+
+      // String値の取得
+      match qr.cell_string(0, 3) {
+        Some(s) => {
+          if s != "hello" {
+            fail("expected 'hello', got '\{s}'")
+          }
+        }
+        None => fail("expected Some('hello')")
+      }
+
+      // Value enumでの取得
+      match qr.cell_value(0, 0) {
+        Value::IntValue(n) => {
+          if n != 42 {
+            fail("expected 42, got \{n}")
+          }
+        }
+        other => fail("expected IntValue, got \{other.type_name()}")
+      }
+    }
+    Err(_) => fail("query failed")
+  }
+}
+
+///|
+test "typed result api with null" {
+  let result = run_native_query("SELECT NULL AS n")
+  match result {
+    Ok(qr) => {
+      // Nullのテスト - cell_int should return None
+      match qr.cell_int(0, 0) {
+        None => ()
+        Some(_) => fail("expected None for null")
+      }
+
+      // cell_value should return Null
+      match qr.cell_value(0, 0) {
+        Value::Null => ()
+        other => fail("expected Null, got \{other.type_name()}")
+      }
+
+      // cell_string should return None for null
+      match qr.cell_string(0, 0) {
+        None => ()
+        Some(_) => fail("expected None for null string")
+      }
+    }
+    Err(_) => fail("query failed")
+  }
+}
+
+///|
+test "typed result api mixed" {
+  let result = run_native_query("SELECT 1, 2.5, true, 'text', NULL")
+  match result {
+    Ok(qr) => {
+      // Verify each column type
+      match qr.cell_value(0, 0) {
+        Value::IntValue(n) => {
+          if n != 1 {
+            fail("expected 1, got \{n}")
+          }
+        }
+        other => fail("column 0: expected IntValue, got \{other.type_name()}")
+      }
+
+      match qr.cell_value(0, 1) {
+        Value::DoubleValue(d) => {
+          if d < 2.4 || d > 2.6 {
+            fail("column 1: expected ~2.5, got \{d}")
+          }
+        }
+        other => fail("column 1: expected DoubleValue, got \{other.type_name()}")
+      }
+
+      match qr.cell_value(0, 2) {
+        Value::BoolValue(b) => {
+          if !b {
+            fail("column 2: expected true")
+          }
+        }
+        other => fail("column 2: expected BoolValue, got \{other.type_name()}")
+      }
+
+      match qr.cell_value(0, 3) {
+        Value::StringValue(s) => {
+          if s != "text" {
+            fail("column 3: expected 'text', got '\{s}'")
+          }
+        }
+        other => fail("column 3: expected StringValue, got \{other.type_name()}")
+      }
+
+      match qr.cell_value(0, 4) {
+        Value::Null => ()
+        other => fail("column 4: expected Null, got \{other.type_name()}")
+      }
+    }
+    Err(_) => fail("query failed")
+  }
+}
+
+///|
+test "typed result api negative numbers" {
+  let result = run_native_query("SELECT -42 AS i, -3.14 AS d")
+  match result {
+    Ok(qr) => {
+      match qr.cell_int(0, 0) {
+        Some(n) => {
+          if n != -42 {
+            fail("expected -42, got \{n}")
+          }
+        }
+        None => fail("expected Some(-42)")
+      }
+
+      match qr.cell_double(0, 1) {
+        Some(d) => {
+          if d > -3.13 || d < -3.15 {
+            fail("expected ~-3.14, got \{d}")
+          }
+        }
+        None => fail("expected Some(-3.14)")
+      }
+    }
+    Err(_) => fail("query failed")
+  }
+}
