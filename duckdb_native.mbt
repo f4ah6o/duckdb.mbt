@@ -7,6 +7,24 @@ type NativeResult
 extern "C" fn native_connect(path : Bytes) -> Connection = "duckdb_mb_connect"
 
 ///|
+#borrow(path, config)
+extern "C" fn native_connect_with_config(path : Bytes, config : Config) -> Connection = "duckdb_mb_connect_with_config"
+
+///|
+extern "C" fn native_config_create() -> Config = "duckdb_mb_config_create"
+
+///|
+#borrow(config)
+extern "C" fn native_config_destroy(config : Config) = "duckdb_mb_config_destroy"
+
+///|
+#borrow(config, key, value)
+extern "C" fn native_config_set(config : Config, key : Bytes, value : Bytes) -> Bool = "duckdb_mb_config_set"
+
+///|
+extern "C" fn native_config_error(config : Config) -> Bytes = "duckdb_mb_config_error"
+
+///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
 
@@ -143,6 +161,68 @@ pub fn Connection::query(
     }
     native_result_destroy(result)
     on_done(Ok({ columns, rows, nulls }))
+  }
+}
+
+// ============================================================================
+// Configuration API Implementation
+// ============================================================================
+
+fn config_error(cfg : Config, fallback : String) -> String {
+  let msg = bytes_to_string(native_config_error(cfg))
+  if msg is "" {
+    fallback
+  } else {
+    msg
+  }
+}
+
+///|
+pub fn Config::create() -> Config {
+  native_config_create()
+}
+
+///|
+pub fn Config::set(
+  self : Config,
+  key : String,
+  value : String,
+) -> Result[Unit, DuckDBError] {
+  if native_config_set(self, @encoding/utf8.encode(key), @encoding/utf8.encode(value)) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(config_error(self, "config_set failed")))
+  }
+}
+
+///|
+pub fn connect_with_config(
+  on_ready~ : (Result[Connection, DuckDBError]) -> Unit,
+  config : Config?,
+  path? : String = ":memory:",
+  backend? : JsBackend = JsBackend::Auto,
+) -> Unit {
+  touch_public_types(backend)
+  match config {
+    Some(cfg) => {
+      let path_bytes = @encoding/utf8.encode(path)
+      let conn = native_connect_with_config(path_bytes, cfg)
+      native_config_destroy(cfg)
+      if native_is_null_conn(conn) {
+        on_ready(Err(DuckDBError::Message(last_error("duckdb_open with config failed"))))
+      } else {
+        on_ready(Ok(conn))
+      }
+    }
+    None => {
+      let path_bytes = @encoding/utf8.encode(path)
+      let conn = native_connect(path_bytes)
+      if native_is_null_conn(conn) {
+        on_ready(Err(DuckDBError::Message(last_error("duckdb_open failed"))))
+      } else {
+        on_ready(Ok(conn))
+      }
+    }
   }
 }
 

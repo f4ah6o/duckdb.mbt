@@ -240,6 +240,149 @@ int32_t duckdb_mb_is_null_result(duckdb_result *result) {
 }
 
 // ============================================================================
+// Configuration Functions
+// ============================================================================
+
+typedef struct {
+  duckdb_config config;
+  char error[256];
+} duckdb_mb_config;
+
+duckdb_mb_config *duckdb_mb_config_create(void) {
+  duckdb_mb_config *mb_cfg =
+      (duckdb_mb_config *)malloc(sizeof(duckdb_mb_config));
+  if (!mb_cfg) {
+    return NULL;
+  }
+
+  duckdb_state state = duckdb_create_config(&mb_cfg->config);
+  if (state != DuckDBSuccess) {
+    strncpy(mb_cfg->error, "duckdb_create_config failed", sizeof(mb_cfg->error));
+    mb_cfg->config = NULL;
+    free(mb_cfg);
+    return NULL;
+  }
+
+  mb_cfg->error[0] = '\0';
+  return mb_cfg;
+}
+
+void duckdb_mb_config_destroy(duckdb_mb_config *mb_cfg) {
+  if (!mb_cfg) {
+    return;
+  }
+  if (mb_cfg->config) {
+    duckdb_destroy_config(&mb_cfg->config);
+  }
+  free(mb_cfg);
+}
+
+moonbit_bytes_t duckdb_mb_config_error(duckdb_mb_config *mb_cfg) {
+  if (!mb_cfg) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+  return duckdb_mb_make_bytes(mb_cfg->error, strlen(mb_cfg->error));
+}
+
+int32_t duckdb_mb_config_set(duckdb_mb_config *mb_cfg,
+                             moonbit_bytes_t key,
+                             moonbit_bytes_t value) {
+  if (!mb_cfg || !mb_cfg->config) {
+    return 0;
+  }
+
+  char *key_c = duckdb_mb_bytes_to_cstr(key);
+  if (!key_c) {
+    strncpy(mb_cfg->error, "failed to allocate key buffer",
+            sizeof(mb_cfg->error));
+    return 0;
+  }
+
+  char *value_c = duckdb_mb_bytes_to_cstr(value);
+  if (!value_c) {
+    free(key_c);
+    strncpy(mb_cfg->error, "failed to allocate value buffer",
+            sizeof(mb_cfg->error));
+    return 0;
+  }
+
+  duckdb_state state =
+      duckdb_set_config(mb_cfg->config, key_c, value_c);
+  free(key_c);
+  free(value_c);
+
+  if (state != DuckDBSuccess) {
+    strncpy(mb_cfg->error, "duckdb_set_config failed", sizeof(mb_cfg->error));
+    return 0;
+  }
+
+  return 1;
+}
+
+duckdb_mb_connection *duckdb_mb_connect_with_config(moonbit_bytes_t path,
+                                                     duckdb_mb_config *mb_cfg) {
+  if (!mb_cfg || !mb_cfg->config) {
+    duckdb_mb_set_error("config is null");
+    return NULL;
+  }
+
+  int32_t path_len = path ? Moonbit_array_length(path) : 0;
+  char *path_c = NULL;
+  const char *path_value = ":memory:";
+  if (path_len > 0) {
+    path_c = duckdb_mb_bytes_to_cstr(path);
+    if (!path_c) {
+      duckdb_mb_set_error("failed to allocate path buffer");
+      return NULL;
+    }
+    path_value = path_c;
+  }
+
+  duckdb_mb_connection *handle =
+      (duckdb_mb_connection *)malloc(sizeof(duckdb_mb_connection));
+  if (!handle) {
+    free(path_c);
+    duckdb_mb_set_error("failed to allocate connection handle");
+    return NULL;
+  }
+
+  char *open_error = NULL;
+  duckdb_state state = duckdb_open_ext(path_value, &handle->db, mb_cfg->config, &open_error);
+  if (state != DuckDBSuccess) {
+    if (open_error && open_error[0] != '\0') {
+      duckdb_mb_set_error(open_error);
+    } else {
+      duckdb_mb_set_error("duckdb_open_ext failed");
+    }
+    if (open_error) {
+      duckdb_free(open_error);
+    }
+    free(handle);
+    free(path_c);
+    return NULL;
+  }
+
+  if (open_error) {
+    duckdb_free(open_error);
+  }
+  free(path_c);
+
+  state = duckdb_connect(handle->db, &handle->conn);
+  if (state != DuckDBSuccess) {
+    duckdb_mb_set_error("duckdb_connect failed");
+    duckdb_close(&handle->db);
+    free(handle);
+    return NULL;
+  }
+
+  return handle;
+}
+
+int32_t duckdb_mb_is_null_config(duckdb_mb_config *mb_cfg) {
+  return mb_cfg == NULL ? 1 : 0;
+}
+
+// ============================================================================
 // Prepared Statement Functions
 // ============================================================================
 

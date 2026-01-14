@@ -677,3 +677,122 @@ pub fn PreparedStatement::close(
     on_done(Err(DuckDBError::Message(message)))
   })
 }
+
+// ============================================================================
+// Configuration API Implementation
+// ============================================================================
+
+extern "js" fn js_config_create() -> Config =
+  #|() => {
+  #|  return { kind: "config", options: {} };
+  #|}
+
+extern "js" fn js_config_set(
+  cfg : Config,
+  key : String,
+  value : String,
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(cfg, key, value, on_ok, on_err) => {
+  #|  try {
+  #|    cfg.options[key] = value;
+  #|    on_ok();
+  #|  } catch (e) {
+  #|    on_err(e.message || String(e));
+  #|  }
+  #|}
+
+extern "js" fn js_connect_with_config(
+  path : String,
+  config : Config,
+  backend : JsBackend,
+  on_ok : (Connection) -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(path, config, backend, on_ok, on_err) => {
+  #|  const toError = (err) => err && err.message ? err.message : String(err);
+  #|  const isNode = typeof process !== "undefined" && !!(process.versions && process.versions.node);
+  #|  let mode = backend | 0;
+  #|  if (mode === 0) {
+  #|    mode = isNode ? 1 : 2;
+  #|  }
+  #|
+  #|  const configOptions = config.options || {};
+  #|
+  #|  const connectNode = async () => {
+  #|    const api = await import("@duckdb/node-api");
+  #|    const instance = await api.DuckDBInstance.create(path || ":memory:", configOptions);
+  #|    const connection = await instance.connect();
+  #|    on_ok({ kind: "node", instance, connection });
+  #|  };
+  #|
+  #|  const connectWasm = async () => {
+  #|    if (typeof Worker === "undefined") {
+  #|      throw new Error("duckdb-wasm requires Worker support");
+  #|    }
+  #|    const duckdb = await import("@duckdb/duckdb-wasm");
+  #|    const bundles = duckdb.getJsDelivrBundles();
+  #|    const bundle = await duckdb.selectBundle(bundles);
+  #|    const logger = new duckdb.ConsoleLogger();
+  #|    const worker = new Worker(bundle.mainWorker);
+  #|    const db = new duckdb.AsyncDuckDB(logger, worker);
+  #|    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  #|    const conn = await db.connect();
+  #|    on_ok({ kind: "wasm", db, conn, worker });
+  #|  };
+  #|
+  #|  const run = async () => {
+  #|    if (mode === 1) {
+  #|      await connectNode();
+  #|      return;
+  #|    }
+  #|    if (mode === 2) {
+  #|      await connectWasm();
+  #|      return;
+  #|    }
+  #|    throw new Error("unknown JsBackend");
+  #|  };
+  #|  run().catch((err) => on_err(toError(err)));
+  #|}
+
+///|
+pub fn Config::create() -> Config {
+  js_config_create()
+}
+
+///|
+pub fn Config::set(
+  self : Config,
+  key : String,
+  value : String,
+) -> Result[Unit, DuckDBError] {
+  // JS uses callbacks, ignore errors silently for now
+  js_config_set(self, key, value, fn() { () }, fn(msg) {
+    let _ = msg
+  })
+  Ok(())
+}
+
+///|
+pub fn connect_with_config(
+  on_ready~ : (Result[Connection, DuckDBError]) -> Unit,
+  config : Config?,
+  path? : String = ":memory:",
+  backend? : JsBackend = JsBackend::Auto,
+) -> Unit {
+  touch_public_types(backend)
+  match config {
+    Some(cfg) => {
+      js_connect_with_config(path, cfg, backend, fn(conn) { on_ready(Ok(conn)) }, fn(message) {
+        on_ready(Err(DuckDBError::Message(message)))
+      })
+    }
+    None => {
+      // Call the original connect function - need to create a wrapper
+      js_connect(path, backend, fn(conn) { on_ready(Ok(conn)) }, fn(message) {
+        on_ready(Err(DuckDBError::Message(message)))
+      })
+    }
+  }
+}

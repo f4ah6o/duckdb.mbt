@@ -164,3 +164,44 @@ pub fn PreparedStatement::close(
   )
 }
 
+// ============================================================================
+// Configuration Stubs
+// ============================================================================
+
+type Config = Connection
+
+///|
+pub fn Config::create() -> Config {
+  unsafe_cast { }
+}
+
+///|
+pub fn Config::set(
+  self : Config,
+  key : String,
+  value : String,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = key
+  let _ = value
+  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+}
+
+///|
+pub fn connect_with_config(
+  on_ready~ : (Result[Connection, DuckDBError]) -> Unit,
+  config : Config?,
+  path? : String,
+  backend? : JsBackend,
+) -> Unit {
+  let _ = config
+  let _ = path
+  let _ = backend
+  touch_public_types(backend)
+  on_ready(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
