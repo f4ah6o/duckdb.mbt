@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const cases = [
+  // Original cases
   {
     name: 'basic select',
     sql: "select 1 as a, NULL as b, 'duck' as c",
@@ -21,6 +22,141 @@ const cases = [
   {
     name: 'simple aggregate',
     sql: 'select count(*) as total, sum(i) as sum from (values (1), (2), (3)) as t(i)',
+  },
+  // Date/Time types
+  {
+    name: 'date literal',
+    sql: "select DATE '2024-06-03' as dt",
+  },
+  {
+    name: 'time literal',
+    sql: "select TIME '12:34:56.789' as tm",
+  },
+  {
+    name: 'timestamp literal',
+    sql: "select TIMESTAMP '2024-06-03 12:34:56.789' as ts",
+  },
+  {
+    name: 'epoch date arithmetic',
+    sql: "select CAST('1970-01-01'::DATE - INTERVAL '1 day' AS DATE) as epoch_minus_day, CAST('1970-01-01'::DATE + INTERVAL '1 day' AS DATE) as epoch_plus_day",
+  },
+  // Decimal types
+  {
+    name: 'decimal positive',
+    sql: "select CAST(123.456 AS DECIMAL(10,3)) as dec",
+  },
+  {
+    name: 'decimal negative',
+    sql: "select CAST(-999999.99 AS DECIMAL(9,2)) as neg_dec",
+  },
+  // Integer type variations
+  {
+    name: 'smallint extremes',
+    sql: 'select CAST(32767 AS SMALLINT) as max_smallint, CAST(-32768 AS SMALLINT) as min_smallint',
+  },
+  {
+    name: 'tinyint range',
+    sql: 'select CAST(127 AS TINYINT) as max_tinyint, CAST(-128 AS TINYINT) as min_tinyint',
+  },
+  {
+    name: 'integer extremes',
+    sql: 'select CAST(2147483647 AS INTEGER) as max_int, CAST(-2147483648 AS INTEGER) as min_int',
+  },
+  // String edge cases
+  {
+    name: 'string escapes',
+    sql: "select 'string with ''quotes''' as quoted, 'back\\\\slash' as backslash",
+  },
+  {
+    name: 'string whitespace',
+    sql: "select 'multi\nline' as newline, 'tab\there' as tab",
+  },
+  {
+    name: 'empty strings',
+    sql: "select '' as empty_string, '   ' as spaces",
+  },
+  // NULL variations
+  {
+    name: 'single null',
+    sql: 'select NULL as only_null',
+  },
+  {
+    name: 'multiple nulls',
+    sql: 'select NULL as a, NULL as b, NULL as c',
+  },
+  {
+    name: 'mixed nulls',
+    sql: 'select 1 as col1, NULL as col2, 2 as col3, NULL as col4, 3 as col5',
+  },
+  // Multi-row patterns
+  {
+    name: 'range function',
+    sql: 'select * from range(5)',
+  },
+  {
+    name: 'range with expression',
+    sql: 'select range, range * 2 as double_i from range(3)',
+  },
+  {
+    name: 'range with modulo',
+    sql: 'select range, range % 2 = 0 as is_even from range(4)',
+  },
+  // Aggregate functions
+  {
+    name: 'multiple aggregates',
+    sql: 'select COUNT(*) as cnt, MIN(i) as min_val, MAX(i) as max_val, AVG(i) as avg_val from (values (1), (5), (10)) as t(i)',
+  },
+  {
+    name: 'sum aggregate',
+    sql: 'select SUM(i) as total from (values (1), (2), (3), (4), (5)) as t(i)',
+  },
+  // Boolean operations
+  {
+    name: 'boolean logic',
+    sql: 'select true and false as and_result, true or false as or_result, not true as not_result',
+  },
+  {
+    name: 'comparison boolean',
+    sql: 'select i > 2 as greater_than from (values (1), (2), (3)) as t(i)',
+  },
+  // Type casting
+  {
+    name: 'cast str to int',
+    sql: "select CAST('42' AS INTEGER) as str_to_int, CAST(3.14 AS VARCHAR) as dbl_to_str",
+  },
+  {
+    name: 'cast null types',
+    sql: 'select CAST(NULL AS VARCHAR) as null_varchar, CAST(NULL AS INTEGER) as null_int',
+  },
+  // Float edge cases
+  {
+    name: 'float special values',
+    sql: "select 'NaN'::DOUBLE as nan_val, 'Infinity'::DOUBLE as inf_val, '-Infinity'::DOUBLE as neg_inf_val",
+  },
+  // Complex numeric
+  {
+    name: 'double precision',
+    sql: 'select 3.14159265359 as pi, 2.71828182846 as e, 1.41421356237 as sqrt2',
+  },
+  // Additional NULL handling
+  {
+    name: 'null in values',
+    sql: "select * from (values (1, NULL), (NULL, 2), (3, 3)) as t(a, b)",
+  },
+  // Case expression
+  {
+    name: 'case expression',
+    sql: "select i, case when i < 2 then 'small' when i < 4 then 'medium' else 'large' end as size from (values (1), (2), (3), (4), (5)) as t(i)",
+  },
+  // Concatenation
+  {
+    name: 'string concatenation',
+    sql: "select 'hello' || ' ' || 'world' as greeting",
+  },
+  // Coalesce
+  {
+    name: 'coalesce function',
+    sql: "select coalesce(NULL, 'first') as a, coalesce(NULL, NULL, 'fallback') as b, coalesce('value', 'fallback') as c",
   },
 ];
 
