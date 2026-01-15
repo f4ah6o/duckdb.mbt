@@ -12,6 +12,13 @@ typedef struct {
   duckdb_connection conn;
 } duckdb_mb_connection;
 
+// Forward declaration for prepared statement
+typedef struct {
+  duckdb_prepared_statement stmt;
+  duckdb_connection conn;
+  char error[256];
+} duckdb_mb_statement;
+
 static char *duckdb_mb_last_error_message = NULL;
 
 static void duckdb_mb_set_error(const char *message) {
@@ -801,12 +808,6 @@ int32_t duckdb_mb_is_null_config(duckdb_mb_config *mb_cfg) {
 // ============================================================================
 // Prepared Statement Functions
 // ============================================================================
-
-typedef struct {
-  duckdb_prepared_statement stmt;
-  duckdb_connection conn;
-  char error[256];
-} duckdb_mb_statement;
 
 duckdb_mb_statement *duckdb_mb_prepare(duckdb_mb_connection *handle,
                                       moonbit_bytes_t sql) {

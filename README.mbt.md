@@ -134,6 +134,8 @@ connect(on_ready=fn (result) {
 Use `query_stream` to process large datasets in chunks without materializing
 the full result in MoonBit memory:
 
+### Basic Streaming (Count Rows)
+
 ```mbt nocheck
 connect(on_ready=fn (result) {
   match result {
@@ -170,11 +172,65 @@ connect(on_ready=fn (result) {
 })
 ```
 
-Streaming limitations:
-- Native streaming supports scalar types (numeric/bool/string/date/time/uuid/interval). Complex
-  types (list/struct/map/union) return an error at stream creation.
-- JS streaming uses `@duckdb/node-api` (Node) or `duckdb-wasm` Arrow batches (WASM).
-- Always call `ResultStream::close` when finished.
+### Aggregation Example
+
+For more advanced use cases, you can aggregate data while streaming:
+
+```mbt nocheck
+// Aggregate state to track running totals
+pub struct Aggregates {
+  mut total_rows : Int
+  mut sum_values : Int
+  mut min_value : Int?
+  mut max_value : Int?
+}
+
+let agg_ref = Ref::new({ total_rows: 0, sum_values: 0, min_value: None, max_value: None })
+let done_ref = Ref::new(false)
+
+conn.query_stream(
+  "SELECT value FROM measurements",
+  on_done=fn (stream_result) {
+    match stream_result {
+      Ok(stream) => {
+        while !done_ref.val {
+          stream.next(on_done=fn (chunk_result) {
+            match chunk_result {
+              Ok(Some(chunk)) => {
+                // Process each row in the chunk
+                for row = 0; row < chunk.row_count(); row = row + 1 {
+                  match chunk.cell(row, 0) {
+                    Some(v) => {
+                      let value = parse_int(v)
+                      agg_ref.val.total_rows = agg_ref.val.total_rows + 1
+                      agg_ref.val.sum_values = agg_ref.val.sum_values + value
+                      // Update min/max...
+                    }
+                    None => ()
+                  }
+                }
+              }
+              Ok(None) => done_ref.val = true
+              Err(err) => { done_ref.val = true; println("error: \{err}") }
+            }
+          })
+        }
+        stream.close(on_done=fn (_) {
+          println("Total: \{agg_ref.val.total_rows}")
+          println("Sum: \{agg_ref.val.sum_values}")
+        })
+      }
+      Err(err) => println("stream failed: \{err}")
+    }
+  },
+)
+```
+
+### Streaming Limitations
+
+- **Native**: Supports scalar types (numeric/bool/string/date/time/uuid/interval). Complex types (list/struct/map/union) return an error at stream creation.
+- **JS**: Uses `@duckdb/node-api` (Node) or `duckdb-wasm` Arrow batches (WASM).
+- Always call `ResultStream::close` when finished to release resources.
 
 ## JS Backend Selection
 
