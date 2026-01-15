@@ -3,12 +3,14 @@
 // ============================================================================
 
 // Helper to run Arrow query synchronously
+
+///|
 fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
   let result_ref : Ref[ArrowResult?] = Ref::new(None)
   let error_ref : Ref[String?] = Ref::new(None)
   connect(on_ready=fn(conn_result) {
     match conn_result {
-      Ok(conn) => {
+      Ok(conn) =>
         conn.query_arrow(sql, on_done=fn(arrow_result) {
           match arrow_result {
             Ok(result) => result_ref.val = Some(result)
@@ -16,7 +18,6 @@ fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
               error_ref.val = Some("arrow query failed: \{message}")
           }
         })
-      }
       Err(DuckDBError::Message(message)) =>
         error_ref.val = Some("connect failed: \{message}")
     }
@@ -73,7 +74,9 @@ test "native arrow query multiple rows" {
 
 ///|
 test "native arrow query with types" {
-  let result = run_native_arrow_query("SELECT 42::INTEGER AS i, 3.14::DOUBLE AS d, true::BOOLEAN AS b, 'hello'::VARCHAR AS s")
+  let result = run_native_arrow_query(
+    "SELECT 42::INTEGER AS i, 3.14::DOUBLE AS d, true::BOOLEAN AS b, 'hello'::VARCHAR AS s",
+  )
   match result {
     Ok(result) => {
       let cc = result.column_count()
@@ -113,8 +116,8 @@ test "native arrow query error" {
   let result = run_native_arrow_query("SELECT * FROM nonexistent_table")
   match result {
     Ok(_) => fail("query should have failed")
-    Err(_) => { () }  // Expected error
-  }
+    Err(_) => ()
+  } // Expected error
 }
 
 // ============================================================================
@@ -123,7 +126,9 @@ test "native arrow query error" {
 
 ///|
 test "native arrow schema extraction" {
-  let result = run_native_arrow_query("SELECT 42::INTEGER AS a, 3.14::DOUBLE AS b")
+  let result = run_native_arrow_query(
+    "SELECT 42::INTEGER AS a, 3.14::DOUBLE AS b",
+  )
   match result {
     Ok(result) => {
       match result.get_schema() {
@@ -149,11 +154,10 @@ test "native arrow schema extraction" {
             }
           }
         }
-        Err(err) => {
+        Err(err) =>
           match err {
             Message(msg) => fail("schema failed: \{msg}")
           }
-        }
       }
       result.close(on_done=fn(_) { () })
     }
@@ -163,7 +167,9 @@ test "native arrow schema extraction" {
 
 ///|
 test "native arrow schema multiple types" {
-  let result = run_native_arrow_query("SELECT 1::INTEGER AS i, 2::BIGINT AS bi, 3.0::DOUBLE AS d, true::BOOLEAN AS b, 'text'::VARCHAR AS s")
+  let result = run_native_arrow_query(
+    "SELECT 1::INTEGER AS i, 2::BIGINT AS bi, 3.0::DOUBLE AS d, true::BOOLEAN AS b, 'text'::VARCHAR AS s",
+  )
   match result {
     Ok(result) => {
       match result.get_schema() {
@@ -171,27 +177,24 @@ test "native arrow schema multiple types" {
           let fields = schema.fields
           if fields.length() != 5 {
             fail("expected 5 fields, got \{fields.length()}")
+          } else if fields[0].type_id != "int32" {
+            fail("expected int32, got \{fields[0].type_id}")
+          } else if fields[1].type_id != "int64" {
+            fail("expected int64, got \{fields[1].type_id}")
+          } else if fields[2].type_id != "double" {
+            fail("expected double, got \{fields[2].type_id}")
+          } else if fields[3].type_id != "bool" {
+            fail("expected bool, got \{fields[3].type_id}")
+          } else if fields[4].type_id != "string" {
+            fail("expected string, got \{fields[4].type_id}")
           } else {
-            if fields[0].type_id != "int32" {
-              fail("expected int32, got \{fields[0].type_id}")
-            } else if fields[1].type_id != "int64" {
-              fail("expected int64, got \{fields[1].type_id}")
-            } else if fields[2].type_id != "double" {
-              fail("expected double, got \{fields[2].type_id}")
-            } else if fields[3].type_id != "bool" {
-              fail("expected bool, got \{fields[3].type_id}")
-            } else if fields[4].type_id != "string" {
-              fail("expected string, got \{fields[4].type_id}")
-            } else {
-              ()
-            }
+            ()
           }
         }
-        Err(err) => {
+        Err(err) =>
           match err {
             Message(msg) => fail("schema failed: \{msg}")
           }
-        }
       }
       result.close(on_done=fn(_) { () })
     }
@@ -211,14 +214,12 @@ test "native arrow int32 column data" {
       let values = result.get_column_int32(0)
       if values.length() != 5 {
         fail("expected 5 values, got \{values.length()}")
+      } else if values[0] != 0 {
+        fail("expected values[0] = 0, got \{values[0]}")
+      } else if values[4] != 4 {
+        fail("expected values[4] = 4, got \{values[4]}")
       } else {
-        if values[0] != 0 {
-          fail("expected values[0] = 0, got \{values[0]}")
-        } else if values[4] != 4 {
-          fail("expected values[4] = 4, got \{values[4]}")
-        } else {
-          ()
-        }
+        ()
       }
       result.close(on_done=fn(_) { () })
     }
@@ -234,12 +235,10 @@ test "native arrow int64 column data" {
       let values = result.get_column_int64(0)
       if values.length() != 1 {
         fail("expected 1 value, got \{values.length()}")
+      } else if values[0] != 100 {
+        fail("expected 100, got \{values[0]}")
       } else {
-        if values[0] != 100 {
-          fail("expected 100, got \{values[0]}")
-        } else {
-          ()
-        }
+        ()
       }
       result.close(on_done=fn(_) { () })
     }
@@ -271,26 +270,24 @@ test "native arrow double column data" {
 
 ///|
 test "native arrow bool column data" {
-  let result = run_native_arrow_query("SELECT true::BOOLEAN AS t, false::BOOLEAN AS f")
+  let result = run_native_arrow_query(
+    "SELECT true::BOOLEAN AS t, false::BOOLEAN AS f",
+  )
   match result {
     Ok(result) => {
       // First column should be true
       let t_values = result.get_column_bool(0)
       if t_values.length() != 1 {
         fail("expected 1 value in column 0, got \{t_values.length()}")
-      } else {
-        if t_values[0] != true {
-          fail("expected true, got \{t_values[0]}")
-        }
+      } else if t_values[0] != true {
+        fail("expected true, got \{t_values[0]}")
       }
       // Second column should be false
       let f_values = result.get_column_bool(1)
       if f_values.length() != 1 {
         fail("expected 1 value in column 1, got \{f_values.length()}")
-      } else {
-        if f_values[0] != false {
-          fail("expected false, got \{f_values[0]}")
-        }
+      } else if f_values[0] != false {
+        fail("expected false, got \{f_values[0]}")
       }
       result.close(on_done=fn(_) { () })
     }
@@ -306,12 +303,10 @@ test "native arrow string column data" {
       let values = result.get_column_string(0)
       if values.length() != 1 {
         fail("expected 1 value, got \{values.length()}")
+      } else if values[0] != "hello" {
+        fail("expected 'hello', got '\{values[0]}'")
       } else {
-        if values[0] != "hello" {
-          fail("expected 'hello', got '\{values[0]}'")
-        } else {
-          ()
-        }
+        ()
       }
       result.close(on_done=fn(_) { () })
     }
@@ -327,14 +322,12 @@ test "native arrow multiple rows int32" {
       let values = result.get_column_int32(0)
       if values.length() != 100 {
         fail("expected 100 values, got \{values.length()}")
+      } else if values[0] != 0 {
+        fail("expected 0, got \{values[0]}")
+      } else if values[99] != 99 {
+        fail("expected 99, got \{values[99]}")
       } else {
-        if values[0] != 0 {
-          fail("expected 0, got \{values[0]}")
-        } else if values[99] != 99 {
-          fail("expected 99, got \{values[99]}")
-        } else {
-          ()
-        }
+        ()
       }
       result.close(on_done=fn(_) { () })
     }

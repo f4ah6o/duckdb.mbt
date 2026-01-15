@@ -109,6 +109,50 @@ pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]
 }
 
+pub enum ColumnType {
+  Invalid
+  Boolean
+  TinyInt
+  SmallInt
+  Integer
+  BigInt
+  UTinyInt
+  USmallInt
+  UInteger
+  UBigInt
+  Float
+  Double
+  Timestamp
+  Date
+  Time
+  Interval
+  HugeInt
+  UHugeInt
+  Varchar
+  Blob
+  Decimal
+  TimestampS
+  TimestampMs
+  TimestampNs
+  Enum
+  List
+  Struct
+  Map
+  Array
+  Uuid
+  Union
+  Bit
+  TimeTz
+  TimestampTz
+  Any
+  Bignum
+  SqlNull
+  StringLiteral
+  IntegerLiteral
+  TimeNs
+  Unknown(Int)
+}
+
 #external
 pub type Config
 pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
@@ -189,6 +233,7 @@ pub fn PreparedStatement::execute_stream(Self, on_done~ : (Result[ResultStream, 
 
 pub struct QueryResult {
   columns : Array[String]
+  column_types : Array[ColumnType]
   rows : Array[Array[String]]
   nulls : Array[Array[Bool]]
 }

@@ -50,7 +50,7 @@ extern "js" fn js_connect(
 extern "js" fn js_query(
   conn : Connection,
   sql : String,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit,
+  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(conn, sql, on_ok, on_err) => {
@@ -117,7 +117,7 @@ extern "js" fn js_query(
   #|      const values = Array.isArray(row) ? row : columns.map((name) => row[name]);
   #|      pushRow(values, rows, nulls, typeIds);
   #|    }
-  #|    on_ok(columns, rows, nulls);
+  #|    on_ok(columns, rows, nulls, typeIds);
   #|  };
   #|  const runWasm = async () => {
   #|    const arrowResult = await conn.conn.query(sql);
@@ -135,7 +135,8 @@ extern "js" fn js_query(
   #|      const values = columns.map((name) => row[name]);
   #|      pushRow(values, rows, nulls, null);
   #|    }
-  #|    on_ok(columns, rows, nulls);
+  #|    const typeIds = [];
+  #|    on_ok(columns, rows, nulls, typeIds);
   #|  };
   #|  const run = async () => {
   #|    if (conn && conn.kind === "node") {
@@ -150,6 +151,25 @@ extern "js" fn js_query(
   #|  };
   #|  run().catch((err) => on_err(toError(err)));
   #|}
+
+///|
+fn column_types_from_ids(
+  columns : Array[String],
+  type_ids : Array[Int],
+) -> Array[ColumnType] {
+  let column_types : Array[ColumnType] = []
+  let count = columns.length()
+  for col = 0; col < count; col = col + 1 {
+    if col < type_ids.length() {
+      column_types.push(column_type_from_id(type_ids[col]))
+    } else {
+      column_types.push(ColumnType::Unknown(-1))
+    }
+  } else {
+    ()
+  }
+  column_types
+}
 
 ///|
 extern "js" fn js_query_stream(
@@ -415,7 +435,10 @@ pub fn Connection::query(
   js_query(
     self,
     sql,
-    fn(columns, rows, nulls) { on_done(Ok({ columns, rows, nulls })) },
+    fn(columns, rows, nulls, type_ids) {
+      let column_types = column_types_from_ids(columns, type_ids)
+      on_done(Ok({ columns, column_types, rows, nulls }))
+    },
     fn(message) { on_done(Err(DuckDBError::Message(message))) },
   )
 }
@@ -1108,7 +1131,7 @@ extern "js" fn js_appender_close(
 ///|
 extern "js" fn js_execute_prepared(
   stmt : PreparedStatement,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit,
+  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
@@ -1179,7 +1202,7 @@ extern "js" fn js_execute_prepared(
   #|          const values = Array.isArray(row) ? row : columns.map((name) => row[name]);
   #|          pushRow(values, rows, nulls, typeIds);
   #|        }
-  #|        on_ok(columns, rows, nulls);
+  #|        on_ok(columns, rows, nulls, typeIds);
   #|        return;
   #|      } catch (e) {
   #|        on_err(e.message || String(e));
@@ -1221,7 +1244,8 @@ extern "js" fn js_execute_prepared(
   #|          const values = columns.map((name) => row[name]);
   #|          pushRow(values, rows, nulls, null);
   #|        }
-  #|        on_ok(columns, rows, nulls);
+  #|        const typeIds = [];
+  #|        on_ok(columns, rows, nulls, typeIds);
   #|        return;
   #|      } catch (e) {
   #|        on_err(e.message || String(e));
@@ -1621,7 +1645,10 @@ pub fn PreparedStatement::execute(
 ) -> Unit {
   js_execute_prepared(
     self,
-    fn(columns, rows, nulls) { on_done(Ok({ columns, rows, nulls })) },
+    fn(columns, rows, nulls, type_ids) {
+      let column_types = column_types_from_ids(columns, type_ids)
+      on_done(Ok({ columns, column_types, rows, nulls }))
+    },
     fn(message) { on_done(Err(DuckDBError::Message(message))) },
   )
 }

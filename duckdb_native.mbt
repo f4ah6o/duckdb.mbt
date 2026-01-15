@@ -293,6 +293,13 @@ extern "C" fn native_result_column_name(
 
 ///|
 #borrow(result)
+extern "C" fn native_result_column_type(
+  result : NativeResult,
+  col : Int,
+) -> Int = "duckdb_mb_result_column_type"
+
+///|
+#borrow(result)
 extern "C" fn native_result_is_null(
   result : NativeResult,
   col : Int,
@@ -426,8 +433,12 @@ pub fn Connection::query(
     let column_count = native_result_column_count(result)
     let row_count = native_result_row_count(result)
     let columns : Array[String] = []
+    let column_types : Array[ColumnType] = []
     for col = 0; col < column_count; col = col + 1 {
       columns.push(bytes_to_string(native_result_column_name(result, col)))
+      column_types.push(
+        column_type_from_id(native_result_column_type(result, col)),
+      )
     } else {
       ()
     }
@@ -455,7 +466,7 @@ pub fn Connection::query(
       ()
     }
     native_result_destroy(result)
-    on_done(Ok({ columns, rows, nulls }))
+    on_done(Ok({ columns, column_types, rows, nulls }))
   }
 }
 
@@ -830,8 +841,12 @@ pub fn PreparedStatement::execute(
     let column_count = native_result_column_count(result)
     let row_count = native_result_row_count(result)
     let columns : Array[String] = []
+    let column_types : Array[ColumnType] = []
     for col = 0; col < column_count; col = col + 1 {
       columns.push(bytes_to_string(native_result_column_name(result, col)))
+      column_types.push(
+        column_type_from_id(native_result_column_type(result, col)),
+      )
     } else {
       ()
     }
@@ -859,7 +874,7 @@ pub fn PreparedStatement::execute(
       ()
     }
     native_result_destroy(result)
-    on_done(Ok({ columns, rows, nulls }))
+    on_done(Ok({ columns, column_types, rows, nulls }))
   }
 }
 

@@ -28,23 +28,38 @@ extern "C" fn native_arrow_schema(result : ArrowResult) -> Bytes = "duckdb_mb_ar
 
 ///|
 #borrow(result, col)
-extern "C" fn native_arrow_get_column_int32(result : ArrowResult, col : Int) -> Bytes = "duckdb_mb_arrow_get_column_int32"
+extern "C" fn native_arrow_get_column_int32(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_int32"
 
 ///|
 #borrow(result, col)
-extern "C" fn native_arrow_get_column_int64(result : ArrowResult, col : Int) -> Bytes = "duckdb_mb_arrow_get_column_int64"
+extern "C" fn native_arrow_get_column_int64(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_int64"
 
 ///|
 #borrow(result, col)
-extern "C" fn native_arrow_get_column_double(result : ArrowResult, col : Int) -> Bytes = "duckdb_mb_arrow_get_column_double"
+extern "C" fn native_arrow_get_column_double(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_double"
 
 ///|
 #borrow(result, col)
-extern "C" fn native_arrow_get_column_string(result : ArrowResult, col : Int) -> Bytes = "duckdb_mb_arrow_get_column_string"
+extern "C" fn native_arrow_get_column_string(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_string"
 
 ///|
 #borrow(result, col)
-extern "C" fn native_arrow_get_column_bool(result : ArrowResult, col : Int) -> Bytes = "duckdb_mb_arrow_get_column_bool"
+extern "C" fn native_arrow_get_column_bool(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_bool"
 
 ///|
 extern "C" fn native_is_null_arrow_result(result : ArrowResult) -> Bool = "duckdb_mb_is_null_arrow_result"
@@ -95,22 +110,28 @@ pub fn ArrowResult::row_count(self : ArrowResult) -> Int {
 }
 
 ///|
-pub fn ArrowResult::get_schema(self : ArrowResult) -> Result[ArrowSchemaInfo, DuckDBError] {
+pub fn ArrowResult::get_schema(
+  self : ArrowResult,
+) -> Result[ArrowSchemaInfo, DuckDBError] {
   let json_bytes = native_arrow_schema(self)
   // Use unsafe conversion for JSON bytes to string
   let json_str = json_str_from_bytes(json_bytes)
   match parse_arrow_schema_json(json_str) {
-    Ok(fields) => Ok(ArrowSchemaInfo::{ fields: fields })
+    Ok(fields) => Ok(ArrowSchemaInfo::{ fields, })
     Err(msg) => Err(DuckDBError::Message("schema parse failed: " + msg))
   }
 }
 
 // Helper function to convert Bytes to String
+
+///|
 fn json_str_from_bytes(bytes : Bytes) -> String {
   @encoding/utf8.decode_lossy(bytes)
 }
 
 // Unsafe conversion from Int to Char
+
+///|
 fn unsafe_int_to_char(n : Int) -> Char {
   // This is an unsafe conversion that assumes n is a valid Unicode code point
   // For ASCII/UTF-8 single bytes, this should be safe
@@ -243,12 +264,14 @@ fn unsafe_int_to_char(n : Int) -> Char {
     125 => '\u{125}'
     126 => '\u{126}'
     127 => '\u{127}'
-    _ => '\u{0}'  // Default to null character for out-of-range values
+    _ => '\u{0}' // Default to null character for out-of-range values
   }
 }
 
 // Simple JSON parser for Arrow schema
 // Expected format: [{"name":"...","nullable":true/false,"type_id":"..."},...]
+
+///|
 fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
   if json.length() < 2 {
     return Err("empty json")
@@ -260,19 +283,16 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
     return Err("not an array")
   }
   pos = pos + 1
-
   let fields : Array[ArrowField] = []
-
   while pos < json.length() {
     // Skip whitespace
-    while pos < json.length() && (json[pos] == ' ' || json[pos] == '\n' || json[pos] == '\t') {
+    while pos < json.length() &&
+          (json[pos] == ' ' || json[pos] == '\n' || json[pos] == '\t') {
       pos = pos + 1
     }
-
     if pos >= json.length() || json[pos] == ']' {
       break
     }
-
     if json[pos] == '{' {
       pos = pos + 1
       let mut name : String = ""
@@ -282,10 +302,15 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
       // Parse object fields
       while pos < json.length() && json[pos] != '}' {
         // Skip whitespace
-        while pos < json.length() && (json[pos] == ' ' || json[pos] == ',' || json[pos] == '\n' || json[pos] == '\t') {
+        while pos < json.length() &&
+              (
+                json[pos] == ' ' ||
+                json[pos] == ',' ||
+                json[pos] == '\n' ||
+                json[pos] == '\t'
+              ) {
           pos = pos + 1
         }
-
         if pos >= json.length() || json[pos] == '}' {
           break
         }
@@ -297,14 +322,14 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
           while pos < json.length() && json[pos] != '"' {
             pos = pos + 1
           }
-          let field_name = json.substring(start = field_start, end = pos)
-          pos = pos + 1  // skip closing quote
+          let field_name = json.substring(start=field_start, end=pos)
+          pos = pos + 1 // skip closing quote
 
           // Skip to colon
           while pos < json.length() && json[pos] != ':' {
             pos = pos + 1
           }
-          pos = pos + 1  // skip colon
+          pos = pos + 1 // skip colon
 
           // Skip to value
           while pos < json.length() && (json[pos] == ' ' || json[pos] == '\t') {
@@ -319,9 +344,8 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
               while pos < json.length() && json[pos] != '"' {
                 pos = pos + 1
               }
-              let value = json.substring(start = value_start, end = pos)
-              pos = pos + 1  // skip closing quote
-
+              let value = json.substring(start=value_start, end=pos)
+              pos = pos + 1 // skip closing quote
               if field_name == "name" {
                 name = value
               } else if field_name == "type_id" {
@@ -329,10 +353,14 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
               }
             }
           } else if field_name == "nullable" {
-            if json[pos] == 't' && pos + 4 <= json.length() && json.substring(start = pos, end = pos + 4) == "true" {
+            if json[pos] == 't' &&
+              pos + 4 <= json.length() &&
+              json.substring(start=pos, end=pos + 4) == "true" {
               nullable = true
               pos = pos + 4
-            } else if json[pos] == 'f' && pos + 5 <= json.length() && json.substring(start = pos, end = pos + 5) == "false" {
+            } else if json[pos] == 'f' &&
+              pos + 5 <= json.length() &&
+              json.substring(start=pos, end=pos + 5) == "false" {
               nullable = false
               pos = pos + 5
             } else {
@@ -343,41 +371,39 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
           pos = pos + 1
         }
       }
-
       if pos < json.length() && json[pos] == '}' {
         pos = pos + 1
       }
-
-      fields.push(ArrowField::{ name: name, nullable: nullable, type_id: type_id })
+      fields.push(ArrowField::{ name, nullable, type_id })
     } else {
       pos = pos + 1
     }
   }
-
   Ok(fields)
 }
 
 ///|
-pub fn ArrowResult::get_column_int32(self : ArrowResult, col : Int) -> Array[Int] {
+pub fn ArrowResult::get_column_int32(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Int] {
   let data = native_arrow_get_column_int32(self, col)
   decode_int32_array(data)
 }
 
+///|
 fn decode_int32_array(data : Bytes) -> Array[Int] {
   if data.length() < 4 {
     return []
   }
-
   let count = read_int32_le(data, 0)
   if count <= 0 || count > 1000000 {
     return []
   }
-
   let expected_len = 4 + count * 4
   if data.length() < expected_len {
     return []
   }
-
   let result = Array::make(count, 0)
   let mut i = 0
   while i < count {
@@ -387,6 +413,7 @@ fn decode_int32_array(data : Bytes) -> Array[Int] {
   result
 }
 
+///|
 fn read_int32_le(data : Bytes, offset : Int) -> Int {
   if offset + 4 > data.length() {
     return 0
@@ -400,22 +427,22 @@ fn read_int32_le(data : Bytes, offset : Int) -> Int {
 }
 
 ///|
-pub fn ArrowResult::get_column_int64(self : ArrowResult, col : Int) -> Array[Int] {
+pub fn ArrowResult::get_column_int64(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Int] {
   let data = native_arrow_get_column_int64(self, col)
   if data.length() < 4 {
     return []
   }
-
   let count = read_int32_le(data, 0)
   if count <= 0 || count > 1000000 {
     return []
   }
-
   let expected_len = 4 + count * 8
   if data.length() < expected_len {
     return []
   }
-
   let result = Array::make(count, 0)
   let mut i = 0
   while i < count {
@@ -429,29 +456,36 @@ pub fn ArrowResult::get_column_int64(self : ArrowResult, col : Int) -> Array[Int
     let b5 = data[base + 5].to_int()
     let b6 = data[base + 6].to_int()
     let b7 = data[base + 7].to_int()
-    result[i] = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24) | (b4 << 32) | (b5 << 40) | (b6 << 48) | (b7 << 56)
+    result[i] = b0 |
+      (b1 << 8) |
+      (b2 << 16) |
+      (b3 << 24) |
+      (b4 << 32) |
+      (b5 << 40) |
+      (b6 << 48) |
+      (b7 << 56)
     i = i + 1
   }
   result
 }
 
 ///|
-pub fn ArrowResult::get_column_double(self : ArrowResult, col : Int) -> Array[Double] {
+pub fn ArrowResult::get_column_double(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Double] {
   let data = native_arrow_get_column_double(self, col)
   if data.length() < 4 {
     return []
   }
-
   let count = read_int32_le(data, 0)
   if count <= 0 || count > 1000000 {
     return []
   }
-
   let expected_len = 4 + count * 8
   if data.length() < expected_len {
     return []
   }
-
   let result = Array::make(count, 0.0)
   let mut i = 0
   while i < count {
@@ -464,6 +498,7 @@ pub fn ArrowResult::get_column_double(self : ArrowResult, col : Int) -> Array[Do
   result
 }
 
+///|
 fn bytes_to_double(data : Bytes, offset : Int) -> Double {
   // Use C FFI to properly convert 8 bytes to double (IEEE 754 bit-cast)
   if offset + 8 > data.length() {
@@ -473,20 +508,20 @@ fn bytes_to_double(data : Bytes, offset : Int) -> Double {
 }
 
 ///|
-pub fn ArrowResult::get_column_string(self : ArrowResult, col : Int) -> Array[String] {
+pub fn ArrowResult::get_column_string(
+  self : ArrowResult,
+  col : Int,
+) -> Array[String] {
   let data = native_arrow_get_column_string(self, col)
   if data.length() < 8 {
     return []
   }
-
   let count = read_int32_le(data, 0)
   if count <= 0 || count > 1000000 {
     return []
   }
-
   let result = Array::make(count, "")
-  let mut pos = 8  // Skip count and total_data_len headers
-
+  let mut pos = 8 // Skip count and total_data_len headers
   let mut i = 0
   while i < count {
     let start_pos = pos
@@ -496,32 +531,32 @@ pub fn ArrowResult::get_column_string(self : ArrowResult, col : Int) -> Array[St
     }
     if start_pos < data.length() {
       // Convert BytesView to String using UTF-8 decode
-      let bytes_view = data.sub(start = start_pos, end = pos)
+      let bytes_view = data.sub(start=start_pos, end=pos)
       result[i] = @encoding/utf8.decode_lossy(bytes_view)
     }
-    pos = pos + 1  // Skip null terminator
+    pos = pos + 1 // Skip null terminator
     i = i + 1
   }
   result
 }
 
 ///|
-pub fn ArrowResult::get_column_bool(self : ArrowResult, col : Int) -> Array[Bool] {
+pub fn ArrowResult::get_column_bool(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Bool] {
   let data = native_arrow_get_column_bool(self, col)
   if data.length() < 4 {
     return []
   }
-
   let count = read_int32_le(data, 0)
   if count <= 0 || count > 1000000 {
     return []
   }
-
   let expected_len = 4 + count
   if data.length() < expected_len {
     return []
   }
-
   let result = Array::make(count, false)
   let data_start = 4
   let mut i = 0
@@ -533,7 +568,10 @@ pub fn ArrowResult::get_column_bool(self : ArrowResult, col : Int) -> Array[Bool
 }
 
 ///|
-pub fn ArrowResult::close(self : ArrowResult, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit {
+pub fn ArrowResult::close(
+  self : ArrowResult,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
   native_arrow_destroy(self)
   on_done(Ok(()))
 }
