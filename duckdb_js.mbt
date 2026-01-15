@@ -516,7 +516,7 @@ extern "js" fn js_bind_int(
   value : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindInteger(index, value);
   #|      return { ok: true };
@@ -524,7 +524,7 @@ extern "js" fn js_bind_int(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    // WASM: store parameters for later use in execute
   #|    if (!stmt.params) stmt.params = {};
   #|    stmt.params[index] = { type: "int", value };
@@ -540,7 +540,7 @@ extern "js" fn js_bind_bigint(
   value : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindBigInt(index, BigInt(value));
   #|      return { ok: true };
@@ -548,7 +548,7 @@ extern "js" fn js_bind_bigint(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
   #|    stmt.params[index] = { type: "bigint", value };
   #|    return { ok: true };
@@ -563,7 +563,7 @@ extern "js" fn js_bind_double(
   value : Double,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindDouble(index, value);
   #|      return { ok: true };
@@ -571,10 +571,10 @@ extern "js" fn js_bind_double(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "double", value };
-  #|      return { ok: true };
+  #|    stmt.params[index] = { type: "double", value };
+  #|    return { ok: true };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -586,7 +586,7 @@ extern "js" fn js_bind_varchar(
   value : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindVarchar(index, value);
   #|      return { ok: true };
@@ -594,7 +594,7 @@ extern "js" fn js_bind_varchar(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
   #|    stmt.params[index] = { type: "varchar", value };
   #|    return { ok: true };
@@ -609,7 +609,7 @@ extern "js" fn js_bind_bool(
   value : Bool,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindBoolean(index, value);
   #|      return { ok: true };
@@ -617,10 +617,10 @@ extern "js" fn js_bind_bool(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "bool", value };
-  #|      return { ok: true };
+  #|    stmt.params[index] = { type: "bool", value };
+  #|    return { ok: true };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -631,7 +631,7 @@ extern "js" fn js_bind_null(
   index : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindNull(index);
   #|      return { ok: true };
@@ -639,10 +639,10 @@ extern "js" fn js_bind_null(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "null", value: null };
-  #|      return { ok: true };
+  #|    stmt.params[index] = { type: "null", value: null };
+  #|    return { ok: true };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -652,7 +652,7 @@ extern "js" fn js_clear_bindings(
   stmt : PreparedStatement,
 ) -> Result[Unit, String] =
   #|(stmt) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.clearBindings();
   #|      return { ok: true };
@@ -660,7 +660,7 @@ extern "js" fn js_clear_bindings(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    stmt.params = {};
   #|    return { ok: true };
   #|  }
@@ -674,7 +674,7 @@ extern "js" fn js_bind_date(
   date_str : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, date_str) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindDate(index, date_str);
   #|      return { ok: true };
@@ -682,10 +682,10 @@ extern "js" fn js_bind_date(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "date", value: date_str };
-  #|      return { ok: true };
+  #|    stmt.params[index] = { type: "date", value: date_str };
+  #|    return { ok: true };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -697,7 +697,7 @@ extern "js" fn js_bind_timestamp(
   timestamp_str : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, timestamp_str) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindTimestamp(index, timestamp_str);
   #|      return { ok: true };
@@ -705,10 +705,10 @@ extern "js" fn js_bind_timestamp(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
-  #|  if (stmt && stmt.kind === "prepared" && stmt.params !== undefined) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
   #|    if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "timestamp", value: timestamp_str };
-  #|      return { ok: true };
+  #|    stmt.params[index] = { type: "timestamp", value: timestamp_str };
+  #|    return { ok: true };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -724,7 +724,7 @@ extern "js" fn js_bind_blob(
   data : Bytes,
 ) -> Result[Unit, String] =
   #|(stmt, index, data) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const uint8Array = new Uint8Array(data.byteLength);
   #|      for (let i = 0; i < data.byteLength; i++) {
@@ -748,7 +748,7 @@ extern "js" fn js_bind_decimal(
   value : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, width, scale, value) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindDecimal(index, { width, scale, value: BigInt(value) });
   #|      return { ok: true };
@@ -768,7 +768,7 @@ extern "js" fn js_bind_interval(
   micros : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, months, days, micros) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindInterval(index, { months, days, micros: BigInt(micros) });
   #|      return { ok: true };
@@ -786,7 +786,7 @@ extern "js" fn js_bind_list_varchar(
   values : Array[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, values) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bind(index, { items: values }, { typeId: 24 }); // LIST type
   #|      return { ok: true };
@@ -805,7 +805,7 @@ extern "js" fn js_bind_struct(
   values : Array[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, fields, values) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const entries = fields.map((name, i) => ({ name, value: values[i] }));
   #|      stmt.statement.bindStruct(index, { entries });
@@ -825,7 +825,7 @@ extern "js" fn js_bind_map(
   values : Array[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, keys, values) => {
-  #|  if (stmt && stmt.kind === "prepared" && stmt.statement) {
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const entries = keys.map((key, i) => ({ key, value: values[i] }));
   #|      stmt.statement.bindMap(index, { entries });

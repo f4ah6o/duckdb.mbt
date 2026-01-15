@@ -702,6 +702,7 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    "const js_close = eval(extract('js_close'));",
   #|    "const js_bind_int = eval(extract('js_bind_int'));",
   #|    "const js_bind_varchar = eval(extract('js_bind_varchar'));",
+  #|    "const js_bind_bool = eval(extract('js_bind_bool'));",
   #|    "const js_bind_null = eval(extract('js_bind_null'));",
   #|    "const run = async () => {",
   #|    "  const connect = () => new Promise((resolve, reject) => js_connect(':memory:', backend, resolve, reject));",
@@ -720,6 +721,7 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    "    let result;",
   #|    "    if (type === 'int') result = js_bind_int(stmt, idx, Number(value));",
   #|    "    else if (type === 'varchar') result = js_bind_varchar(stmt, idx, value);",
+  #|    "    else if (type === 'bool') result = js_bind_bool(stmt, idx, value === 'true');",
   #|    "    else if (type === 'null') result = js_bind_null(stmt, idx);",
   #|    "    else throw new Error('unsupported bind type: ' + type);",
   #|    "    if (!result || !result.ok) {",
@@ -1025,6 +1027,87 @@ test "js wrapper node prepare bind varchar" {
 }
 
 ///|
+test "js wrapper node prepare bind bool" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Node,
+    "SELECT ?::BOOLEAN AS x",
+    [("true", "bool")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "true" {
+        fail("expected 'true', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node wrapper bind bool failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper node prepare bind null" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Node,
+    "SELECT ? IS NULL AS x",
+    [("", "null")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value for IS NULL check")
+      } else if rows[0][0] != "true" {
+        fail("expected 'true', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node wrapper bind null failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper node prepare multiple params" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Node,
+    "SELECT ? + ? + ? AS x",
+    [("10", "int"), ("20", "int"), ("30", "int")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "60" {
+        fail("expected '60', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node wrapper multiple params failed: \{message}")
+      }
+  }
+}
+
+///|
 test "js wrapper wasm prepare bind int" {
   let result = run_js_wrapper_prepare_query(
     JsBackend::Wasm,
@@ -1048,6 +1131,90 @@ test "js wrapper wasm prepare bind int" {
         ()
       } else {
         fail("wasm wrapper bind int failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind varchar" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT CONCAT(?, 'suffix') AS x",
+    [("prefix", "varchar")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "prefixsuffix" {
+        fail("expected 'prefixsuffix', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm wrapper bind varchar failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind bool" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT ?::BOOLEAN AS x",
+    [("true", "bool")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "true" {
+        fail("expected 'true', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm wrapper bind bool failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind null" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT ? IS NULL AS x",
+    [("", "null")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value for IS NULL check")
+      } else if rows[0][0] != "true" {
+        fail("expected 'true', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if message.contains("@duckdb/duckdb-wasm") ||
+        message.contains("duckdb-wasm requires Worker support") {
+        ()
+      } else {
+        fail("wasm wrapper bind null failed: \{message}")
       }
   }
 }
