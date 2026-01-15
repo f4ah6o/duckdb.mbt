@@ -32,11 +32,15 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 - List/Struct/Map are VARCHAR-only (serialized as JSON strings)
 - WASM backend does not support advanced types - use INSERT statements with type literals instead
 
-### Arrow Integration (Phase 1)
+### Arrow Integration
+
 Basic support is available on all targets:
 - Arrow query result type
 - Schema extraction
-- Column-based data access
+- Column-based data access with nullable support
+- Supported types: BOOLEAN, INTEGER, VARCHAR, DOUBLE, BIGINT
+
+**Note:** Complex types (List, Struct, Map) are not yet supported.
 
 ## Installation
 
@@ -238,8 +242,9 @@ conn.query_stream(
 
 ### Streaming Limitations
 
-- **Native**: Supports scalar types (numeric/bool/string/date/time/uuid/interval). Complex types (list/struct/map/union) return an error at stream creation.
-- **JS**: Uses `@duckdb/node-api` (Node) or `duckdb-wasm` Arrow batches (WASM).
+- **Native**: Supports scalar types (numeric/bool/string/date/time/uuid/interval).
+  Complex types (list/struct/map/union) are NOT supported and return an error at stream creation.
+- **JS (Node.js & WASM)**: Full support via Arrow batches with no type limitations.
 - Always call `ResultStream::close` when finished to release resources.
 
 ## JS Backend Selection
