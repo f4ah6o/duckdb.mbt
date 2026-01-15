@@ -2083,3 +2083,235 @@ double duckdb_mb_bytes_to_double(const char *bytes, int32_t offset) {
   memcpy(&result, bytes + offset, sizeof(double));
   return result;
 }
+
+// ============================================================================
+// Nullable Column Getters - Return values with validity mask
+// Format: [count (4 bytes)][values...][validity (row_count bytes, 1=true/0=false)]
+// ============================================================================
+
+moonbit_bytes_t duckdb_mb_arrow_get_column_int32_nullable(
+    duckdb_mb_arrow_result *arrow_result,
+    int32_t col_idx) {
+  if (!arrow_result) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  int32_t row_count = arrow_result->row_count;
+  if (col_idx < 0 || col_idx >= arrow_result->column_count || row_count <= 0) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  // Allocate: [count (4 bytes)][row_count * 4 bytes values][row_count bytes validity]
+  int32_t total_size = 4 + row_count * 4 + row_count;
+  moonbit_bytes_t result = moonbit_make_bytes_raw(total_size);
+
+  // Write count
+  int32_t *out = (int32_t *)result;
+  out[0] = row_count;
+
+  // Data starts after count
+  int32_t *values_out = out + 1;
+  uint8_t *validity_out = (uint8_t *)result + 4 + row_count * 4;
+
+  // Copy values and validity from result
+  for (int32_t i = 0; i < row_count; i++) {
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      values_out[i] = 0;  // Placeholder value for null
+      validity_out[i] = 0;
+    } else {
+      int64_t val = duckdb_value_int64(&arrow_result->result, col_idx, i);
+      values_out[i] = (int32_t)val;
+      validity_out[i] = 1;
+    }
+  }
+
+  return result;
+}
+
+moonbit_bytes_t duckdb_mb_arrow_get_column_int64_nullable(
+    duckdb_mb_arrow_result *arrow_result,
+    int32_t col_idx) {
+  if (!arrow_result) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  int32_t row_count = arrow_result->row_count;
+  if (col_idx < 0 || col_idx >= arrow_result->column_count || row_count <= 0) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  // Allocate: [count (4 bytes)][row_count * 8 bytes values][row_count bytes validity]
+  int32_t total_size = 4 + row_count * 8 + row_count;
+  moonbit_bytes_t result = moonbit_make_bytes_raw(total_size);
+
+  // Write count
+  int32_t *out_header = (int32_t *)result;
+  out_header[0] = row_count;
+
+  // Data starts after count
+  int64_t *values_out = (int64_t *)((char *)result + 4);
+  uint8_t *validity_out = (uint8_t *)result + 4 + row_count * 8;
+
+  // Copy values and validity from result
+  for (int32_t i = 0; i < row_count; i++) {
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      values_out[i] = 0;
+      validity_out[i] = 0;
+    } else {
+      values_out[i] = duckdb_value_int64(&arrow_result->result, col_idx, i);
+      validity_out[i] = 1;
+    }
+  }
+
+  return result;
+}
+
+moonbit_bytes_t duckdb_mb_arrow_get_column_double_nullable(
+    duckdb_mb_arrow_result *arrow_result,
+    int32_t col_idx) {
+  if (!arrow_result) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  int32_t row_count = arrow_result->row_count;
+  if (col_idx < 0 || col_idx >= arrow_result->column_count || row_count <= 0) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  // Allocate: [count (4 bytes)][row_count * 8 bytes values][row_count bytes validity]
+  int32_t total_size = 4 + row_count * 8 + row_count;
+  moonbit_bytes_t result = moonbit_make_bytes_raw(total_size);
+
+  // Write count
+  int32_t *out_header = (int32_t *)result;
+  out_header[0] = row_count;
+
+  // Data starts after count
+  double *values_out = (double *)((char *)result + 4);
+  uint8_t *validity_out = (uint8_t *)result + 4 + row_count * 8;
+
+  // Copy values and validity from result
+  for (int32_t i = 0; i < row_count; i++) {
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      values_out[i] = 0.0;
+      validity_out[i] = 0;
+    } else {
+      values_out[i] = duckdb_value_double(&arrow_result->result, col_idx, i);
+      validity_out[i] = 1;
+    }
+  }
+
+  return result;
+}
+
+moonbit_bytes_t duckdb_mb_arrow_get_column_string_nullable(
+    duckdb_mb_arrow_result *arrow_result,
+    int32_t col_idx) {
+  if (!arrow_result) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  int32_t row_count = arrow_result->row_count;
+  if (col_idx < 0 || col_idx >= arrow_result->column_count || row_count <= 0) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  // First pass: calculate total string length
+  size_t total_data_len = 0;
+  char **strings = (char **)malloc(row_count * sizeof(char *));
+  if (!strings) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  for (int32_t i = 0; i < row_count; i++) {
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      strings[i] = NULL;
+    } else {
+      strings[i] = duckdb_value_varchar(&arrow_result->result, col_idx, i);
+      if (strings[i]) {
+        total_data_len += strlen(strings[i]) + 1;  // +1 for null terminator
+      } else {
+        total_data_len += 1;  // Empty string
+      }
+    }
+  }
+
+  // Allocate: [count (4 bytes)][total_data_len (4 bytes)][string data...][validity (row_count bytes)]
+  int32_t total_size = 4 + 4 + (int32_t)total_data_len + row_count;
+  moonbit_bytes_t result = moonbit_make_bytes_raw(total_size);
+
+  // Write count and total data length
+  int32_t *out_header = (int32_t *)result;
+  out_header[0] = row_count;
+  out_header[1] = (int32_t)total_data_len;
+
+  // Copy string data
+  char *out_data = (char *)result + 8;
+  size_t out_pos = 0;
+
+  for (int32_t i = 0; i < row_count; i++) {
+    if (strings[i]) {
+      size_t len = strlen(strings[i]);
+      memcpy(out_data + out_pos, strings[i], len);
+      out_pos += len;
+      out_data[out_pos++] = '\0';
+      duckdb_free(strings[i]);
+    } else {
+      out_data[out_pos++] = '\0';
+    }
+  }
+
+  // Write validity at the end
+  uint8_t *validity_out = (uint8_t *)result + 8 + total_data_len;
+  for (int32_t i = 0; i < row_count; i++) {
+    validity_out[i] = (strings[i] != NULL || duckdb_value_is_null(&arrow_result->result, col_idx, i)) ? 0 : 1;
+    // Actually, strings[i] was NULL if the value was null
+    // So we need to re-check
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      validity_out[i] = 0;
+    } else {
+      validity_out[i] = 1;
+    }
+  }
+
+  free(strings);
+  return result;
+}
+
+moonbit_bytes_t duckdb_mb_arrow_get_column_bool_nullable(
+    duckdb_mb_arrow_result *arrow_result,
+    int32_t col_idx) {
+  if (!arrow_result) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  int32_t row_count = arrow_result->row_count;
+  if (col_idx < 0 || col_idx >= arrow_result->column_count || row_count <= 0) {
+    return duckdb_mb_make_bytes("", 0);
+  }
+
+  // Allocate: [count (4 bytes)][row_count bytes values][row_count bytes validity]
+  int32_t total_size = 4 + row_count + row_count;
+  moonbit_bytes_t result = moonbit_make_bytes_raw(total_size);
+
+  // Write count
+  int32_t *out_header = (int32_t *)result;
+  out_header[0] = row_count;
+
+  // Data starts after count
+  uint8_t *values_out = (uint8_t *)result + 4;
+  uint8_t *validity_out = values_out + row_count;
+
+  // Copy values and validity from result
+  for (int32_t i = 0; i < row_count; i++) {
+    if (duckdb_value_is_null(&arrow_result->result, col_idx, i)) {
+      values_out[i] = 0;
+      validity_out[i] = 0;
+    } else {
+      values_out[i] = duckdb_value_boolean(&arrow_result->result, col_idx, i) ? 1 : 0;
+      validity_out[i] = 1;
+    }
+  }
+
+  return result;
+}

@@ -334,3 +334,173 @@ test "native arrow multiple rows int32" {
     Err(err) => fail("query failed: \{err}")
   }
 }
+
+// ============================================================================
+// Null Handling Tests
+// ============================================================================
+
+///|
+test "native arrow int32 nullable with nulls" {
+  let result = run_native_arrow_query("SELECT 1::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 3::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 5::INTEGER")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_int32_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 5 {
+        fail("expected 5 values, got \{values.length()}")
+      } else if validity.length() != 5 {
+        fail("expected 5 validity, got \{validity.length()}")
+      } else if validity[0] != true {
+        fail("expected validity[0] = true, got false")
+      } else if validity[1] != false {
+        fail("expected validity[1] = false, got true")
+      } else if validity[2] != true {
+        fail("expected validity[2] = true, got false")
+      } else if validity[3] != false {
+        fail("expected validity[3] = false, got true")
+      } else if validity[4] != true {
+        fail("expected validity[4] = true, got false")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow int32 nullable all nulls" {
+  let result = run_native_arrow_query("SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_int32_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 3 {
+        fail("expected 3 values, got \{values.length()}")
+      } else if validity.length() != 3 {
+        fail("expected 3 validity, got \{validity.length()}")
+      } else if validity[0] != false {
+        fail("expected validity[0] = false, got true")
+      } else if validity[1] != false {
+        fail("expected validity[1] = false, got true")
+      } else if validity[2] != false {
+        fail("expected validity[2] = false, got true")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow int32 nullable no nulls" {
+  let result = run_native_arrow_query("SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_int32_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 3 {
+        fail("expected 3 values, got \{values.length()}")
+      } else if validity.length() != 3 {
+        fail("expected 3 validity, got \{validity.length()}")
+      } else if validity[0] != true {
+        fail("expected validity[0] = true, got false")
+      } else if validity[1] != true {
+        fail("expected validity[1] = true, got false")
+      } else if validity[2] != true {
+        fail("expected validity[2] = true, got false")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow string nullable with nulls" {
+  let result = run_native_arrow_query("SELECT 'a' UNION ALL SELECT NULL UNION ALL SELECT 'c' UNION ALL SELECT NULL UNION ALL SELECT 'e'")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_string_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 5 {
+        fail("expected 5 values, got \{values.length()}")
+      } else if validity.length() != 5 {
+        fail("expected 5 validity, got \{validity.length()}")
+      } else if validity[0] != true {
+        fail("expected validity[0] = true")
+      } else if validity[1] != false {
+        fail("expected validity[1] = false")
+      } else if validity[2] != true {
+        fail("expected validity[2] = true")
+      } else if validity[3] != false {
+        fail("expected validity[3] = false")
+      } else if validity[4] != true {
+        fail("expected validity[4] = true")
+      } else if values[0] != "a" {
+        fail("expected 'a', got '\{values[0]}'")
+      } else if values[2] != "c" {
+        fail("expected 'c', got '\{values[2]}'")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow double nullable with nulls" {
+  let result = run_native_arrow_query("SELECT 1.5::DOUBLE UNION ALL SELECT NULL::DOUBLE UNION ALL SELECT 3.14::DOUBLE")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_double_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 3 {
+        fail("expected 3 values, got \{values.length()}")
+      } else if validity.length() != 3 {
+        fail("expected 3 validity, got \{validity.length()}")
+      } else if validity[0] != true {
+        fail("expected validity[0] = true")
+      } else if validity[1] != false {
+        fail("expected validity[1] = false")
+      } else if validity[2] != true {
+        fail("expected validity[2] = true")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow bool nullable with nulls" {
+  let result = run_native_arrow_query("SELECT true::BOOLEAN UNION ALL SELECT NULL::BOOLEAN UNION ALL SELECT false::BOOLEAN")
+  match result {
+    Ok(result) => {
+      let (values, validity) = result.get_column_bool_nullable(0)
+      result.close(on_done=fn(_) { () })
+      if values.length() != 3 {
+        fail("expected 3 values, got \{values.length()}")
+      } else if validity.length() != 3 {
+        fail("expected 3 validity, got \{validity.length()}")
+      } else if validity[0] != true {
+        fail("expected validity[0] = true")
+      } else if validity[1] != false {
+        fail("expected validity[1] = false")
+      } else if validity[2] != true {
+        fail("expected validity[2] = true")
+      } else if values[0] != true {
+        fail("expected true, got \{values[0]}")
+      } else if values[2] != false {
+        fail("expected false, got \{values[2]}")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
