@@ -8,6 +8,7 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 |---------|--------|--------|--------------|
 | Connection & Query | ✅ | ✅ | ✅ |
 | Prepared Statements | ✅ | ✅ | ✅ |
+| Streaming Results | ⚠️ | ✅ | ✅ |
 | Appender | ✅ | ❌ | ❌ |
 | Arrow Integration | ⚠️ | ⚠️ | ⚠️ |
 | Advanced Types | ✅ | ❌ | ❌ |
@@ -127,6 +128,53 @@ connect(on_ready=fn (result) {
   }
 })
 ```
+
+## Streaming Results
+
+Use `query_stream` to process large datasets in chunks without materializing
+the full result in MoonBit memory:
+
+```mbt nocheck
+connect(on_ready=fn (result) {
+  match result {
+    Ok(conn) => {
+      conn.query_stream(
+        "SELECT i FROM RANGE(1000000) tbl(i)",
+        on_done=fn (stream_result) {
+          match stream_result {
+            Ok(stream) => {
+              let mut total = 0
+              let done = Ref::new(false)
+              while !done.val {
+                stream.next(on_done=fn (chunk_result) {
+                  match chunk_result {
+                    Ok(Some(chunk)) => total = total + chunk.row_count()
+                    Ok(None) => done.val = true
+                    Err(err) => {
+                      done.val = true
+                      println("stream failed: \{err}")
+                    }
+                  }
+                })
+              }
+              stream.close(on_done=fn (_) { () })
+              println("rows: \{total}")
+            }
+            Err(err) => println("stream failed: \{err}")
+          }
+        },
+      )
+    }
+    Err(err) => println("connect failed: \{err}")
+  }
+})
+```
+
+Streaming limitations:
+- Native streaming supports scalar types (numeric/bool/string/date/time/uuid/interval). Complex
+  types (list/struct/map/union) return an error at stream creation.
+- JS streaming uses `@duckdb/node-api` (Node) or `duckdb-wasm` Arrow batches (WASM).
+- Always call `ResultStream::close` when finished.
 
 ## JS Backend Selection
 

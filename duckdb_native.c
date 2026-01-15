@@ -240,6 +240,415 @@ int32_t duckdb_mb_is_null_result(duckdb_result *result) {
 }
 
 // ============================================================================
+// Streaming Result Functions
+// ============================================================================
+
+typedef struct {
+  duckdb_result *result;
+  duckdb_type *column_types;
+  int32_t column_count;
+} duckdb_mb_stream;
+
+typedef struct {
+  duckdb_data_chunk chunk;
+  duckdb_mb_stream *stream;
+} duckdb_mb_chunk;
+
+static bool duckdb_mb_is_stream_supported_type(duckdb_type type) {
+  switch (type) {
+  case DUCKDB_TYPE_BOOLEAN:
+  case DUCKDB_TYPE_TINYINT:
+  case DUCKDB_TYPE_SMALLINT:
+  case DUCKDB_TYPE_INTEGER:
+  case DUCKDB_TYPE_BIGINT:
+  case DUCKDB_TYPE_UTINYINT:
+  case DUCKDB_TYPE_USMALLINT:
+  case DUCKDB_TYPE_UINTEGER:
+  case DUCKDB_TYPE_UBIGINT:
+  case DUCKDB_TYPE_FLOAT:
+  case DUCKDB_TYPE_DOUBLE:
+  case DUCKDB_TYPE_VARCHAR:
+  case DUCKDB_TYPE_BLOB:
+  case DUCKDB_TYPE_DATE:
+  case DUCKDB_TYPE_TIME:
+  case DUCKDB_TYPE_TIME_NS:
+  case DUCKDB_TYPE_TIME_TZ:
+  case DUCKDB_TYPE_TIMESTAMP:
+  case DUCKDB_TYPE_TIMESTAMP_TZ:
+  case DUCKDB_TYPE_TIMESTAMP_S:
+  case DUCKDB_TYPE_TIMESTAMP_MS:
+  case DUCKDB_TYPE_TIMESTAMP_NS:
+  case DUCKDB_TYPE_INTERVAL:
+  case DUCKDB_TYPE_HUGEINT:
+  case DUCKDB_TYPE_UHUGEINT:
+  case DUCKDB_TYPE_UUID:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static moonbit_bytes_t duckdb_mb_value_to_bytes(duckdb_value value) {
+  if (!value) {
+    return moonbit_make_bytes_raw(0);
+  }
+  char *str = duckdb_value_to_string(value);
+  duckdb_destroy_value(&value);
+  if (!str) {
+    return moonbit_make_bytes_raw(0);
+  }
+  size_t len = strlen(str);
+  moonbit_bytes_t bytes = duckdb_mb_make_bytes(str, len);
+  duckdb_free(str);
+  return bytes;
+}
+
+static duckdb_mb_stream *duckdb_mb_stream_from_result(duckdb_result *result) {
+  if (!result) {
+    duckdb_mb_set_error("result is null");
+    return NULL;
+  }
+  int32_t column_count = (int32_t)duckdb_column_count(result);
+  duckdb_type *column_types = NULL;
+  if (column_count > 0) {
+    column_types = (duckdb_type *)malloc(sizeof(duckdb_type) * (size_t)column_count);
+    if (!column_types) {
+      duckdb_mb_set_error("failed to allocate column types");
+      return NULL;
+    }
+    for (int32_t col = 0; col < column_count; col++) {
+      duckdb_type type = duckdb_column_type(result, (idx_t)col);
+      if (!duckdb_mb_is_stream_supported_type(type)) {
+        duckdb_mb_set_error("streaming query has unsupported column type");
+        free(column_types);
+        return NULL;
+      }
+      column_types[col] = type;
+    }
+  }
+  duckdb_mb_stream *stream = (duckdb_mb_stream *)malloc(sizeof(duckdb_mb_stream));
+  if (!stream) {
+    free(column_types);
+    duckdb_mb_set_error("failed to allocate stream handle");
+    return NULL;
+  }
+  stream->result = result;
+  stream->column_types = column_types;
+  stream->column_count = column_count;
+  return stream;
+}
+
+duckdb_mb_stream *duckdb_mb_query_stream(duckdb_mb_connection *handle,
+                                         moonbit_bytes_t sql) {
+  if (!handle) {
+    duckdb_mb_set_error("connection is null");
+    return NULL;
+  }
+  char *sql_c = duckdb_mb_bytes_to_cstr(sql);
+  if (!sql_c) {
+    duckdb_mb_set_error("failed to allocate sql buffer");
+    return NULL;
+  }
+  duckdb_prepared_statement stmt;
+  duckdb_state state = duckdb_prepare(handle->conn, sql_c, &stmt);
+  free(sql_c);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_prepare_error(stmt);
+    duckdb_mb_set_error(error && error[0] ? error : "duckdb_prepare failed");
+    duckdb_destroy_prepare(&stmt);
+    return NULL;
+  }
+  duckdb_result *result = (duckdb_result *)malloc(sizeof(duckdb_result));
+  if (!result) {
+    duckdb_mb_set_error("failed to allocate result");
+    duckdb_destroy_prepare(&stmt);
+    return NULL;
+  }
+  state = duckdb_execute_prepared_streaming(stmt, result);
+  duckdb_destroy_prepare(&stmt);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_result_error(result);
+    duckdb_mb_set_error(error && error[0] ? error : "execute_prepared_streaming failed");
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+  duckdb_mb_stream *stream = duckdb_mb_stream_from_result(result);
+  if (!stream) {
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+  return stream;
+}
+
+duckdb_mb_stream *duckdb_mb_execute_prepared_stream(duckdb_mb_statement *mb_stmt) {
+  if (!mb_stmt || !mb_stmt->stmt) {
+    duckdb_mb_set_error("statement is null");
+    return NULL;
+  }
+  duckdb_result *result = (duckdb_result *)malloc(sizeof(duckdb_result));
+  if (!result) {
+    duckdb_mb_set_error("failed to allocate result");
+    return NULL;
+  }
+  duckdb_state state = duckdb_execute_prepared_streaming(mb_stmt->stmt, result);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_result_error(result);
+    duckdb_mb_set_error(error && error[0] ? error : "execute_prepared_streaming failed");
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+  duckdb_mb_stream *stream = duckdb_mb_stream_from_result(result);
+  if (!stream) {
+    duckdb_destroy_result(result);
+    free(result);
+    return NULL;
+  }
+  return stream;
+}
+
+void duckdb_mb_stream_destroy(duckdb_mb_stream *stream) {
+  if (!stream) {
+    return;
+  }
+  if (stream->result) {
+    duckdb_destroy_result(stream->result);
+    free(stream->result);
+  }
+  if (stream->column_types) {
+    free(stream->column_types);
+  }
+  free(stream);
+}
+
+int32_t duckdb_mb_is_null_stream(duckdb_mb_stream *stream) {
+  return stream == NULL ? 1 : 0;
+}
+
+int32_t duckdb_mb_stream_column_count(duckdb_mb_stream *stream) {
+  if (!stream) {
+    return 0;
+  }
+  return stream->column_count;
+}
+
+moonbit_bytes_t duckdb_mb_stream_column_name(duckdb_mb_stream *stream,
+                                             int32_t col) {
+  if (!stream || !stream->result) {
+    return moonbit_make_bytes_raw(0);
+  }
+  if (col < 0 || col >= stream->column_count) {
+    return moonbit_make_bytes_raw(0);
+  }
+  const char *name = duckdb_column_name(stream->result, (idx_t)col);
+  if (!name) {
+    return moonbit_make_bytes_raw(0);
+  }
+  return duckdb_mb_make_bytes(name, strlen(name));
+}
+
+duckdb_mb_chunk *duckdb_mb_stream_fetch_chunk(duckdb_mb_stream *stream) {
+  if (!stream || !stream->result) {
+    duckdb_mb_set_error("stream is null");
+    return NULL;
+  }
+  duckdb_data_chunk chunk = duckdb_fetch_chunk(*stream->result);
+  if (!chunk) {
+    const char *error = duckdb_result_error(stream->result);
+    duckdb_mb_set_error(error && error[0] ? error : "duckdb_fetch_chunk failed");
+    return NULL;
+  }
+  duckdb_mb_chunk *mb_chunk = (duckdb_mb_chunk *)malloc(sizeof(duckdb_mb_chunk));
+  if (!mb_chunk) {
+    duckdb_mb_set_error("failed to allocate chunk handle");
+    duckdb_destroy_data_chunk(&chunk);
+    return NULL;
+  }
+  mb_chunk->chunk = chunk;
+  mb_chunk->stream = stream;
+  return mb_chunk;
+}
+
+void duckdb_mb_chunk_destroy(duckdb_mb_chunk *chunk) {
+  if (!chunk) {
+    return;
+  }
+  if (chunk->chunk) {
+    duckdb_destroy_data_chunk(&chunk->chunk);
+  }
+  free(chunk);
+}
+
+int32_t duckdb_mb_is_null_chunk(duckdb_mb_chunk *chunk) {
+  return chunk == NULL ? 1 : 0;
+}
+
+int32_t duckdb_mb_chunk_row_count(duckdb_mb_chunk *chunk) {
+  if (!chunk || !chunk->chunk) {
+    return 0;
+  }
+  return (int32_t)duckdb_data_chunk_get_size(chunk->chunk);
+}
+
+int32_t duckdb_mb_chunk_column_count(duckdb_mb_chunk *chunk) {
+  if (!chunk || !chunk->chunk) {
+    return 0;
+  }
+  return (int32_t)duckdb_data_chunk_get_column_count(chunk->chunk);
+}
+
+int32_t duckdb_mb_chunk_is_null(duckdb_mb_chunk *chunk,
+                                int32_t col,
+                                int32_t row) {
+  if (!chunk || !chunk->chunk || !chunk->stream) {
+    return 1;
+  }
+  if (col < 0 || col >= chunk->stream->column_count || row < 0) {
+    return 1;
+  }
+  duckdb_vector vector = duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+  uint64_t *validity = duckdb_vector_get_validity(vector);
+  if (!validity) {
+    return 0;
+  }
+  return duckdb_validity_row_is_valid(validity, (idx_t)row) ? 0 : 1;
+}
+
+moonbit_bytes_t duckdb_mb_chunk_value(duckdb_mb_chunk *chunk,
+                                      int32_t col,
+                                      int32_t row) {
+  if (!chunk || !chunk->chunk || !chunk->stream) {
+    return moonbit_make_bytes_raw(0);
+  }
+  if (col < 0 || col >= chunk->stream->column_count || row < 0) {
+    return moonbit_make_bytes_raw(0);
+  }
+  duckdb_vector vector = duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+  void *data = duckdb_vector_get_data(vector);
+  if (!data) {
+    return moonbit_make_bytes_raw(0);
+  }
+  duckdb_type type = chunk->stream->column_types[col];
+  switch (type) {
+  case DUCKDB_TYPE_BOOLEAN: {
+    bool val = ((bool *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_bool(val));
+  }
+  case DUCKDB_TYPE_TINYINT: {
+    int8_t val = ((int8_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_int8(val));
+  }
+  case DUCKDB_TYPE_SMALLINT: {
+    int16_t val = ((int16_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_int16(val));
+  }
+  case DUCKDB_TYPE_INTEGER: {
+    int32_t val = ((int32_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_int32(val));
+  }
+  case DUCKDB_TYPE_BIGINT: {
+    int64_t val = ((int64_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_int64(val));
+  }
+  case DUCKDB_TYPE_UTINYINT: {
+    uint8_t val = ((uint8_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uint8(val));
+  }
+  case DUCKDB_TYPE_USMALLINT: {
+    uint16_t val = ((uint16_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uint16(val));
+  }
+  case DUCKDB_TYPE_UINTEGER: {
+    uint32_t val = ((uint32_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uint32(val));
+  }
+  case DUCKDB_TYPE_UBIGINT: {
+    uint64_t val = ((uint64_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uint64(val));
+  }
+  case DUCKDB_TYPE_FLOAT: {
+    float val = ((float *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_float(val));
+  }
+  case DUCKDB_TYPE_DOUBLE: {
+    double val = ((double *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_double(val));
+  }
+  case DUCKDB_TYPE_VARCHAR: {
+    duckdb_string_t *strings = (duckdb_string_t *)data;
+    duckdb_string_t str = strings[row];
+    const char *ptr = duckdb_string_t_data(&str);
+    uint32_t len = duckdb_string_t_length(str);
+    return duckdb_mb_value_to_bytes(duckdb_create_varchar_length(ptr, (idx_t)len));
+  }
+  case DUCKDB_TYPE_BLOB: {
+    duckdb_string_t *strings = (duckdb_string_t *)data;
+    duckdb_string_t str = strings[row];
+    const char *ptr = duckdb_string_t_data(&str);
+    uint32_t len = duckdb_string_t_length(str);
+    return duckdb_mb_value_to_bytes(duckdb_create_blob((const uint8_t *)ptr, (idx_t)len));
+  }
+  case DUCKDB_TYPE_DATE: {
+    duckdb_date val = ((duckdb_date *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_date(val));
+  }
+  case DUCKDB_TYPE_TIME: {
+    duckdb_time val = ((duckdb_time *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_time(val));
+  }
+  case DUCKDB_TYPE_TIME_NS: {
+    duckdb_time_ns val = ((duckdb_time_ns *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_time_ns(val));
+  }
+  case DUCKDB_TYPE_TIME_TZ: {
+    duckdb_time_tz val = ((duckdb_time_tz *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_time_tz_value(val));
+  }
+  case DUCKDB_TYPE_TIMESTAMP: {
+    duckdb_timestamp val = ((duckdb_timestamp *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp(val));
+  }
+  case DUCKDB_TYPE_TIMESTAMP_TZ: {
+    duckdb_timestamp val = ((duckdb_timestamp *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp_tz(val));
+  }
+  case DUCKDB_TYPE_TIMESTAMP_S: {
+    duckdb_timestamp_s val = ((duckdb_timestamp_s *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp_s(val));
+  }
+  case DUCKDB_TYPE_TIMESTAMP_MS: {
+    duckdb_timestamp_ms val = ((duckdb_timestamp_ms *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp_ms(val));
+  }
+  case DUCKDB_TYPE_TIMESTAMP_NS: {
+    duckdb_timestamp_ns val = ((duckdb_timestamp_ns *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp_ns(val));
+  }
+  case DUCKDB_TYPE_INTERVAL: {
+    duckdb_interval val = ((duckdb_interval *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_interval(val));
+  }
+  case DUCKDB_TYPE_HUGEINT: {
+    duckdb_hugeint val = ((duckdb_hugeint *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_hugeint(val));
+  }
+  case DUCKDB_TYPE_UHUGEINT: {
+    duckdb_uhugeint val = ((duckdb_uhugeint *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uhugeint(val));
+  }
+  case DUCKDB_TYPE_UUID: {
+    duckdb_uhugeint val = ((duckdb_uhugeint *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_uuid(val));
+  }
+  default:
+    duckdb_mb_set_error("unsupported streaming type");
+    return moonbit_make_bytes_raw(0);
+  }
+}
+
+// ============================================================================
 // Configuration Functions
 // ============================================================================
 
@@ -1666,4 +2075,3 @@ double duckdb_mb_bytes_to_double(const char *bytes, int32_t offset) {
   memcpy(&result, bytes + offset, sizeof(double));
   return result;
 }
-

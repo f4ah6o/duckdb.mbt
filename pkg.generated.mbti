@@ -4,8 +4,6 @@ package "f4ah6o/duckdb"
 // Values
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
-pub fn connect_with_config(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, Config?, path? : String, backend? : JsBackend) -> Unit
-
 pub fn date_from_ymd(Int, Int, Int) -> Int
 
 pub fn date_to_ymd(Int) -> (Int, Int, Int)
@@ -23,6 +21,8 @@ pub fn expect_fixture_case(FixtureCase, Array[String], Array[Array[String]], Arr
 pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
 
 pub let fixture_cases : Array[FixtureCase]
+
+pub fn int_pow10(Int) -> Int
 
 pub fn interval_from_days(Int) -> Interval
 
@@ -84,7 +84,6 @@ pub fn Appender::append_null(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::append_timestamp(Self, Int) -> Result[Unit, DuckDBError]
 pub fn Appender::append_varchar(Self, String) -> Result[Unit, DuckDBError]
 pub fn Appender::begin_row(Self) -> Result[Unit, DuckDBError]
-pub fn Appender::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Appender::end_row(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::flush(Self) -> Result[Unit, DuckDBError]
 
@@ -112,7 +111,6 @@ pub struct ArrowSchemaInfo {
 
 #external
 pub type Config
-pub fn Config::create() -> Self
 pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
 
 #external
@@ -122,6 +120,16 @@ pub fn Connection::create_appender(Self, String, String, on_done~ : (Result[Appe
 pub fn Connection::prepare(Self, String, on_done~ : (Result[PreparedStatement, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query_arrow(Self, String, on_done~ : (Result[ArrowResult, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::query_stream(Self, String, on_done~ : (Result[ResultStream, DuckDBError]) -> Unit) -> Unit
+
+pub struct DataChunk {
+  columns : Array[String]
+  rows : Array[Array[String]]
+  nulls : Array[Array[Bool]]
+}
+pub fn DataChunk::cell(Self, Int, Int) -> String?
+pub fn DataChunk::column_count(Self) -> Int
+pub fn DataChunk::row_count(Self) -> Int
 
 pub struct Decimal {
   width : Int
@@ -177,6 +185,7 @@ pub fn PreparedStatement::bind_varchar(Self, Int, String) -> Result[Unit, DuckDB
 pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn PreparedStatement::execute(Self, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+pub fn PreparedStatement::execute_stream(Self, on_done~ : (Result[ResultStream, DuckDBError]) -> Unit) -> Unit
 
 pub struct QueryResult {
   columns : Array[String]
@@ -185,12 +194,76 @@ pub struct QueryResult {
 }
 pub fn QueryResult::cell(Self, Int, Int) -> String?
 pub fn QueryResult::column_count(Self) -> Int
+pub fn QueryResult::get_blob(Self, Int, Int) -> Bytes?
+pub fn QueryResult::get_bool(Self, Int, Int) -> Bool?
+pub fn QueryResult::get_date(Self, Int, Int) -> Int?
+pub fn QueryResult::get_decimal(Self, Int, Int) -> Decimal?
+pub fn QueryResult::get_double(Self, Int, Int) -> Double?
+pub fn QueryResult::get_int(Self, Int, Int) -> Int?
+pub fn QueryResult::get_string(Self, Int, Int) -> String?
+pub fn QueryResult::get_timestamp(Self, Int, Int) -> Int?
+pub fn QueryResult::get_value(Self, Int, Int) -> Value?
 pub fn QueryResult::row_count(Self) -> Int
+pub fn QueryResult::to_typed(Self) -> TypedQueryResult
+
+#external
+pub type ResultStream
+pub fn ResultStream::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn ResultStream::column_count(Self) -> Int
+pub fn ResultStream::columns(Self) -> Array[String]
+pub fn ResultStream::next(Self, on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit) -> Unit
 
 pub struct Struct {
   fields : Array[String]
   values : Array[String]
 }
+
+pub struct TypedQueryResult {
+  columns : Array[String]
+  data : Array[Array[Value]]
+}
+pub fn TypedQueryResult::column_count(Self) -> Int
+pub fn TypedQueryResult::get_blob(Self, Int, Int) -> Bytes?
+pub fn TypedQueryResult::get_bool(Self, Int, Int) -> Bool?
+pub fn TypedQueryResult::get_bool_column(Self, Int) -> Array[Bool?]?
+pub fn TypedQueryResult::get_column(Self, Int) -> Array[Value]?
+pub fn TypedQueryResult::get_date(Self, Int, Int) -> Int?
+pub fn TypedQueryResult::get_date_column(Self, Int) -> Array[Int?]?
+pub fn TypedQueryResult::get_decimal(Self, Int, Int) -> Decimal?
+pub fn TypedQueryResult::get_decimal_column(Self, Int) -> Array[Decimal?]?
+pub fn TypedQueryResult::get_double(Self, Int, Int) -> Double?
+pub fn TypedQueryResult::get_double_column(Self, Int) -> Array[Double?]?
+pub fn TypedQueryResult::get_int(Self, Int, Int) -> Int?
+pub fn TypedQueryResult::get_int_column(Self, Int) -> Array[Int?]?
+pub fn TypedQueryResult::get_string(Self, Int, Int) -> String?
+pub fn TypedQueryResult::get_string_column(Self, Int) -> Array[String?]?
+pub fn TypedQueryResult::get_timestamp(Self, Int, Int) -> Int?
+pub fn TypedQueryResult::get_timestamp_column(Self, Int) -> Array[Int?]?
+pub fn TypedQueryResult::get_value(Self, Int, Int) -> Value?
+pub fn TypedQueryResult::is_null(Self, Int, Int) -> Bool
+pub fn TypedQueryResult::row_count(Self) -> Int
+
+pub enum Value {
+  Int(Int)
+  Double(Double)
+  Bool(Bool)
+  String(String)
+  Date(Int)
+  Timestamp(Int)
+  Decimal(Decimal)
+  Blob(Bytes)
+  Null
+}
+pub fn Value::as_blob(Self) -> Bytes?
+pub fn Value::as_bool(Self) -> Bool?
+pub fn Value::as_date(Self) -> Int?
+pub fn Value::as_decimal(Self) -> Decimal?
+pub fn Value::as_double(Self) -> Double?
+pub fn Value::as_int(Self) -> Int?
+pub fn Value::as_string(Self) -> String?
+pub fn Value::as_timestamp(Self) -> Int?
+pub fn Value::is_null(Self) -> Bool
+pub fn Value::to_string(Self) -> String
 
 // Type aliases
 
