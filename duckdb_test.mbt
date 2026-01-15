@@ -1130,6 +1130,29 @@ test "typed result date and timestamp" {
 }
 
 ///|
+test "typed result timestamp fractional seconds" {
+  let result = run_native_query(
+    "SELECT TIMESTAMP '2024-06-03 12:34:56.789123' AS ts",
+  )
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+      match typed.get_timestamp(0, 0) {
+        Some(micros) => {
+          let base = timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56)
+          let expected = base + 789123
+          if micros != expected {
+            fail("expected timestamp \{expected}, got \{micros}")
+          }
+        }
+        None => fail("expected Some(timestamp), got None")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
 test "typed result columnar access" {
   let result = run_native_query(
     "SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, NULL)) AS t(id, name)",
