@@ -1724,6 +1724,199 @@ int32_t duckdb_mb_bind_map_varchar_varchar(duckdb_mb_statement *mb_stmt, int32_t
   return 1;
 }
 
+// ----------------------------------------------------------------------------
+// List Type Appender
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_append_list_varchar(duckdb_mb_appender *mb_append,
+                                     moonbit_bytes_t *values, int32_t count) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  // Serialize list as JSON string for VARCHAR compatibility
+  size_t total_len = 2; // '[' + ']'
+  for (int32_t i = 0; i < count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    total_len += (size_t)len + 2; // quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_append->error, "failed to allocate list buffer",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '[';
+  for (int32_t i = 0; i < count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    for (int32_t j = 0; j < len; j++) {
+      buffer[pos++] = ((char*)values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = ']';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Struct Type Appender
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_append_struct_varchar(duckdb_mb_appender *mb_append,
+                                       moonbit_bytes_t *field_names,
+                                       moonbit_bytes_t *field_values,
+                                       int32_t field_count) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  // Serialize struct as JSON string for VARCHAR compatibility
+  size_t total_len = 2; // '{' + '}'
+  for (int32_t i = 0; i < field_count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t name_len = field_names[i] ? Moonbit_array_length(field_names[i]) : 0;
+    int32_t val_len = field_values[i] ? Moonbit_array_length(field_values[i]) : 0;
+    total_len += (size_t)name_len + (size_t)val_len + 4; // name, ": ", quotes, quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_append->error, "failed to allocate struct buffer",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '{';
+  for (int32_t i = 0; i < field_count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t name_len = field_names[i] ? Moonbit_array_length(field_names[i]) : 0;
+    for (int32_t j = 0; j < name_len; j++) {
+      buffer[pos++] = ((char*)field_names[i])[j];
+    }
+    buffer[pos++] = '"';
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    buffer[pos++] = '"';
+    int32_t val_len = field_values[i] ? Moonbit_array_length(field_values[i]) : 0;
+    for (int32_t j = 0; j < val_len; j++) {
+      buffer[pos++] = ((char*)field_values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = '}';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// Map Type Appender
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_append_map_varchar_varchar(duckdb_mb_appender *mb_append,
+                                            moonbit_bytes_t *keys,
+                                            moonbit_bytes_t *values,
+                                            int32_t entry_count) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  // Serialize map as JSON string for VARCHAR compatibility
+  size_t total_len = 2; // '{' + '}'
+  for (int32_t i = 0; i < entry_count; i++) {
+    if (i > 0) total_len += 2; // ", "
+    int32_t key_len = keys[i] ? Moonbit_array_length(keys[i]) : 0;
+    int32_t val_len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    total_len += (size_t)key_len + (size_t)val_len + 6; // key, ": ", value, quotes
+  }
+
+  char *buffer = (char *)malloc(total_len + 1);
+  if (!buffer) {
+    strncpy(mb_append->error, "failed to allocate map buffer",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  size_t pos = 0;
+  buffer[pos++] = '{';
+  for (int32_t i = 0; i < entry_count; i++) {
+    if (i > 0) {
+      buffer[pos++] = ',';
+      buffer[pos++] = ' ';
+    }
+    buffer[pos++] = '"';
+    int32_t key_len = keys[i] ? Moonbit_array_length(keys[i]) : 0;
+    for (int32_t j = 0; j < key_len; j++) {
+      buffer[pos++] = ((char*)keys[i])[j];
+    }
+    buffer[pos++] = '"';
+    buffer[pos++] = ':';
+    buffer[pos++] = ' ';
+    buffer[pos++] = '"';
+    int32_t val_len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    for (int32_t j = 0; j < val_len; j++) {
+      buffer[pos++] = ((char*)values[i])[j];
+    }
+    buffer[pos++] = '"';
+  }
+  buffer[pos++] = '}';
+  buffer[pos] = '\0';
+
+  duckdb_state state = duckdb_append_varchar(mb_append->appender, buffer);
+  free(buffer);
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
 // ============================================================================
 // Arrow Integration (using standard DuckDB API for data extraction)
 // ============================================================================

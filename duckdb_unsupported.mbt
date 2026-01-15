@@ -495,7 +495,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
   let _ = value
   let _ = width
   let _ = scale
-  { width: 0, scale: 0, value: 0 }
+  { width: 0, scale: 0, lower: 0, upper: 0 }
 }
 
 ///|
@@ -513,7 +513,7 @@ pub fn decimal_from_parts(
   let _ = whole
   let _ = fractional
   let _ = scale
-  { width: 0, scale: 0, value: 0 }
+  { width: 0, scale: 0, lower: 0, upper: 0 }
 }
 
 ///|

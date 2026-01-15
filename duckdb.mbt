@@ -103,7 +103,7 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ = JsBackend::Wasm
   let _ : QueryResult = { columns: [], column_types: [], rows: [], nulls: [] }
   let _ : DataChunk = { columns: [], rows: [], nulls: [] }
-  let _ : Decimal = { width: 0, scale: 0, value: 0 }
+  let _ : Decimal = { width: 0, scale: 0, lower: 0, upper: 0 }
   let _ : Interval = { months: 0, days: 0, micros: 0 }
   let _ : List = { elements: [] }
   let _ : Struct = { fields: [], values: [] }
@@ -111,7 +111,7 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ : ColumnType = ColumnType::Unknown(-1)
   let _ = column_type_from_id(0)
   // Typed result API types
-  let _ : Value = Value::Decimal({ width: 0, scale: 0, value: 0 })
+  let _ : Value = Value::Decimal({ width: 0, scale: 0, lower: 0, upper: 0 })
   let _ : Value = Value::Blob(Bytes::default())
   let _ : Value = Value::Null
   let _ : TypedQueryResult = { columns: [], data: [] }
@@ -124,11 +124,12 @@ fn touch_public_types(backend : JsBackend) -> Unit {
 
 ///|
 /// Fixed-point decimal type for financial calculations.
-/// Uses 128-bit integer representation internally.
+/// Uses 128-bit integer representation (lower/upper parts).
 pub struct Decimal {
   width : Int // Total number of digits
   scale : Int // Digits after decimal point
-  value : Int // Scaled integer value (e.g., 123.45 with scale 2 stores as 12345)
+  lower : Int // Lower 64 bits of the 128-bit value
+  upper : Int // Upper 64 bits (sign extension for negative values)
 }
 
 ///|
@@ -1188,13 +1189,18 @@ pub fn Value::to_string(self : Value) -> String {
       timestamp_to_string(micros)
     Decimal(dec) => {
       // Convert decimal to string representation
-      let divisor = int_pow10(dec.scale)
-      let whole = dec.value / divisor
-      let frac = Int::abs(dec.value % divisor)
-      if dec.scale == 0 {
-        whole.to_string()
+      // For 128-bit decimals, if upper is non-zero we indicate large value
+      if dec.upper != 0 {
+        "<large decimal: upper=\{dec.upper}, lower=\{dec.lower}>"
       } else {
-        "\{whole}.\{pad_int(frac.to_string(), dec.scale)}"
+        let divisor = int_pow10(dec.scale)
+        let whole = dec.lower / divisor
+        let frac = Int::abs(dec.lower % divisor)
+        if dec.scale == 0 {
+          whole.to_string()
+        } else {
+          "\{whole}.\{pad_int(frac.to_string(), dec.scale)}"
+        }
       }
     }
     Blob(_) =>

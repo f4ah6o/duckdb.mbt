@@ -9,19 +9,28 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 | Connection & Query | ✅ | ✅ | ✅ |
 | Prepared Statements | ✅ | ✅ | ✅ |
 | Streaming Results | ⚠️ | ✅ | ✅ |
-| Appender | ✅ | ❌ | ❌ |
+| Appender | ✅ | ✅ | ❌ |
 | Arrow Integration | ⚠️ | ⚠️ | ⚠️ |
-| Advanced Types | ✅ | ❌ | ❌ |
+| Advanced Types | ⚠️ | ⚠️ | ❌ |
 
 **Legend:** ✅ Full support | ⚠️ Partial support | ❌ Not supported
 
-### Advanced Types (Native Only)
-- `Blob` - Binary data
-- `Decimal` - Fixed-point precision arithmetic
-- `Interval` - Date/time intervals
-- `List` - Array types
-- `Struct` - Composite types
-- `Map` - Key-value mappings
+### Advanced Types Detailed Support
+
+| Type | Native Bind | Native Append | Node Bind | Node Append | WASM |
+|------|-------------|---------------|-----------|-------------|------|
+| Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ❌ |
+| Interval | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Blob | ✅ | ✅ | ✅ | ✅ | ❌ |
+| List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR | ❌ | ❌ |
+| Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR | ❌ | ❌ |
+| Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR | ❌ | ❌ |
+
+**Notes:**
+- Native appender supports all advanced types (VARCHAR-only for List/Struct/Map)
+- Node.js backend supports bind/append for Decimal, Interval, Blob
+- List/Struct/Map are VARCHAR-only (serialized as JSON strings)
+- WASM backend does not support advanced types - use INSERT statements with type literals instead
 
 ### Arrow Integration (Phase 1)
 Basic support is available on all targets:
@@ -94,8 +103,9 @@ npm install @duckdb/duckdb-wasm@^1.33.1-dev18.0
 
 ### JavaScript Limitations
 
-- **No Appender support** - Bulk data insertion is not available
-- **No advanced types** - Blob, Decimal, Interval, List, Struct, Map return errors
+- **WASM Appender** - Not supported for WASM backend (use INSERT statements, insertCSVFromPath(), insertJSONFromPath(), or insertArrowTable() instead)
+- **WASM Advanced Types** - Blob, Decimal, Interval, List, Struct, Map are not supported for WASM backend (use INSERT statements with type literals instead)
+- **Node.js Advanced Types** - Decimal (128-bit), Interval, Blob are supported for bind/append; List/Struct/Map are VARCHAR-only
 - **Date/Time types** - Limited support in prepared statements
 
 ## Usage
