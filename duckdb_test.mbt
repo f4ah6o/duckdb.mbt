@@ -1066,6 +1066,43 @@ test "typed result basic types" {
 }
 
 ///|
+test "typed result varchar stays string" {
+  let result = run_native_query(
+    "SELECT '00123' AS num_str, '2024-06-03' AS date_str, '3.14' AS float_str",
+  )
+  match result {
+    Ok(query_result) => {
+      let typed = query_result.to_typed()
+      match typed.get_value(0, 0) {
+        Some(Value::String(s)) =>
+          if s != "00123" {
+            fail("expected '00123', got '\{s}'")
+          }
+        Some(_) => fail("expected Value::String for num_str")
+        None => fail("expected Some value for num_str")
+      }
+      match typed.get_value(0, 1) {
+        Some(Value::String(s)) =>
+          if s != "2024-06-03" {
+            fail("expected '2024-06-03', got '\{s}'")
+          }
+        Some(_) => fail("expected Value::String for date_str")
+        None => fail("expected Some value for date_str")
+      }
+      match typed.get_value(0, 2) {
+        Some(Value::String(s)) =>
+          if s != "3.14" {
+            fail("expected '3.14', got '\{s}'")
+          }
+        Some(_) => fail("expected Value::String for float_str")
+        None => fail("expected Some value for float_str")
+      }
+    }
+    Err(message) => fail("query failed: \{message}")
+  }
+}
+
+///|
 test "typed result null values" {
   let result = run_native_query("SELECT 1 AS a, NULL AS b, 2 AS c")
   match result {

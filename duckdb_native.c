@@ -198,6 +198,13 @@ moonbit_bytes_t duckdb_mb_result_column_name(duckdb_result *result,
   return duckdb_mb_make_bytes(name, strlen(name));
 }
 
+int32_t duckdb_mb_result_column_type(duckdb_result *result, int32_t col) {
+  if (!result) {
+    return (int32_t)DUCKDB_TYPE_INVALID;
+  }
+  return (int32_t)duckdb_column_type(result, (idx_t)col);
+}
+
 int32_t duckdb_mb_result_is_null(duckdb_result *result,
                                  int32_t col,
                                  int32_t row) {

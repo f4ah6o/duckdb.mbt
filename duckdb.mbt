@@ -36,6 +36,7 @@ pub suberror DuckDBError {
 /// Query result data is represented as strings plus a null mask.
 pub struct QueryResult {
   columns : Array[String]
+  column_types : Array[ColumnType]
   rows : Array[Array[String]]
   nulls : Array[Array[Bool]]
 }
@@ -49,18 +50,66 @@ pub struct DataChunk {
 }
 
 ///|
+/// DuckDB column type identifiers.
+pub enum ColumnType {
+  Invalid
+  Boolean
+  TinyInt
+  SmallInt
+  Integer
+  BigInt
+  UTinyInt
+  USmallInt
+  UInteger
+  UBigInt
+  Float
+  Double
+  Timestamp
+  Date
+  Time
+  Interval
+  HugeInt
+  UHugeInt
+  Varchar
+  Blob
+  Decimal
+  TimestampS
+  TimestampMs
+  TimestampNs
+  Enum
+  List
+  Struct
+  Map
+  Array
+  Uuid
+  Union
+  Bit
+  TimeTz
+  TimestampTz
+  Any
+  Bignum
+  SqlNull
+  StringLiteral
+  IntegerLiteral
+  TimeNs
+  Unknown(Int)
+}
+
+///|
 // Ensure public constructors are referenced in all target builds.
 fn touch_public_types(backend : JsBackend) -> Unit {
   let _ = backend
   let _ = JsBackend::Node
   let _ = JsBackend::Wasm
-  let _ : QueryResult = { columns: [], rows: [], nulls: [] }
+  let _ : QueryResult = { columns: [], column_types: [], rows: [], nulls: [] }
   let _ : DataChunk = { columns: [], rows: [], nulls: [] }
   let _ : Decimal = { width: 0, scale: 0, value: 0 }
   let _ : Interval = { months: 0, days: 0, micros: 0 }
   let _ : List = { elements: [] }
   let _ : Struct = { fields: [], values: [] }
   let _ : Map = { keys: [], values: [] }
+  let _ : ColumnType = ColumnType::Unknown(-1)
+  let _ = column_type_from_id(0)
   // Typed result API types
   let _ : Value = Value::Decimal({ width: 0, scale: 0, value: 0 })
   let _ : Value = Value::Blob(Bytes::default())
@@ -182,6 +231,54 @@ pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
 // ============================================================================
 
 ///|
+/// Map DuckDB type id to ColumnType.
+fn column_type_from_id(id : Int) -> ColumnType {
+  match id {
+    0 => ColumnType::Invalid
+    1 => ColumnType::Boolean
+    2 => ColumnType::TinyInt
+    3 => ColumnType::SmallInt
+    4 => ColumnType::Integer
+    5 => ColumnType::BigInt
+    6 => ColumnType::UTinyInt
+    7 => ColumnType::USmallInt
+    8 => ColumnType::UInteger
+    9 => ColumnType::UBigInt
+    10 => ColumnType::Float
+    11 => ColumnType::Double
+    12 => ColumnType::Timestamp
+    13 => ColumnType::Date
+    14 => ColumnType::Time
+    15 => ColumnType::Interval
+    16 => ColumnType::HugeInt
+    17 => ColumnType::Varchar
+    18 => ColumnType::Blob
+    19 => ColumnType::Decimal
+    20 => ColumnType::TimestampS
+    21 => ColumnType::TimestampMs
+    22 => ColumnType::TimestampNs
+    23 => ColumnType::Enum
+    24 => ColumnType::List
+    25 => ColumnType::Struct
+    26 => ColumnType::Map
+    27 => ColumnType::Uuid
+    28 => ColumnType::Union
+    29 => ColumnType::Bit
+    30 => ColumnType::TimeTz
+    31 => ColumnType::TimestampTz
+    32 => ColumnType::UHugeInt
+    33 => ColumnType::Array
+    34 => ColumnType::Any
+    35 => ColumnType::Bignum
+    36 => ColumnType::SqlNull
+    37 => ColumnType::StringLiteral
+    38 => ColumnType::IntegerLiteral
+    39 => ColumnType::TimeNs
+    _ => ColumnType::Unknown(id)
+  }
+}
+
+///|
 /// Infer and parse a string value into an appropriate Value type.
 fn parse_value(s : String) -> Value {
   if s == "true" {
@@ -205,6 +302,82 @@ fn parse_value(s : String) -> Value {
   } else {
     Value::String(s)
   }
+}
+
+///|
+/// Parse a string value using the declared column type when available.
+fn parse_value_with_type(s : String, column_type : ColumnType) -> Value {
+  match column_type {
+    ColumnType::Boolean =>
+      if s == "true" {
+        Value::Bool(true)
+      } else if s == "false" {
+        Value::Bool(false)
+      } else {
+        Value::String(s)
+      }
+    ColumnType::TinyInt
+    | ColumnType::SmallInt
+    | ColumnType::Integer
+    | ColumnType::BigInt
+    | ColumnType::UTinyInt
+    | ColumnType::USmallInt
+    | ColumnType::UInteger
+    | ColumnType::UBigInt => Value::Int(parse_int(s))
+    ColumnType::Float | ColumnType::Double =>
+      if is_special_float_string(s) {
+        Value::String(s)
+      } else {
+        Value::Double(parse_double(s))
+      }
+    ColumnType::Date =>
+      match parse_date(s) {
+        Ok(days) => Value::Date(days)
+        Err(_) => Value::String(s)
+      }
+    ColumnType::Timestamp
+    | ColumnType::TimestampS
+    | ColumnType::TimestampMs
+    | ColumnType::TimestampNs
+    | ColumnType::TimestampTz =>
+      match parse_timestamp(s) {
+        Ok(micros) => Value::Timestamp(micros)
+        Err(_) => Value::String(s)
+      }
+    ColumnType::Varchar
+    | ColumnType::Enum
+    | ColumnType::Uuid
+    | ColumnType::StringLiteral => Value::String(s)
+    ColumnType::Decimal
+    | ColumnType::HugeInt
+    | ColumnType::UHugeInt
+    | ColumnType::Interval
+    | ColumnType::List
+    | ColumnType::Struct
+    | ColumnType::Map
+    | ColumnType::Array
+    | ColumnType::Union
+    | ColumnType::Bit
+    | ColumnType::Time
+    | ColumnType::TimeTz
+    | ColumnType::TimeNs
+    | ColumnType::Any
+    | ColumnType::Bignum
+    | ColumnType::Blob
+    | ColumnType::SqlNull
+    | ColumnType::IntegerLiteral => Value::String(s)
+    ColumnType::Invalid | ColumnType::Unknown(_) => parse_value(s)
+  }
+}
+
+///|
+fn is_special_float_string(s : String) -> Bool {
+  s == "nan" ||
+  s == "NaN" ||
+  s == "inf" ||
+  s == "Infinity" ||
+  s == "-inf" ||
+  s == "-Infinity"
 }
 
 ///|
@@ -542,6 +715,7 @@ fn parse_time_to_micros(s : String) -> Result[Int, String] {
 pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
   let column_count = self.column_count()
   let row_count = self.row_count()
+  let column_types = self.column_types
 
   // Initialize column arrays
   let data : Array[Array[Value]] = []
@@ -558,7 +732,12 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
       let value = if is_null {
         Value::Null
       } else {
-        parse_value(self.rows[row][col])
+        let column_type = if col < column_types.length() {
+          column_types[col]
+        } else {
+          ColumnType::Unknown(-1)
+        }
+        parse_value_with_type(self.rows[row][col], column_type)
       }
       data[col].push(value)
     } else {
@@ -1168,7 +1347,12 @@ pub fn QueryResult::get_value(
   } else if self.nulls[row][col] {
     Some(Value::Null)
   } else {
-    Some(parse_value(self.rows[row][col]))
+    let column_type = if col < self.column_types.length() {
+      self.column_types[col]
+    } else {
+      ColumnType::Unknown(-1)
+    }
+    Some(parse_value_with_type(self.rows[row][col], column_type))
   }
 }
 
