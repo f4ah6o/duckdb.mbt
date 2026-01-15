@@ -62,6 +62,41 @@ extern "C" fn native_arrow_get_column_bool(
 ) -> Bytes = "duckdb_mb_arrow_get_column_bool"
 
 ///|
+#borrow(result, col)
+extern "C" fn native_arrow_get_column_int32_nullable(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_int32_nullable"
+
+///|
+#borrow(result, col)
+extern "C" fn native_arrow_get_column_int64_nullable(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_int64_nullable"
+
+///|
+#borrow(result, col)
+extern "C" fn native_arrow_get_column_double_nullable(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_double_nullable"
+
+///|
+#borrow(result, col)
+extern "C" fn native_arrow_get_column_string_nullable(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_string_nullable"
+
+///|
+#borrow(result, col)
+extern "C" fn native_arrow_get_column_bool_nullable(
+  result : ArrowResult,
+  col : Int,
+) -> Bytes = "duckdb_mb_arrow_get_column_bool_nullable"
+
+///|
 extern "C" fn native_is_null_arrow_result(result : ArrowResult) -> Bool = "duckdb_mb_is_null_arrow_result"
 
 ///|
@@ -574,4 +609,214 @@ pub fn ArrowResult::close(
 ) -> Unit {
   native_arrow_destroy(self)
   on_done(Ok(()))
+}
+
+// ============================================================================
+// Nullable Column Getters - Return (values, validity) tuples
+// ============================================================================
+
+///|
+pub fn ArrowResult::get_column_int32_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Int], Array[Bool]) {
+  let data = native_arrow_get_column_int32_nullable(self, col)
+  decode_int32_nullable_array(data)
+}
+
+///|
+fn decode_int32_nullable_array(data : Bytes) -> (Array[Int], Array[Bool]) {
+  if data.length() < 4 {
+    return ([], [])
+  }
+  let count = read_int32_le(data, 0)
+  if count <= 0 || count > 1000000 {
+    return ([], [])
+  }
+  let values_len = count * 4
+  let expected_len = 4 + values_len + count
+  if data.length() < expected_len {
+    return ([], [])
+  }
+  let values = Array::make(count, 0)
+  let validity = Array::make(count, false)
+  let values_start = 4
+  let validity_start = 4 + values_len
+  let mut i = 0
+  while i < count {
+    values[i] = read_int32_le(data, values_start + i * 4)
+    validity[i] = data[validity_start + i] != 0
+    i = i + 1
+  }
+  (values, validity)
+}
+
+///|
+pub fn ArrowResult::get_column_int64_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Int], Array[Bool]) {
+  let data = native_arrow_get_column_int64_nullable(self, col)
+  decode_int64_nullable_array(data)
+}
+
+///|
+fn decode_int64_nullable_array(data : Bytes) -> (Array[Int], Array[Bool]) {
+  if data.length() < 4 {
+    return ([], [])
+  }
+  let count = read_int32_le(data, 0)
+  if count <= 0 || count > 1000000 {
+    return ([], [])
+  }
+  let values_len = count * 8
+  let expected_len = 4 + values_len + count
+  if data.length() < expected_len {
+    return ([], [])
+  }
+  let values = Array::make(count, 0)
+  let validity = Array::make(count, false)
+  let values_start = 4
+  let validity_start = 4 + values_len
+  let mut i = 0
+  while i < count {
+    let base = values_start + i * 8
+    let b0 = data[base].to_int()
+    let b1 = data[base + 1].to_int()
+    let b2 = data[base + 2].to_int()
+    let b3 = data[base + 3].to_int()
+    let b4 = data[base + 4].to_int()
+    let b5 = data[base + 5].to_int()
+    let b6 = data[base + 6].to_int()
+    let b7 = data[base + 7].to_int()
+    values[i] = b0 |
+      (b1 << 8) |
+      (b2 << 16) |
+      (b3 << 24) |
+      (b4 << 32) |
+      (b5 << 40) |
+      (b6 << 48) |
+      (b7 << 56)
+    validity[i] = data[validity_start + i] != 0
+    i = i + 1
+  }
+  (values, validity)
+}
+
+///|
+pub fn ArrowResult::get_column_double_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Double], Array[Bool]) {
+  let data = native_arrow_get_column_double_nullable(self, col)
+  decode_double_nullable_array(data)
+}
+
+///|
+fn decode_double_nullable_array(data : Bytes) -> (Array[Double], Array[Bool]) {
+  if data.length() < 4 {
+    return ([], [])
+  }
+  let count = read_int32_le(data, 0)
+  if count <= 0 || count > 1000000 {
+    return ([], [])
+  }
+  let values_len = count * 8
+  let expected_len = 4 + values_len + count
+  if data.length() < expected_len {
+    return ([], [])
+  }
+  let values = Array::make(count, 0.0)
+  let validity = Array::make(count, false)
+  let values_start = 4
+  let validity_start = 4 + values_len
+  let mut i = 0
+  while i < count {
+    let base = values_start + i * 8
+    values[i] = bytes_to_double(data, base)
+    validity[i] = data[validity_start + i] != 0
+    i = i + 1
+  }
+  (values, validity)
+}
+
+///|
+pub fn ArrowResult::get_column_string_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[String], Array[Bool]) {
+  let data = native_arrow_get_column_string_nullable(self, col)
+  decode_string_nullable_array(data)
+}
+
+///|
+fn decode_string_nullable_array(data : Bytes) -> (Array[String], Array[Bool]) {
+  if data.length() < 8 {
+    return ([], [])
+  }
+  let count = read_int32_le(data, 0)
+  let total_data_len = read_int32_le(data, 4)
+  if count <= 0 || count > 1000000 {
+    return ([], [])
+  }
+  let expected_len = 8 + total_data_len + count
+  if data.length() < expected_len {
+    return ([], [])
+  }
+  let values = Array::make(count, "")
+  let validity = Array::make(count, false)
+  let data_start = 8
+  let validity_start = 8 + total_data_len
+  let mut pos = data_start
+  let mut i = 0
+  while i < count {
+    let start_pos = pos
+    // Find null terminator
+    while pos < data.length() && data[pos] != 0 {
+      pos = pos + 1
+    }
+    if start_pos < data.length() {
+      let bytes_view = data.sub(start=start_pos, end=pos)
+      values[i] = @encoding/utf8.decode_lossy(bytes_view)
+    }
+    pos = pos + 1 // Skip null terminator
+    validity[i] = data[validity_start + i] != 0
+    i = i + 1
+  }
+  (values, validity)
+}
+
+///|
+pub fn ArrowResult::get_column_bool_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Bool], Array[Bool]) {
+  let data = native_arrow_get_column_bool_nullable(self, col)
+  decode_bool_nullable_array(data)
+}
+
+///|
+fn decode_bool_nullable_array(data : Bytes) -> (Array[Bool], Array[Bool]) {
+  if data.length() < 4 {
+    return ([], [])
+  }
+  let count = read_int32_le(data, 0)
+  if count <= 0 || count > 1000000 {
+    return ([], [])
+  }
+  let expected_len = 4 + count + count
+  if data.length() < expected_len {
+    return ([], [])
+  }
+  let values = Array::make(count, false)
+  let validity = Array::make(count, false)
+  let values_start = 4
+  let validity_start = 4 + count
+  let mut i = 0
+  while i < count {
+    values[i] = data[values_start + i] != 0
+    validity[i] = data[validity_start + i] != 0
+    i = i + 1
+  }
+  (values, validity)
 }
