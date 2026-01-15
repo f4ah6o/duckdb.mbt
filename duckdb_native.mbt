@@ -257,6 +257,36 @@ extern "C" fn native_bind_map_varchar_varchar(
   entry_count : Int,
 ) -> Bool = "duckdb_mb_bind_map_varchar_varchar"
 
+// ----------------------------------------------------------------------------
+// Advanced Type Appender Functions
+// ----------------------------------------------------------------------------
+
+///|
+#borrow(appender)
+extern "C" fn native_appender_append_list_varchar(
+  appender : Appender,
+  values : Array[Bytes],
+  count : Int,
+) -> Bool = "duckdb_mb_append_list_varchar"
+
+///|
+#borrow(appender)
+extern "C" fn native_appender_append_struct_varchar(
+  appender : Appender,
+  field_names : Array[Bytes],
+  field_values : Array[Bytes],
+  field_count : Int,
+) -> Bool = "duckdb_mb_append_struct_varchar"
+
+///|
+#borrow(appender)
+extern "C" fn native_appender_append_map_varchar_varchar(
+  appender : Appender,
+  keys : Array[Bytes],
+  values : Array[Bytes],
+  entry_count : Int,
+) -> Bool = "duckdb_mb_append_map_varchar_varchar"
+
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -1299,16 +1329,8 @@ pub fn PreparedStatement::bind_decimal(
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  // Convert Int to duckdb_hugeint representation
-  // For positive values: upper=0, lower=value
-  // For negative values: upper=-1, lower=two's complement
-  let (lower, upper) = if value.value >= 0 {
-    (value.value, 0)
-  } else {
-    let abs_val = -value.value
-    (0 - abs_val, -1)
-  }
-  if native_bind_decimal(self, index, value.width, value.scale, lower, upper) {
+  // Use 128-bit representation directly from lower/upper parts
+  if native_bind_decimal(self, index, value.width, value.scale, value.lower, value.upper) {
     Ok(())
   } else {
     Err(DuckDBError::Message(statement_error(self, "bind_decimal failed")))
@@ -1320,18 +1342,13 @@ pub fn Appender::append_decimal(
   self : Appender,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  let (lower, upper) = if value.value >= 0 {
-    (value.value, 0)
-  } else {
-    let abs_val = -value.value
-    (0 - abs_val, -1)
-  }
+  // Use 128-bit representation directly from lower/upper parts
   if native_appender_append_decimal(
       self,
       value.width,
       value.scale,
-      lower,
-      upper,
+      value.lower,
+      value.upper,
     ) {
     Ok(())
   } else {
@@ -1342,21 +1359,26 @@ pub fn Appender::append_decimal(
 ///|
 /// Create a decimal from a floating-point value with specified precision.
 /// Note: This is approximate due to floating-point representation.
+/// For values exceeding 64-bit range, use decimal_from_hugeint instead.
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
   let multiplier = _int_pow10(scale)
   let scaled = (value * Double::from_int(multiplier)).to_int()
-  { width, scale, value: scaled }
+  // For 64-bit range: upper=0 for positive, upper=-1 for negative
+  let upper = if scaled >= 0 { 0 } else { -1 }
+  { width, scale, lower: scaled, upper }
 }
 
 ///|
 /// Convert decimal to floating-point (approximate).
+/// For decimals with upper != 0, returns approximation based on lower part only.
 pub fn decimal_to_double(decimal : Decimal) -> Double {
   let divisor = Double::from_int(_int_pow10(decimal.scale))
-  Double::from_int(decimal.value) / divisor
+  Double::from_int(decimal.lower) / divisor
 }
 
 ///|
-/// Create a decimal from integer parts.
+/// Create a decimal from integer parts (64-bit range).
+/// For values exceeding 64-bit range, use decimal_from_hugeint instead.
 pub fn decimal_from_parts(
   whole : Int,
   fractional : Int,
@@ -1368,16 +1390,29 @@ pub fn decimal_from_parts(
   } else {
     String::length(whole.to_string()) + scale
   }
-  { width: width.max(1), scale, value }
+  let upper = if value >= 0 { 0 } else { -1 }
+  { width: width.max(1), scale, lower: value, upper }
 }
 
 ///|
-/// Get the whole and fractional parts of a decimal.
+/// Get the whole and fractional parts of a decimal (64-bit range).
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
   let divisor = _int_pow10(decimal.scale)
-  let whole = decimal.value / divisor
-  let fractional = Int::abs(decimal.value % divisor)
+  let whole = decimal.lower / divisor
+  let fractional = Int::abs(decimal.lower % divisor)
   (whole, fractional)
+}
+
+///|
+/// Create a decimal from 128-bit parts.
+/// Allows specifying the full 128-bit value for maximum precision.
+pub fn decimal_from_hugeint(
+  lower : Int,
+  upper : Int,
+  width : Int,
+  scale : Int,
+) -> Decimal {
+  { width, scale, lower, upper }
 }
 
 // ----------------------------------------------------------------------------
@@ -1626,4 +1661,62 @@ pub fn map_get(m : Map, key : String) -> String? {
 /// Get map size.
 pub fn map_size(map : Map) -> Int {
   map.keys.length()
+}
+
+// ============================================================================
+// Advanced Type Appender Methods
+// ============================================================================
+
+///|
+/// Append a list of string values to the appender.
+pub fn Appender::append_list_varchar(
+  self : Appender,
+  values : Array[String],
+) -> Result[Unit, DuckDBError] {
+  let encoded = values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_appender_append_list_varchar(self, encoded, encoded.length()) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_list_varchar failed")))
+  }
+}
+
+///|
+/// Append a struct value to the appender.
+pub fn Appender::append_struct(
+  self : Appender,
+  value : Struct,
+) -> Result[Unit, DuckDBError] {
+  let encoded_names = value.fields.map(fn(f) { @encoding/utf8.encode(f) })
+  let encoded_values = value.values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_appender_append_struct_varchar(
+      self,
+      encoded_names,
+      encoded_values,
+      value.fields.length(),
+    ) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_struct failed")))
+  }
+}
+
+///|
+/// Append a map value to the appender.
+pub fn Appender::append_map(
+  self : Appender,
+  map : Map,
+) -> Result[Unit, DuckDBError] {
+  let encoded_keys = map.keys.map(fn(k) { @encoding/utf8.encode(k) })
+  let encoded_values = map.values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_appender_append_map_varchar_varchar(
+      self,
+      encoded_keys,
+      encoded_values,
+      map.keys.length(),
+    ) {
+    Ok(())
+  } else {
+    Err(DuckDBError::Message(appender_error(self, "append_map failed")))
+  }
 }

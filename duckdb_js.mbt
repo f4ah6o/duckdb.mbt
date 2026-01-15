@@ -766,6 +766,9 @@ extern "js" fn js_bind_blob(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_blob is not supported for WASM backend. Use INSERT statements with CAST or hex encoding instead." };
+  #|  }
   #|  return { ok: false, error: "bind_blob is only supported for Node backend" };
   #|}
 
@@ -785,6 +788,9 @@ extern "js" fn js_bind_decimal(
   #|    } catch (e) {
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_decimal is not supported for WASM backend. Use INSERT statements with DECIMAL literals instead." };
   #|  }
   #|  return { ok: false, error: "bind_decimal is only supported for Node backend" };
   #|}
@@ -806,6 +812,9 @@ extern "js" fn js_bind_interval(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_interval is not supported for WASM backend. Use INSERT statements with INTERVAL literals instead." };
+  #|  }
   #|  return { ok: false, error: "bind_interval is only supported for Node backend" };
   #|}
 
@@ -823,6 +832,9 @@ extern "js" fn js_bind_list_varchar(
   #|    } catch (e) {
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_list_varchar is not supported for WASM backend. Use INSERT statements with LIST literals instead." };
   #|  }
   #|  return { ok: false, error: "bind_list_varchar is only supported for Node backend" };
   #|}
@@ -844,6 +856,9 @@ extern "js" fn js_bind_struct(
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
   #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_struct is not supported for WASM backend. Use INSERT statements with STRUCT literals instead." };
+  #|  }
   #|  return { ok: false, error: "bind_struct is only supported for Node backend" };
   #|}
 
@@ -863,6 +878,9 @@ extern "js" fn js_bind_map(
   #|    } catch (e) {
   #|      return { ok: false, error: e.message || String(e) };
   #|    }
+  #|  }
+  #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
+  #|    return { ok: false, error: "bind_map is not supported for WASM backend. Use INSERT statements with MAP literals instead." };
   #|  }
   #|  return { ok: false, error: "bind_map is only supported for Node backend" };
   #|}
@@ -1952,7 +1970,17 @@ pub fn PreparedStatement::bind_decimal(
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  match js_bind_decimal(self, index, value.width, value.scale, value.value) {
+  // For JS Node backend, convert to BigInt from lower/upper
+  // Note: This loses true 128-bit precision, but provides best effort
+  let bigint_value = if value.upper < 0 {
+    // Negative: construct two's complement
+    BigInt::from_int(value.lower) - (BigInt::from_int(1) << 64)
+  } else {
+    // Positive or zero
+    BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
+  }
+  // Use bind_decimal with the BigInt value
+  match js_bind_decimal(self, index, value.width, value.scale, bigint_value.to_int()) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
   }
@@ -1963,8 +1991,16 @@ pub fn Appender::append_decimal(
   self : Appender,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
+  // For JS Node backend, convert to BigInt from lower/upper
+  let bigint_value = if value.upper < 0 {
+    // Negative: construct two's complement
+    BigInt::from_int(value.lower) - (BigInt::from_int(1) << 64)
+  } else {
+    // Positive or zero
+    BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
+  }
   match
-    js_appender_append_decimal(self, value.width, value.scale, value.value) {
+    js_appender_append_decimal(self, value.width, value.scale, bigint_value.to_int()) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
   }
@@ -1974,13 +2010,14 @@ pub fn Appender::append_decimal(
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
   let multiplier = int_pow10(scale)
   let scaled = (value * Double::from_int(multiplier)).to_int()
-  { width, scale, value: scaled }
+  let upper = if scaled >= 0 { 0 } else { -1 }
+  { width, scale, lower: scaled, upper }
 }
 
 ///|
 pub fn decimal_to_double(decimal : Decimal) -> Double {
   let divisor = Double::from_int(int_pow10(decimal.scale))
-  Double::from_int(decimal.value) / divisor
+  Double::from_int(decimal.lower) / divisor
 }
 
 ///|
@@ -1995,15 +2032,27 @@ pub fn decimal_from_parts(
   } else {
     String::length(whole.to_string()) + scale
   }
-  { width: width.max(1), scale, value }
+  let upper = if value >= 0 { 0 } else { -1 }
+  { width: width.max(1), scale, lower: value, upper }
 }
 
 ///|
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
   let divisor = int_pow10(decimal.scale)
-  let whole = decimal.value / divisor
-  let fractional = Int::abs(decimal.value % divisor)
+  let whole = decimal.lower / divisor
+  let fractional = Int::abs(decimal.lower % divisor)
   (whole, fractional)
+}
+
+///|
+/// Create a decimal from 128-bit parts.
+pub fn decimal_from_hugeint(
+  lower : Int,
+  upper : Int,
+  width : Int,
+  scale : Int,
+) -> Decimal {
+  { width, scale, lower, upper }
 }
 
 // ----------------------------------------------------------------------------
