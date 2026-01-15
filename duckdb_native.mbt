@@ -1330,7 +1330,14 @@ pub fn PreparedStatement::bind_decimal(
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
   // Use 128-bit representation directly from lower/upper parts
-  if native_bind_decimal(self, index, value.width, value.scale, value.lower, value.upper) {
+  if native_bind_decimal(
+      self,
+      index,
+      value.width,
+      value.scale,
+      value.lower,
+      value.upper,
+    ) {
     Ok(())
   } else {
     Err(DuckDBError::Message(statement_error(self, "bind_decimal failed")))
@@ -1677,7 +1684,9 @@ pub fn Appender::append_list_varchar(
   if native_appender_append_list_varchar(self, encoded, encoded.length()) {
     Ok(())
   } else {
-    Err(DuckDBError::Message(appender_error(self, "append_list_varchar failed")))
+    Err(
+      DuckDBError::Message(appender_error(self, "append_list_varchar failed")),
+    )
   }
 }
 

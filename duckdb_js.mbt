@@ -1980,7 +1980,14 @@ pub fn PreparedStatement::bind_decimal(
     BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
   }
   // Use bind_decimal with the BigInt value
-  match js_bind_decimal(self, index, value.width, value.scale, bigint_value.to_int()) {
+  match
+    js_bind_decimal(
+      self,
+      index,
+      value.width,
+      value.scale,
+      bigint_value.to_int(),
+    ) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
   }
@@ -2000,7 +2007,12 @@ pub fn Appender::append_decimal(
     BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
   }
   match
-    js_appender_append_decimal(self, value.width, value.scale, bigint_value.to_int()) {
+    js_appender_append_decimal(
+      self,
+      value.width,
+      value.scale,
+      bigint_value.to_int(),
+    ) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
   }

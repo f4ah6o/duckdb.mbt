@@ -1,0 +1,21 @@
+options(
+  "is-main": false,
+  link: {
+    "native": {
+      "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lduckdb",
+      "stub-cc-flags": "-I/opt/homebrew/include",
+    },
+  },
+  "native-stub": [ "duckdb_native.c" ],
+  targets: {
+    "duckdb_arrow_js.mbt": [ "js" ],
+    "duckdb_arrow_native.mbt": [ "native" ],
+    "duckdb_arrow_test.mbt": [ "native" ],
+    "duckdb_arrow_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
+    "duckdb_js.mbt": [ "js" ],
+    "duckdb_js_test.mbt": [ "js" ],
+    "duckdb_native.mbt": [ "native" ],
+    "duckdb_test.mbt": [ "native" ],
+    "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
+  },
+)

@@ -341,7 +341,9 @@ test "native arrow multiple rows int32" {
 
 ///|
 test "native arrow int32 nullable with nulls" {
-  let result = run_native_arrow_query("SELECT 1::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 3::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 5::INTEGER")
+  let result = run_native_arrow_query(
+    "SELECT 1::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 3::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 5::INTEGER",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_int32_nullable(0)
@@ -370,7 +372,9 @@ test "native arrow int32 nullable with nulls" {
 
 ///|
 test "native arrow int32 nullable all nulls" {
-  let result = run_native_arrow_query("SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER")
+  let result = run_native_arrow_query(
+    "SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_int32_nullable(0)
@@ -395,7 +399,9 @@ test "native arrow int32 nullable all nulls" {
 
 ///|
 test "native arrow int32 nullable no nulls" {
-  let result = run_native_arrow_query("SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3")
+  let result = run_native_arrow_query(
+    "SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_int32_nullable(0)
@@ -420,7 +426,9 @@ test "native arrow int32 nullable no nulls" {
 
 ///|
 test "native arrow string nullable with nulls" {
-  let result = run_native_arrow_query("SELECT 'a' UNION ALL SELECT NULL UNION ALL SELECT 'c' UNION ALL SELECT NULL UNION ALL SELECT 'e'")
+  let result = run_native_arrow_query(
+    "SELECT 'a' UNION ALL SELECT NULL UNION ALL SELECT 'c' UNION ALL SELECT NULL UNION ALL SELECT 'e'",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_string_nullable(0)
@@ -453,7 +461,9 @@ test "native arrow string nullable with nulls" {
 
 ///|
 test "native arrow double nullable with nulls" {
-  let result = run_native_arrow_query("SELECT 1.5::DOUBLE UNION ALL SELECT NULL::DOUBLE UNION ALL SELECT 3.14::DOUBLE")
+  let result = run_native_arrow_query(
+    "SELECT 1.5::DOUBLE UNION ALL SELECT NULL::DOUBLE UNION ALL SELECT 3.14::DOUBLE",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_double_nullable(0)
@@ -478,7 +488,9 @@ test "native arrow double nullable with nulls" {
 
 ///|
 test "native arrow bool nullable with nulls" {
-  let result = run_native_arrow_query("SELECT true::BOOLEAN UNION ALL SELECT NULL::BOOLEAN UNION ALL SELECT false::BOOLEAN")
+  let result = run_native_arrow_query(
+    "SELECT true::BOOLEAN UNION ALL SELECT NULL::BOOLEAN UNION ALL SELECT false::BOOLEAN",
+  )
   match result {
     Ok(result) => {
       let (values, validity) = result.get_column_bool_nullable(0)

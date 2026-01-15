@@ -1397,4 +1397,3 @@ test "native appender map" {
   // TODO: Fix segfault
   ()
 }
-

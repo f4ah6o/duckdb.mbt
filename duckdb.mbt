@@ -1187,7 +1187,7 @@ pub fn Value::to_string(self : Value) -> String {
     Timestamp(micros) =>
       // Convert microseconds since epoch to timestamp string
       timestamp_to_string(micros)
-    Decimal(dec) => {
+    Decimal(dec) =>
       // Convert decimal to string representation
       // For 128-bit decimals, if upper is non-zero we indicate large value
       if dec.upper != 0 {
@@ -1202,7 +1202,6 @@ pub fn Value::to_string(self : Value) -> String {
           "\{whole}.\{pad_int(frac.to_string(), dec.scale)}"
         }
       }
-    }
     Blob(_) =>
       // Convert bytes to hex string representation (simplified)
       "<blob>"
