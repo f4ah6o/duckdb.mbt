@@ -462,6 +462,27 @@ fn parse_timestamp(s : String) -> Result[Int, String] {
 }
 
 ///|
+/// Parse fractional seconds (up to 6 digits) into microseconds.
+fn parse_fraction_to_micros(s : String) -> Int {
+  let mut micros = 0
+  let mut factor = 100000
+  let mut i = 0
+  while i < s.length() {
+    let c = s[i]
+    if c < '0' || c > '9' {
+      break
+    }
+    let digit = c.to_int() - '0'.to_int()
+    if factor >= 1 {
+      micros = micros + digit * factor
+      factor = factor / 10
+    }
+    i = i + 1
+  }
+  micros
+}
+
+///|
 /// Parse time string (HH:MM:SS[.sss...]) to microseconds since midnight.
 fn parse_time_to_micros(s : String) -> Result[Int, String] {
   // Manual parsing since split() returns Iter
@@ -493,15 +514,22 @@ fn parse_time_to_micros(s : String) -> Result[Int, String] {
 
     // Parse seconds (may have fractional part)
     let dot_idx = find_dot(sec_part)
-    let second = match dot_idx {
-      Some(idx) =>
-        parse_int(sec_part.view(start_offset=0, end_offset=idx).to_string())
-      None => parse_int(sec_part)
+    let (second, frac_micros) = match dot_idx {
+      Some(idx) => {
+        let second = parse_int(
+          sec_part.view(start_offset=0, end_offset=idx).to_string(),
+        )
+        let frac = sec_part
+          .view(start_offset=idx + 1, end_offset=sec_part.length())
+          .to_string()
+        (second, parse_fraction_to_micros(frac))
+      }
+      None => (parse_int(sec_part), 0)
     }
     let hour = parse_int(hour_str)
     let minute = parse_int(minute_str)
-    let micros = (hour * 3600 + minute * 60 + second) * 1000000
-    Ok(micros)
+    let base = (hour * 3600 + minute * 60 + second) * 1000000
+    Ok(base + frac_micros)
   }
 }
 
