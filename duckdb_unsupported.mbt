@@ -41,6 +41,59 @@ pub fn Connection::query(
   )
 }
 
+///|
+pub fn Connection::query_stream(
+  self : Connection,
+  sql : String,
+  on_done~ : (Result[ResultStream, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  let _ = sql
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
+///|
+pub fn ResultStream::columns(self : ResultStream) -> Array[String] {
+  let _ = self
+  []
+}
+
+///|
+pub fn ResultStream::column_count(self : ResultStream) -> Int {
+  let _ = self
+  0
+}
+
+///|
+pub fn ResultStream::next(
+  self : ResultStream,
+  on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
+///|
+pub fn ResultStream::close(
+  self : ResultStream,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
 // ============================================================================
 // Prepared Statement Stubs
 // ============================================================================
@@ -152,6 +205,19 @@ pub fn PreparedStatement::execute(
 }
 
 ///|
+pub fn PreparedStatement::execute_stream(
+  self : PreparedStatement,
+  on_done~ : (Result[ResultStream, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  on_done(
+    Err(
+      DuckDBError::Message("duckdb bindings are not available for this target"),
+    ),
+  )
+}
+
+///|
 pub fn PreparedStatement::close(
   self : PreparedStatement,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
@@ -212,35 +278,50 @@ pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
 }
 
 ///|
-pub fn Appender::append_int(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_int(
+  self : Appender,
+  value : Int,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
 ///|
-pub fn Appender::append_bigint(self : Appender, value : Int) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_bigint(
+  self : Appender,
+  value : Int,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
 ///|
-pub fn Appender::append_double(self : Appender, value : Double) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_double(
+  self : Appender,
+  value : Double,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
 ///|
-pub fn Appender::append_varchar(self : Appender, value : String) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_varchar(
+  self : Appender,
+  value : String,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
 }
 
 ///|
-pub fn Appender::append_bool(self : Appender, value : Bool) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_bool(
+  self : Appender,
+  value : Bool,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
@@ -296,7 +377,10 @@ pub fn PreparedStatement::bind_timestamp(
 }
 
 ///|
-pub fn Appender::append_date(self : Appender, days : Int) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_date(
+  self : Appender,
+  days : Int,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = days
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
@@ -371,7 +455,10 @@ pub fn PreparedStatement::bind_blob(
 }
 
 ///|
-pub fn Appender::append_blob(self : Appender, value : Bytes) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_blob(
+  self : Appender,
+  value : Bytes,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
@@ -394,7 +481,10 @@ pub fn PreparedStatement::bind_decimal(
 }
 
 ///|
-pub fn Appender::append_decimal(self : Appender, value : Decimal) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_decimal(
+  self : Appender,
+  value : Decimal,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
@@ -415,7 +505,11 @@ pub fn decimal_to_double(decimal : Decimal) -> Double {
 }
 
 ///|
-pub fn decimal_from_parts(whole : Int, fractional : Int, scale : Int) -> Decimal {
+pub fn decimal_from_parts(
+  whole : Int,
+  fractional : Int,
+  scale : Int,
+) -> Decimal {
   let _ = whole
   let _ = fractional
   let _ = scale
@@ -445,7 +539,10 @@ pub fn PreparedStatement::bind_interval(
 }
 
 ///|
-pub fn Appender::append_interval(self : Appender, value : Interval) -> Result[Unit, DuckDBError] {
+pub fn Appender::append_interval(
+  self : Appender,
+  value : Interval,
+) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
   Err(DuckDBError::Message("duckdb bindings are not available for this target"))
@@ -547,7 +644,10 @@ pub fn PreparedStatement::bind_struct(
 }
 
 ///|
-pub fn struct_from_arrays(fields : Array[String], values : Array[String]) -> Struct {
+pub fn struct_from_arrays(
+  fields : Array[String],
+  values : Array[String],
+) -> Struct {
   let _ = fields
   let _ = values
   { fields: [], values: [] }
@@ -613,4 +713,3 @@ pub fn map_size(m : Map) -> Int {
   let _ = m
   0
 }
-
