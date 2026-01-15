@@ -486,7 +486,7 @@ extern "js" fn js_prepare(
   #|    if (conn && conn.kind === "node") {
   #|      try {
   #|        const statement = await conn.connection.prepare(sql);
-  #|        on_ok({ kind: "prepared", connection: conn, statement });
+  #|        on_ok({ kind: "prepared", connection: conn, backend: conn.kind, statement });
   #|        return;
   #|      } catch (e) {
   #|        on_err(toError(e));
@@ -497,7 +497,14 @@ extern "js" fn js_prepare(
   #|      try {
   #|        // Use real duckdb-wasm prepared statements
   #|        const statement = await conn.conn.prepare(sql);
-  #|        on_ok({ kind: "prepared", connection: conn, statement, sql, params: {} });
+  #|        on_ok({
+  #|          kind: "prepared",
+  #|          connection: conn,
+  #|          backend: conn.kind,
+  #|          statement,
+  #|          sql,
+  #|          params: {},
+  #|        });
   #|        return;
   #|      } catch (e) {
   #|        on_err(toError(e));
@@ -1154,7 +1161,10 @@ extern "js" fn js_execute_prepared(
   #|    nulls.push(rowNulls);
   #|  };
   #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
+  #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
+  #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
+  #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
+  #|    if (kind === "node" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        const api = await import('@duckdb/node-api');
   #|        floatTypeId = api.DuckDBTypeId.FLOAT;
@@ -1176,7 +1186,7 @@ extern "js" fn js_execute_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm" && stmt.statement) {
+  #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        // For WASM, use prepared statement with parameters
   #|        const params = [];
@@ -1231,7 +1241,10 @@ extern "js" fn js_execute_prepared_stream(
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
   #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
+  #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
+  #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
+  #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
+  #|    if (kind === "node" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        const api = await import('@duckdb/node-api');
   #|        const result = await stmt.statement.stream();
@@ -1251,7 +1264,7 @@ extern "js" fn js_execute_prepared_stream(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm" && stmt.statement) {
+  #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        const params = [];
   #|        if (stmt.params) {
@@ -1294,7 +1307,10 @@ extern "js" fn js_close_prepared(
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
   #|  const run = async () => {
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
+  #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
+  #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
+  #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
+  #|    if (kind === "node" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        // Node-api statements are automatically cleaned up
   #|        on_ok();
@@ -1304,7 +1320,7 @@ extern "js" fn js_close_prepared(
   #|        return;
   #|      }
   #|    }
-  #|    if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm" && stmt.statement) {
+  #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        if (typeof stmt.statement.close === "function") {
   #|          await stmt.statement.close();
