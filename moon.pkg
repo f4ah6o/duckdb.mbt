@@ -1,3 +1,7 @@
+import {
+  "f4ah6o/aletheia/pbt" as @pbt,
+}
+
 options(
   "is-main": false,
   link: {
@@ -15,6 +19,7 @@ options(
     "duckdb_js.mbt": [ "js" ],
     "duckdb_js_test.mbt": [ "js" ],
     "duckdb_native.mbt": [ "native" ],
+    "duckdb_pbt_test.mbt": [ "native" ],
     "duckdb_test.mbt": [ "native" ],
     "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
   },

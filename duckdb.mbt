@@ -383,7 +383,7 @@ fn is_special_float_string(s : String) -> Bool {
 
 ///|
 /// Check if string represents an integer.
-fn is_integer(s : String) -> Bool {
+pub fn is_integer(s : String) -> Bool {
   if s.length() == 0 {
     false
   } else {
@@ -437,7 +437,7 @@ fn is_double(s : String) -> Bool {
 
 ///|
 /// Parse string to Int.
-fn parse_int(s : String) -> Int {
+pub fn parse_int(s : String) -> Int {
   let mut result = 0
   let mut i = 0
   let mut negative = false
