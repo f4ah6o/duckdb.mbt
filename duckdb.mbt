@@ -372,7 +372,7 @@ fn parse_value_with_type(s : String, column_type : ColumnType) -> Value {
 }
 
 ///|
-fn is_special_float_string(s : String) -> Bool {
+pub fn is_special_float_string(s : String) -> Bool {
   s == "nan" ||
   s == "NaN" ||
   s == "inf" ||
@@ -532,7 +532,7 @@ fn is_date(s : String) -> Bool {
 
 ///|
 /// Parse ISO date string to days since epoch.
-fn parse_date(s : String) -> Result[Int, String] {
+pub fn parse_date(s : String) -> Result[Int, String] {
   if !is_date(s) {
     Err("invalid date format")
   } else {
@@ -548,7 +548,7 @@ fn parse_date(s : String) -> Result[Int, String] {
 
 ///|
 /// Convert year, month, day to days since epoch (1970-01-01).
-fn date_to_days(year : Int, month : Int, day : Int) -> Int {
+pub fn date_to_days(year : Int, month : Int, day : Int) -> Int {
   // Simplified calculation - days from 1970-01-01
   let y = year - 1970
   let mut days = y * 365
@@ -609,7 +609,7 @@ fn is_timestamp(s : String) -> Bool {
 
 ///|
 /// Parse ISO timestamp string to microseconds since epoch.
-fn parse_timestamp(s : String) -> Result[Int, String] {
+pub fn parse_timestamp(s : String) -> Result[Int, String] {
   if !is_timestamp(s) {
     Err("invalid timestamp format")
   } else {
@@ -637,7 +637,7 @@ fn parse_timestamp(s : String) -> Result[Int, String] {
 
 ///|
 /// Parse fractional seconds (up to 6 digits) into microseconds.
-fn parse_fraction_to_micros(s : String) -> Int {
+pub fn parse_fraction_to_micros(s : String) -> Int {
   let mut micros = 0
   let mut factor = 100000
   let mut i = 0
@@ -658,7 +658,7 @@ fn parse_fraction_to_micros(s : String) -> Int {
 
 ///|
 /// Parse time string (HH:MM:SS[.sss...]) to microseconds since midnight.
-fn parse_time_to_micros(s : String) -> Result[Int, String] {
+pub fn parse_time_to_micros(s : String) -> Result[Int, String] {
   // Manual parsing since split() returns Iter
   let mut colon_count = 0
   let mut colon1 = -1
@@ -1235,7 +1235,7 @@ fn pad_int(s : String, len : Int) -> String {
 
 ///|
 /// Convert days since epoch to year, month, day.
-fn days_to_ymd(days : Int) -> (Int, Int, Int) {
+pub fn days_to_ymd(days : Int) -> (Int, Int, Int) {
   // Simplified calculation - accurate for dates after 1970
   let days_per_4_years = 365 * 4 + 1 // Include one leap year
   let mut remaining = days
@@ -1282,13 +1282,13 @@ fn timestamp_to_string(micros : Int) -> String {
 
 ///|
 /// Check if a year is a leap year.
-fn is_leap_year(year : Int) -> Bool {
+pub fn is_leap_year(year : Int) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 ///|
 /// Get the number of days in a month.
-fn days_in_month(year : Int, month : Int) -> Int {
+pub fn days_in_month(year : Int, month : Int) -> Int {
   if month == 2 {
     if is_leap_year(year) {
       29
