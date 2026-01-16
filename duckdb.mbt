@@ -233,7 +233,7 @@ pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
 
 ///|
 /// Map DuckDB type id to ColumnType.
-fn column_type_from_id(id : Int) -> ColumnType {
+pub fn column_type_from_id(id : Int) -> ColumnType {
   match id {
     0 => ColumnType::Invalid
     1 => ColumnType::Boolean
@@ -281,7 +281,7 @@ fn column_type_from_id(id : Int) -> ColumnType {
 
 ///|
 /// Infer and parse a string value into an appropriate Value type.
-fn parse_value(s : String) -> Value {
+pub fn parse_value(s : String) -> Value {
   if s == "true" {
     Value::Bool(true)
   } else if s == "false" {
@@ -407,7 +407,7 @@ pub fn is_integer(s : String) -> Bool {
 
 ///|
 /// Check if string represents a double.
-fn is_double(s : String) -> Bool {
+pub fn is_double(s : String) -> Bool {
   if s.length() == 0 {
     false
   } else {
@@ -476,7 +476,7 @@ pub fn parse_int(s : String) -> Int {
 
 ///|
 /// Parse string to Double.
-fn parse_double(s : String) -> Double {
+pub fn parse_double(s : String) -> Double {
   // For simplicity, use Int parsing and add fractional part
   let dot_index = find_dot(s)
   match dot_index {
