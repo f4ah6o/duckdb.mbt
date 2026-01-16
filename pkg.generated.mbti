@@ -2,11 +2,19 @@
 package "f4ah6o/duckdb"
 
 // Values
+pub fn column_type_from_id(Int) -> ColumnType
+
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
 pub fn date_from_ymd(Int, Int, Int) -> Int
 
+pub fn date_to_days(Int, Int, Int) -> Int
+
 pub fn date_to_ymd(Int) -> (Int, Int, Int)
+
+pub fn days_in_month(Int, Int) -> Int
+
+pub fn days_to_ymd(Int) -> (Int, Int, Int)
 
 pub fn decimal_from_double(Double, Int, Int) -> Decimal
 
@@ -38,6 +46,14 @@ pub fn interval_from_seconds(Int) -> Interval
 
 pub fn interval_to_micros(Interval) -> Int
 
+pub fn is_double(String) -> Bool
+
+pub fn is_integer(String) -> Bool
+
+pub fn is_leap_year(Int) -> Bool
+
+pub fn is_special_float_string(String) -> Bool
+
 pub fn list_from_strings(Array[String]) -> List
 
 pub fn list_get(List, Int) -> String?
@@ -51,6 +67,20 @@ pub fn map_from_pairs(Array[(String, String)]) -> Map
 pub fn map_get(Map, String) -> String?
 
 pub fn map_size(Map) -> Int
+
+pub fn parse_date(String) -> Result[Int, String]
+
+pub fn parse_double(String) -> Double
+
+pub fn parse_fraction_to_micros(String) -> Int
+
+pub fn parse_int(String) -> Int
+
+pub fn parse_time_to_micros(String) -> Result[Int, String]
+
+pub fn parse_timestamp(String) -> Result[Int, String]
+
+pub fn parse_value(String) -> Value
 
 pub fn struct_field_count(Struct) -> Int
 
@@ -178,7 +208,8 @@ pub fn DataChunk::row_count(Self) -> Int
 pub struct Decimal {
   width : Int
   scale : Int
-  value : Int
+  lower : Int
+  upper : Int
 }
 
 pub struct FixtureCase {
