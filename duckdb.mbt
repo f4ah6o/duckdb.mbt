@@ -1334,9 +1334,9 @@ pub fn int_pow10(n : Int) -> Int {
   } else if n == 7 {
     10000000
   } else if n == 8 {
-    10000000
-  } else if n == 9 {
     100000000
+  } else if n == 9 {
+    1000000000
   } else if n == 10 {
     1000000000
   } else {

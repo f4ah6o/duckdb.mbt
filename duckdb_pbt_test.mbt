@@ -857,11 +857,10 @@ test "prop_int_pow10_known_values" {
   let gen = @pbt.Gen::choose_int(0, 10)
   let config = @pbt.CheckConfig::new(200, 20, 282828, 20)
   @pbt.assert_check(
-    "int_pow10 returns correct powers (discovers bugs at n=8,9)",
+    "int_pow10 returns correct powers",
     gen,
     fn(n) {
       let result = int_pow10(n)
-      // Actual behavior (includes the bugs):
       let expected = match n {
         0 => 1
         1 => 10
@@ -871,9 +870,9 @@ test "prop_int_pow10_known_values" {
         5 => 100000
         6 => 1000000
         7 => 10000000
-        8 => 10000000 // BUG: should be 100000000
-        9 => 100000000 // BUG: should be 1000000000
-        10 => 1000000000
+        8 => 100000000
+        9 => 1000000000
+        10 => 1000000000 // Capped at Int max (10^10 overflows)
         _ => 1
       }
       if result == expected {
@@ -889,27 +888,19 @@ test "prop_int_pow10_known_values" {
 ///|
 /// Property: int_pow10 multiplicative
 /// int_pow10(a+b) == int_pow10(a) * int_pow10(b) for valid ranges
-/// NOTE: This test discovers bugs - the property fails at sum=8,9 due to bugs, and overflows at larger values
 test "prop_int_pow10_multiplicative" {
   let gen = @pbt.Gen::choose_int(0, 5).bind(fn(a) {
     @pbt.Gen::choose_int(0, 5).map(fn(b) { (a, b, a + b) })
   })
   let config = @pbt.CheckConfig::new(200, 20, 292929, 20)
   @pbt.assert_check(
-    "int_pow10 multiplicative property (discovers bugs at sum=8,9)",
+    "int_pow10 multiplicative property",
     gen,
     fn(input) {
       let (a, b, sum) = input
       let result_sum = int_pow10(sum)
       let result_product = int_pow10(a) * int_pow10(b)
-      // Skip the known bug cases: int_pow10(8) and int_pow10(9) have wrong values
-      if sum == 8 || sum == 9 {
-        Ok(())
-        // Also skip overflow cases where product exceeds Int range
-      } else if sum >= 10 {
-        Ok(())
-        // Note: This may not hold due to the simplification in int_pow10 for n > 10
-      } else if result_sum == result_product {
+      if result_sum == result_product {
         Ok(())
       } else {
         Err(
@@ -924,22 +915,16 @@ test "prop_int_pow10_multiplicative" {
 ///|
 /// Property: int_pow10 monotonic
 /// int_pow10(n) < int_pow10(n+1) for n in valid range
-/// NOTE: This test discovers bugs - monotonicity fails at n=7 and n=8
 test "prop_int_pow10_monotonic" {
   let gen = @pbt.Gen::choose_int(0, 9)
   let config = @pbt.CheckConfig::new(100, 10, 303030, 10)
   @pbt.assert_check(
-    "int_pow10 is monotonic (discovers bugs at n=7,8)",
+    "int_pow10 is monotonic",
     gen,
     fn(n) {
       let current = int_pow10(n)
       let next = int_pow10(n + 1)
-      // Skip the known bug cases:
-      // n=7: int_pow10(7) == int_pow10(8) due to bug in int_pow10(8)
-      // n=8: int_pow10(8) == int_pow10(9) due to bugs in both
-      if n == 7 || n == 8 {
-        Ok(())
-      } else if current < next {
+      if current < next {
         Ok(())
       } else {
         Err(
@@ -1261,12 +1246,11 @@ test "prop_parse_double_negative_sign" {
 ///|
 /// Property: int_pow10 exact values regression
 /// int_pow10 should return exact powers of 10 for all valid inputs
-/// NOTE: This test discovers bugs - int_pow10(8) and int_pow10(9) return wrong values
 test "prop_int_pow10_exact_values_regression" {
   let gen = @pbt.Gen::choose_int(0, 12)
   let config = @pbt.CheckConfig::new(200, 20, 414141, 20)
   @pbt.assert_check(
-    "int_pow10 exact values (discovers bugs at n=8,9)",
+    "int_pow10 exact values",
     gen,
     fn(n) {
       let result = int_pow10(n)
