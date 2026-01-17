@@ -554,7 +554,16 @@ pub fn parse_date(s : String) -> Result[Int, String] {
     let year = parse_int(year_str)
     let month = parse_int(month_str)
     let day = parse_int(day_str)
-    Ok(date_to_days(year, month, day))
+
+    // Validate month range
+    if month < 1 || month > 12 {
+      Err("invalid month")
+    } else if day < 1 || day > typed_days_in_month(year, month) {
+      // Validate day range for the specific month/year
+      Err("invalid day")
+    } else {
+      Ok(date_to_days(year, month, day))
+    }
   }
 }
 
