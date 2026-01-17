@@ -1360,30 +1360,22 @@ test "native decimal to parts" {
 
 ///|
 test "native appender list varchar" {
-  // TODO: Fix segfault
-  // fn append_list_row(app : Appender) -> Result[Unit, DuckDBError] {
-  //   match app.begin_row() {
-  //     Ok(_) =>
-  //       match app.append_list_varchar(["a", "b", "c"]) {
-  //         Ok(_) => app.end_row()
-  //         Err(e) => Err(e)
-  //       }
-  //     Err(e) => Err(e)
-  //   }
-  // }
-  // let result = run_native_appender_test(
-  //   "CREATE TABLE test_table (items VARCHAR[])", append_list_row, "SELECT * FROM test_table",
-  // )
-  // match result {
-  //   Ok(value) =>
-  //     if value.row_count() != 1 {
-  //       fail("expected 1 row, got \{value.row_count()}")
-  //     } else {
-  //       ()
-  //     }
-  //   Err(message) => fail("appender test failed: \{message}")
-  // }
-  ()
+  fn append_list_row(app : Appender) -> Result[Unit, DuckDBError] {
+    // DataChunk-based appending doesn't use begin_row/end_row
+    app.append_list_varchar_value(["a", "b", "c"])
+  }
+  let result = run_native_appender_test(
+    "CREATE TABLE test_table (items VARCHAR[])", append_list_row, "SELECT * FROM test_table",
+  )
+  match result {
+    Ok(value) =>
+      if value.row_count() != 1 {
+        fail("expected 1 row, got \{value.row_count()}")
+      } else {
+        ()
+      }
+    Err(message) => fail("appender test failed: \{message}")
+  }
 }
 
 ///|

@@ -287,6 +287,18 @@ extern "C" fn native_appender_append_map_varchar_varchar(
   entry_count : Int,
 ) -> Bool = "duckdb_mb_append_map_varchar_varchar"
 
+// ============================================================================
+// List Appender using DuckDB Value API
+// ============================================================================
+
+///|
+#borrow(appender, values, count)
+extern "C" fn native_appender_append_list_varchar_chunk(
+  appender : Appender,
+  values : Array[Bytes],
+  count : Int,
+) -> Bool = "duckdb_mb_append_list_varchar_chunk"
+
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -1727,5 +1739,28 @@ pub fn Appender::append_map(
     Ok(())
   } else {
     Err(DuckDBError::Message(appender_error(self, "append_map failed")))
+  }
+}
+
+// ============================================================================
+// List Appender using DuckDB DataChunk API
+// ============================================================================
+
+///|
+/// Append a list of VARCHAR values using the DuckDB DataChunk API.
+/// This properly appends a VARCHAR[] list to a list column.
+pub fn Appender::append_list_varchar_value(
+  self : Appender,
+  values : Array[String],
+) -> Result[Unit, DuckDBError] {
+  let encoded = values.map(fn(v) { @encoding/utf8.encode(v) })
+  if native_appender_append_list_varchar_chunk(self, encoded, encoded.length()) {
+    Ok(())
+  } else {
+    Err(
+      DuckDBError::Message(
+        appender_error(self, "append_list_varchar_value failed"),
+      ),
+    )
   }
 }

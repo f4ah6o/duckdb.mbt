@@ -19,6 +19,18 @@ pub type Appender
 pub type ResultStream
 
 ///|
+#external
+pub type LogicalType
+
+///|
+#external
+pub type Vector
+
+///|
+#external
+pub type NativeDataChunk
+
+///|
 /// JS backend selection for `connect`.
 pub(all) enum JsBackend {
   Auto

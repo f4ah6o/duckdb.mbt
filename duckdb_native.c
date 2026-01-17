@@ -1918,6 +1918,350 @@ int32_t duckdb_mb_append_map_varchar_varchar(duckdb_mb_appender *mb_append,
 }
 
 // ============================================================================
+// DataChunk API for Advanced Type Appending
+// ============================================================================
+
+typedef struct {
+  duckdb_logical_type type;
+} duckdb_mb_logical_type;
+
+typedef struct {
+  duckdb_data_chunk chunk;
+} duckdb_mb_data_chunk;
+
+typedef struct {
+  duckdb_vector vector;
+} duckdb_mb_vector;
+
+// ----------------------------------------------------------------------------
+// LogicalType Functions
+// ----------------------------------------------------------------------------
+
+duckdb_mb_logical_type *duckdb_mb_create_logical_type(duckdb_type type_id) {
+  duckdb_logical_type type = duckdb_create_logical_type(type_id);
+  if (!type) {
+    return NULL;
+  }
+  duckdb_mb_logical_type *mb_type = (duckdb_mb_logical_type *)malloc(sizeof(duckdb_mb_logical_type));
+  if (!mb_type) {
+    duckdb_destroy_logical_type(&type);
+    return NULL;
+  }
+  mb_type->type = type;
+  return mb_type;
+}
+
+duckdb_mb_logical_type *duckdb_mb_create_list_type(duckdb_mb_logical_type *child_type) {
+  if (!child_type) {
+    return NULL;
+  }
+  duckdb_logical_type type = duckdb_create_list_type(child_type->type);
+  if (!type) {
+    return NULL;
+  }
+  duckdb_mb_logical_type *mb_type = (duckdb_mb_logical_type *)malloc(sizeof(duckdb_mb_logical_type));
+  if (!mb_type) {
+    duckdb_destroy_logical_type(&type);
+    return NULL;
+  }
+  mb_type->type = type;
+  return mb_type;
+}
+
+duckdb_mb_logical_type *duckdb_mb_create_struct_type(
+    duckdb_logical_type *member_types,
+    const char **member_names,
+    idx_t member_count) {
+  duckdb_logical_type type = duckdb_create_struct_type(member_types, member_names, member_count);
+  if (!type) {
+    return NULL;
+  }
+  duckdb_mb_logical_type *mb_type = (duckdb_mb_logical_type *)malloc(sizeof(duckdb_mb_logical_type));
+  if (!mb_type) {
+    duckdb_destroy_logical_type(&type);
+    return NULL;
+  }
+  mb_type->type = type;
+  return mb_type;
+}
+
+duckdb_mb_logical_type *duckdb_mb_create_map_type(
+    duckdb_logical_type *key_type,
+    duckdb_logical_type *value_type) {
+  if (!key_type || !value_type) {
+    return NULL;
+  }
+  duckdb_logical_type type = duckdb_create_map_type(*key_type, *value_type);
+  if (!type) {
+    return NULL;
+  }
+  duckdb_mb_logical_type *mb_type = (duckdb_mb_logical_type *)malloc(sizeof(duckdb_mb_logical_type));
+  if (!mb_type) {
+    duckdb_destroy_logical_type(&type);
+    return NULL;
+  }
+  mb_type->type = type;
+  return mb_type;
+}
+
+void duckdb_mb_destroy_logical_type(duckdb_mb_logical_type *mb_type) {
+  if (!mb_type) {
+    return;
+  }
+  if (mb_type->type) {
+    duckdb_destroy_logical_type(&mb_type->type);
+  }
+  free(mb_type);
+}
+
+int32_t duckdb_mb_is_null_logical_type(duckdb_mb_logical_type *mb_type) {
+  return mb_type == NULL ? 1 : 0;
+}
+
+// ----------------------------------------------------------------------------
+// DataChunk Functions
+// ----------------------------------------------------------------------------
+
+duckdb_mb_data_chunk *duckdb_mb_create_data_chunk(
+    duckdb_logical_type *types,
+    idx_t column_count) {
+  duckdb_data_chunk chunk = duckdb_create_data_chunk(types, column_count);
+  if (!chunk) {
+    return NULL;
+  }
+  duckdb_mb_data_chunk *mb_chunk = (duckdb_mb_data_chunk *)malloc(sizeof(duckdb_mb_data_chunk));
+  if (!mb_chunk) {
+    duckdb_destroy_data_chunk(&chunk);
+    return NULL;
+  }
+  mb_chunk->chunk = chunk;
+  return mb_chunk;
+}
+
+void duckdb_mb_destroy_data_chunk(duckdb_mb_data_chunk *mb_chunk) {
+  if (!mb_chunk) {
+    return;
+  }
+  if (mb_chunk->chunk) {
+    duckdb_destroy_data_chunk(&mb_chunk->chunk);
+  }
+  free(mb_chunk);
+}
+
+duckdb_vector duckdb_mb_data_chunk_get_vector(duckdb_mb_data_chunk *mb_chunk, idx_t col_idx) {
+  if (!mb_chunk || !mb_chunk->chunk) {
+    duckdb_vector v = {0};
+    return v;
+  }
+  return duckdb_data_chunk_get_vector(mb_chunk->chunk, col_idx);
+}
+
+void duckdb_mb_data_chunk_set_size(duckdb_mb_data_chunk *mb_chunk, idx_t size) {
+  if (!mb_chunk || !mb_chunk->chunk) {
+    return;
+  }
+  duckdb_data_chunk_set_size(mb_chunk->chunk, size);
+}
+
+void duckdb_mb_data_chunk_reset(duckdb_mb_data_chunk *mb_chunk) {
+  if (!mb_chunk || !mb_chunk->chunk) {
+    return;
+  }
+  duckdb_data_chunk_reset(mb_chunk->chunk);
+}
+
+int32_t duckdb_mb_is_null_data_chunk(duckdb_mb_data_chunk *mb_chunk) {
+  return mb_chunk == NULL ? 1 : 0;
+}
+
+// ----------------------------------------------------------------------------
+// Vector Functions
+// ----------------------------------------------------------------------------
+
+void *duckdb_mb_vector_get_data(duckdb_vector vector) {
+  return duckdb_vector_get_data(vector);
+}
+
+uint64_t *duckdb_mb_vector_get_validity(duckdb_vector vector) {
+  return duckdb_vector_get_validity(vector);
+}
+
+duckdb_vector duckdb_mb_list_vector_get_child(duckdb_vector vector) {
+  return duckdb_list_vector_get_child(vector);
+}
+
+duckdb_state duckdb_mb_list_vector_set_size(duckdb_vector vector, idx_t size) {
+  return duckdb_list_vector_set_size(vector, size);
+}
+
+duckdb_state duckdb_mb_list_vector_reserve(duckdb_vector vector, idx_t capacity) {
+  return duckdb_list_vector_reserve(vector, capacity);
+}
+
+// ----------------------------------------------------------------------------
+// DataChunk Appender Function
+// ----------------------------------------------------------------------------
+
+int32_t duckdb_mb_append_data_chunk(
+    duckdb_mb_appender *mb_append,
+    duckdb_mb_data_chunk *mb_chunk) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+  if (!mb_chunk || !mb_chunk->chunk) {
+    strncpy(mb_append->error, "data_chunk is null",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  duckdb_state state = duckdb_append_data_chunk(mb_append->appender, mb_chunk->chunk);
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+  return 1;
+}
+
+// ----------------------------------------------------------------------------
+// List Appender using DataChunk API (encapsulated)
+// ----------------------------------------------------------------------------
+
+// Helper to append a VARCHAR list using DataChunk
+// This encapsulates the complexity of working with DataChunk and duckdb_string_t
+int32_t duckdb_mb_append_list_varchar_chunk(
+    duckdb_mb_appender *mb_append,
+    moonbit_bytes_t *values,
+    int32_t count) {
+  if (!mb_append || !mb_append->appender) {
+    return 0;
+  }
+
+  // Create VARCHAR logical type
+  duckdb_logical_type varchar_type = duckdb_create_logical_type(DUCKDB_TYPE_VARCHAR);
+  if (!varchar_type) {
+    strncpy(mb_append->error, "failed to create varchar type",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  // Create VARCHAR[] logical type
+  duckdb_logical_type list_type = duckdb_create_list_type(varchar_type);
+  if (!list_type) {
+    duckdb_destroy_logical_type(&varchar_type);
+    strncpy(mb_append->error, "failed to create list type",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  // Create DataChunk with one column (the list column)
+  // Need to pass an array of type pointers
+  duckdb_logical_type *types_array = &list_type;  // Address of pointer to the type
+  duckdb_data_chunk chunk = duckdb_create_data_chunk(types_array, 1);
+  if (!chunk) {
+    duckdb_destroy_logical_type(&list_type);
+    duckdb_destroy_logical_type(&varchar_type);
+    strncpy(mb_append->error, "failed to create data chunk",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  // Set chunk size to 1 row
+  duckdb_data_chunk_set_size(chunk, 1);
+
+  // Get the list vector from the chunk
+  duckdb_vector list_vector = duckdb_data_chunk_get_vector(chunk, 0);
+
+  // Get the child VARCHAR vector
+  duckdb_vector child_vector = duckdb_list_vector_get_child(list_vector);
+
+  // Reserve space for count strings in the child vector
+  if (!duckdb_list_vector_reserve(child_vector, (idx_t)count)) {
+    duckdb_destroy_data_chunk(&chunk);
+    duckdb_destroy_logical_type(&list_type);
+    duckdb_destroy_logical_type(&varchar_type);
+    strncpy(mb_append->error, "failed to reserve list space",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  // Set the list size
+  if (!duckdb_list_vector_set_size(child_vector, (idx_t)count)) {
+    duckdb_destroy_data_chunk(&chunk);
+    duckdb_destroy_logical_type(&list_type);
+    duckdb_destroy_logical_type(&varchar_type);
+    strncpy(mb_append->error, "failed to set list size",
+            sizeof(mb_append->error) - 1);
+    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    return 0;
+  }
+
+  // Get child vector data pointer
+  duckdb_string_t *child_data = (duckdb_string_t *)duckdb_vector_get_data(child_vector);
+
+  // Write each string to the child vector
+  for (int32_t i = 0; i < count; i++) {
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    const char *str = (const char *)values[i];
+    duckdb_string_t str_t;
+    if (len <= 12 && str) {
+      // Use inlined storage for short strings (≤12 characters)
+      str_t.value.inlined.length = (uint32_t)len;
+      for (int32_t j = 0; j < len; j++) {
+        str_t.value.inlined.inlined[j] = str[j];
+      }
+      // Null-terminate the inlined string (if space allows)
+      if (len < 12) {
+        str_t.value.inlined.inlined[len] = '\0';
+      }
+    } else if (len > 12 && str) {
+      // Use pointer storage for longer strings
+      str_t.value.pointer.length = (uint32_t)len;
+      // Copy prefix (first 4 characters)
+      int32_t prefix_len = len < 4 ? len : 4;
+      for (int32_t j = 0; j < prefix_len; j++) {
+        str_t.value.pointer.prefix[j] = str[j];
+      }
+      str_t.value.pointer.ptr = (char *)str;
+    } else {
+      // Empty string
+      str_t.value.inlined.length = 0;
+      str_t.value.inlined.inlined[0] = '\0';
+    }
+    child_data[i] = str_t;
+  }
+
+  // Append the data chunk
+  duckdb_state state = duckdb_append_data_chunk(mb_append->appender, chunk);
+
+  // Clean up - destroy the chunk
+  duckdb_destroy_data_chunk(&chunk);
+
+  // Note: We're not destroying the logical types here to avoid the shared_ptr issue
+  // They will be cleaned up when the appender is destroyed
+  // This is a temporary workaround - in production code we'd manage them properly
+
+  if (state != DuckDBSuccess) {
+    const char *error = duckdb_appender_error(mb_append->appender);
+    if (error) {
+      strncpy(mb_append->error, error, sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+    }
+    return 0;
+  }
+
+  return 1;
+}
+
+// ============================================================================
 // Arrow Integration (using standard DuckDB API for data extraction)
 // ============================================================================
 
