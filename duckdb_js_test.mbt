@@ -207,14 +207,14 @@ extern "js" fn js_run_stream_count(backend : JsBackend, sql : String) -> String 
   #|    "  .catch((err) => {",
   #|    "    console.log(JSON.stringify({ ok: false, error: toError(err) }));",
   #|    "  });"
-  #|  ].join(\"\\n\");
+  #|  ].join("\n");
   #|  try {
-  #|    const output = execFileSync(process.execPath, [\"-e\", script], {
-  #|      encoding: \"utf8\",
-  #|      stdio: [\"ignore\", \"pipe\", \"pipe\"],
+  #|    const output = execFileSync(process.execPath, ["-e", script], {
+  #|      encoding: "utf8",
+  #|      stdio: ["ignore", "pipe", "pipe"],
   #|    });
-  #|    const lines = output.split(/\\r?\\n/).filter((line) => line.trim().length > 0);
-  #|    return lines.length ? lines[lines.length - 1] : \"\";
+  #|    const lines = output.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  #|    return lines.length ? lines[lines.length - 1] : "";
   #|  } catch (err) {
   #|    const message = err && err.stderr
   #|      ? err.stderr.toString()
