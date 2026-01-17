@@ -500,7 +500,7 @@ pub fn parse_double(s : String) -> Double {
       let int_val = parse_int(int_part)
       let frac_val = parse_fractional(frac_part)
       let sign = if s.length() > 0 && s[0] == '-' { -1.0 } else { 1.0 }
-      sign * (int_val.to_double() + frac_val)
+      sign * (int_val.abs().to_double() + frac_val)
     }
     None => parse_int(s).to_double()
   }

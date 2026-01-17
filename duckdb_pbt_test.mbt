@@ -416,15 +416,14 @@ test "prop_is_double_edge_cases" {
 ///|
 /// Property: parse_double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
-/// NOTE: This test discovers a bug - negative doubles lose their sign (Issue #40)
 test "prop_parse_double_roundtrip" {
   let gen = @pbt.Gen::map(
-    @pbt.Gen::choose_int(0, 1000000), // Only non-negative for now due to sign bug
+    @pbt.Gen::choose_int(-1000000, 1000000),
     fn(n) { n.to_double() / 1000.0 },
   )
   let config = @pbt.CheckConfig::new(1000, 100, 141414, 50)
   @pbt.assert_check(
-    "parse_double round-trip (non-negative only due to sign bug)",
+    "parse_double round-trip",
     gen,
     fn(d) {
       let s = d.to_string()
@@ -470,20 +469,19 @@ test "prop_parse_double_special" {
 ///|
 /// Property: parse_double boundary values
 /// Parsing doubles should handle large and small values correctly
-/// NOTE: This test discovers a bug - negative doubles lose their sign (Issue #40)
 test "prop_parse_double_boundary" {
   let gen = @pbt.Gen::one_of([
-    @pbt.Gen::map(@pbt.Gen::choose_int(0, 100000), fn(n) { n.to_double() }),
-    @pbt.Gen::map(@pbt.Gen::choose_int(0, 100000), fn(n) {
+    @pbt.Gen::map(@pbt.Gen::choose_int(-100000, 100000), fn(n) { n.to_double() }),
+    @pbt.Gen::map(@pbt.Gen::choose_int(-100000, 100000), fn(n) {
       n.to_double() / 1000.0
     }),
-    @pbt.Gen::map(@pbt.Gen::choose_int(0, 100000), fn(n) {
+    @pbt.Gen::map(@pbt.Gen::choose_int(-100000, 100000), fn(n) {
       n.to_double() / 1000000.0
     }),
   ])
   let config = @pbt.CheckConfig::new(1000, 100, 161616, 50)
   @pbt.assert_check(
-    "parse_double boundary values (non-negative only due to sign bug)",
+    "parse_double boundary values",
     gen,
     fn(d) {
       let s = d.to_string()
@@ -1217,7 +1215,6 @@ test "prop_parse_fraction_to_micros" {
 ///|
 /// Property: parse_double preserves negative sign
 /// Converting a negative double to string and parsing should preserve the sign
-/// NOTE: This test discovers a bug - negative doubles lose their sign (Issue #40)
 test "prop_parse_double_negative_sign" {
   let gen = @pbt.Gen::map(
     @pbt.Gen::choose_int(-1000000, -1), // Only negative values
@@ -1225,7 +1222,7 @@ test "prop_parse_double_negative_sign" {
   )
   let config = @pbt.CheckConfig::new(500, 100, 404040, 50)
   @pbt.assert_check(
-    "parse_double preserves negative sign (Issue #40)",
+    "parse_double preserves negative sign",
     gen,
     fn(d) {
       let s = d.to_string()
