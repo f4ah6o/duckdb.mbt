@@ -2180,28 +2180,12 @@ int32_t duckdb_mb_append_list_varchar_chunk(
   // Step 7: Get the child VARCHAR vector
   duckdb_vector child_vector = duckdb_list_vector_get_child(list_vector);
 
-  // Step 8: Reserve space for count strings in the child vector
-  if (!duckdb_list_vector_reserve(child_vector, (idx_t)count)) {
-    // Not destroying chunk or types to avoid shared_ptr issue
-    strncpy(mb_append->error, "failed to reserve list space",
-            sizeof(mb_append->error) - 1);
-    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
-    return 0;
-  }
-
-  // Step 9: Set the list size
-  if (!duckdb_list_vector_set_size(child_vector, (idx_t)count)) {
-    // Not destroying chunk or types to avoid shared_ptr issue
-    strncpy(mb_append->error, "failed to set list size",
-            sizeof(mb_append->error) - 1);
-    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
-    return 0;
-  }
-
-  // Step 10: Get child vector data pointer
+  // Step 8: Get child vector data pointer
+  // Note: Not calling duckdb_list_vector_reserve/set_size as they cause crashes
+  // in DuckDB 1.4.3. The default vector capacity is sufficient for small lists.
   duckdb_string_t *child_data = (duckdb_string_t *)duckdb_vector_get_data(child_vector);
 
-  // Step 11: Write each string to the child vector
+  // Step 9: Write each string to the child vector
   for (int32_t i = 0; i < count; i++) {
     int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
     const char *str = (const char *)values[i];
@@ -2228,18 +2212,19 @@ int32_t duckdb_mb_append_list_varchar_chunk(
     }
   }
 
-  // Step 12: Set list entry in the parent vector
+  // Step 10: Set list entry in the parent vector
   duckdb_list_entry *list_entries = (duckdb_list_entry *)duckdb_vector_get_data(list_vector);
   list_entries[0].offset = 0;
   list_entries[0].length = (idx_t)count;
 
-  // Step 13: Append the data chunk
+  // Step 11: Append the data chunk
   duckdb_state state = duckdb_append_data_chunk(mb_append->appender, chunk);
 
-  // Step 14: Clean up
-  // Note: Not destroying chunk or types to avoid shared_ptr issue
-  // DuckDB will clean these up when the connection/appender is destroyed
-  // duckdb_destroy_data_chunk(&chunk);
+  // Step 12: Clean up
+  // Properly destroy the chunk and types - the shared_ptr issue was caused
+  // by duckdb_list_vector_reserve/set_size, not by destruction
+  duckdb_destroy_data_chunk(&chunk);
+  duckdb_destroy_logical_type(&varchar_type);
 
   if (state != DuckDBSuccess) {
     const char *error = duckdb_appender_error(mb_append->appender);

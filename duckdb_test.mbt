@@ -1361,11 +1361,10 @@ test "native decimal to parts" {
 ///|
 test "native appender list varchar" {
   fn append_list_row(app : Appender) -> Result[Unit, DuckDBError] {
+    // Use append_list_varchar_value to append actual LIST type
     match app.begin_row() {
       Ok(_) =>
-        // Append list as JSON string using append_varchar
-        // Note: append_list_varchar() has a bug in the C implementation
-        match app.append_varchar("[\"a\", \"b\", \"c\"]") {
+        match app.append_list_varchar_value(["a", "b", "c"]) {
           Ok(_) => app.end_row()
           Err(e) => Err(e)
         }
@@ -1374,7 +1373,7 @@ test "native appender list varchar" {
   }
 
   let result = run_native_appender_test(
-    "CREATE TABLE test_table (items VARCHAR)", append_list_row, "SELECT * FROM test_table",
+    "CREATE TABLE test_table (items VARCHAR[])", append_list_row, "SELECT * FROM test_table",
   )
   match result {
     Ok(value) =>
@@ -1384,7 +1383,7 @@ test "native appender list varchar" {
         // Verify the list was appended correctly
         match value.cell(0, 0) {
           Some(v) =>
-            // The value should be a list representation like '["a", "b", "c"]'
+            // DuckDB returns list as string like '["a", "b", "c"]'
             if !v.contains("[") {
               fail("expected list-like value, got '\{v}'")
             } else {
