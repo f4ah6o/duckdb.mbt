@@ -837,7 +837,7 @@ test "prop_int_pow10_base_case" {
     gen,
     fn(n) {
       let result = int_pow10(n)
-      if result == 1 {
+      if result == 1L {
         Ok(())
       } else {
         Err("int_pow10(0) should be 1, got \{result}")
@@ -860,18 +860,18 @@ test "prop_int_pow10_known_values" {
     fn(n) {
       let result = int_pow10(n)
       let expected = match n {
-        0 => 1
-        1 => 10
-        2 => 100
-        3 => 1000
-        4 => 10000
-        5 => 100000
-        6 => 1000000
-        7 => 10000000
-        8 => 100000000
-        9 => 1000000000
-        10 => 1000000000 // Capped at Int max (10^10 overflows)
-        _ => 1
+        0 => 1L
+        1 => 10L
+        2 => 100L
+        3 => 1000L
+        4 => 10000L
+        5 => 100000L
+        6 => 1000000L
+        7 => 10000000L
+        8 => 100000000L
+        9 => 1000000000L
+        10 => 10000000000L
+        _ => 1L
       }
       if result == expected {
         Ok(())
@@ -1252,10 +1252,10 @@ test "prop_int_pow10_exact_values_regression" {
     fn(n) {
       let result = int_pow10(n)
       // Calculate expected value iteratively
-      let mut expected = 1
+      let mut expected = 1L
       let mut i = 0
       while i < n {
-        expected = expected * 10
+        expected = expected * 10L
         i = i + 1
       }
       if result == expected {

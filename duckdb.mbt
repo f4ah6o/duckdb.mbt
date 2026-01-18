@@ -1214,7 +1214,7 @@ pub fn Value::to_string(self : Value) -> String {
       if dec.upper != 0 {
         "<large decimal: upper=\{dec.upper}, lower=\{dec.lower}>"
       } else {
-        let divisor = int_pow10(dec.scale)
+        let divisor = int_pow10(dec.scale).to_int()
         let whole = dec.lower / divisor
         let frac = Int::abs(dec.lower % divisor)
         if dec.scale == 0 {
@@ -1325,31 +1325,35 @@ pub fn days_in_month(year : Int, month : Int) -> Int {
 
 ///|
 /// Compute 10^n for decimal scaling.
-pub fn int_pow10(n : Int) -> Int {
+pub fn int_pow10(n : Int) -> Int64 {
   if n <= 0 {
-    1
+    1L
   } else if n == 1 {
-    10
+    10L
   } else if n == 2 {
-    100
+    100L
   } else if n == 3 {
-    1000
+    1000L
   } else if n == 4 {
-    10000
+    10000L
   } else if n == 5 {
-    100000
+    100000L
   } else if n == 6 {
-    1000000
+    1000000L
   } else if n == 7 {
-    10000000
+    10000000L
   } else if n == 8 {
-    100000000
+    100000000L
   } else if n == 9 {
-    1000000000
+    1000000000L
   } else if n == 10 {
-    1000000000
+    10000000000L
+  } else if n == 11 {
+    100000000000L
+  } else if n == 12 {
+    1000000000000L
   } else {
-    1
+    1L
   } // Limit for now
 }
 
