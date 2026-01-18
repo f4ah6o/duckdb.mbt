@@ -187,7 +187,7 @@ pub enum Value {
   Bool(Bool)
   String(String)
   Date(Int) // Days since 1970-01-01
-  Timestamp(Int) // Microseconds since 1970-01-01
+  Timestamp(Int64) // Microseconds since 1970-01-01
   Decimal(Decimal)
   Blob(Bytes)
   Null
@@ -630,7 +630,7 @@ fn is_timestamp(s : String) -> Bool {
 
 ///|
 /// Parse ISO timestamp string to microseconds since epoch.
-pub fn parse_timestamp(s : String) -> Result[Int, String] {
+pub fn parse_timestamp(s : String) -> Result[Int64, String] {
   if !is_timestamp(s) {
     Err("invalid timestamp format")
   } else {
@@ -642,10 +642,9 @@ pub fn parse_timestamp(s : String) -> Result[Int, String] {
           .to_string()
         match parse_time_to_micros(time_part) {
           Ok(micros) => {
-            // days * 24 * 60 * 60 * 1000000
-            let seconds_per_day = 86400
-            let micros_per_second = 1000000
-            let days_micros = days * seconds_per_day * micros_per_second
+            // Use Int64 to avoid overflow
+            let days_64 = days.to_int64()
+            let days_micros = days_64 * 86400L * 1000000L
             Ok(days_micros + micros)
           }
           Err(e) => Err(e)
@@ -679,7 +678,7 @@ pub fn parse_fraction_to_micros(s : String) -> Int {
 
 ///|
 /// Parse time string (HH:MM:SS[.sss...]) to microseconds since midnight.
-pub fn parse_time_to_micros(s : String) -> Result[Int, String] {
+pub fn parse_time_to_micros(s : String) -> Result[Int64, String] {
   // Manual parsing since split() returns Iter
   let mut colon_count = 0
   let mut colon1 = -1
@@ -723,8 +722,9 @@ pub fn parse_time_to_micros(s : String) -> Result[Int, String] {
     }
     let hour = parse_int(hour_str)
     let minute = parse_int(minute_str)
-    let base = (hour * 3600 + minute * 60 + second) * 1000000
-    Ok(base + frac_micros)
+    // Use Int64 to avoid overflow
+    let base = (hour.to_int64() * 3600L + minute.to_int64() * 60L + second.to_int64()) * 1000000L
+    Ok(base + frac_micros.to_int64())
   }
 }
 
@@ -876,7 +876,7 @@ pub fn TypedQueryResult::get_timestamp(
   self : TypedQueryResult,
   row : Int,
   col : Int,
-) -> Int? {
+) -> Int64? {
   match self.get_value(row, col) {
     Some(Value::Timestamp(t)) => Some(t)
     _ => None
@@ -1060,14 +1060,14 @@ pub fn TypedQueryResult::get_date_column(
 }
 
 ///|
-/// Get an entire column as Option[Int] timestamp values.
+/// Get an entire column as Option[Int64] timestamp values.
 pub fn TypedQueryResult::get_timestamp_column(
   self : TypedQueryResult,
   col : Int,
-) -> Array[Int?]? {
+) -> Array[Int64?]? {
   match self.get_column(col) {
     Some(column) => {
-      let result : Array[Int?] = []
+      let result : Array[Int64?] = []
       for i = 0; i < column.length(); i = i + 1 {
         match column[i] {
           Value::Timestamp(v) => result.push(Some(v))
@@ -1158,7 +1158,7 @@ pub fn Value::as_date(self : Value) -> Int? {
 
 ///|
 /// Get the timestamp value if present, None otherwise.
-pub fn Value::as_timestamp(self : Value) -> Int? {
+pub fn Value::as_timestamp(self : Value) -> Int64? {
   match self {
     Timestamp(t) => Some(t)
     _ => None
@@ -1290,14 +1290,14 @@ pub fn days_to_ymd(days : Int) -> (Int, Int, Int) {
 
 ///|
 /// Convert microseconds since epoch to timestamp string.
-fn timestamp_to_string(micros : Int) -> String {
-  let seconds = micros / 1000000
-  let days = seconds / 86400
-  let secs_in_day = seconds % 86400
-  let (year, month, day) = days_to_ymd(days)
-  let hour = secs_in_day / 3600
-  let minute = secs_in_day % 3600 / 60
-  let second = secs_in_day % 60
+fn timestamp_to_string(micros : Int64) -> String {
+  let seconds = micros / 1000000L
+  let days = seconds / 86400L
+  let secs_in_day = seconds % 86400L
+  let (year, month, day) = days_to_ymd(days.to_int())
+  let hour = (secs_in_day / 3600L).to_int()
+  let minute = (secs_in_day % 3600L / 60L).to_int()
+  let second = (secs_in_day % 60L).to_int()
   "\{year}-\{pad_int_2(month)}-\{pad_int_2(day)} \{pad_int_2(hour)}:\{pad_int_2(minute)}:\{pad_int_2(second)}"
 }
 
@@ -1449,7 +1449,7 @@ pub fn QueryResult::get_timestamp(
   self : QueryResult,
   row : Int,
   col : Int,
-) -> Int? {
+) -> Int64? {
   match self.get_value(row, col) {
     Some(Timestamp(t)) => Some(t)
     _ => None

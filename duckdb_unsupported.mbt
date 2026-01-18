@@ -368,7 +368,7 @@ pub fn PreparedStatement::bind_date(
 pub fn PreparedStatement::bind_timestamp(
   self : PreparedStatement,
   index : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = index
@@ -389,7 +389,7 @@ pub fn Appender::append_date(
 ///|
 pub fn Appender::append_timestamp(
   self : Appender,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = micros
@@ -418,18 +418,18 @@ pub fn timestamp_from_ymd_hms(
   hour : Int,
   minute : Int,
   second : Int,
-) -> Int {
+) -> Int64 {
   let _ = year
   let _ = month
   let _ = day
   let _ = hour
   let _ = minute
   let _ = second
-  0
+  0L
 }
 
 ///|
-pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
+pub fn timestamp_to_ymd_hms(micros : Int64) -> (Int, Int, Int, Int, Int, Int) {
   let _ = micros
   (1970, 1, 1, 0, 0, 0)
 }

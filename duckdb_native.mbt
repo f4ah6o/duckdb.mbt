@@ -126,7 +126,7 @@ extern "C" fn native_bind_date(
 extern "C" fn native_bind_timestamp(
   stmt : PreparedStatement,
   index : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Bool = "duckdb_mb_bind_timestamp"
 
 ///|
@@ -140,7 +140,7 @@ extern "C" fn native_appender_append_date(
 #borrow(append)
 extern "C" fn native_appender_append_timestamp(
   append : Appender,
-  micros : Int,
+  micros : Int64,
 ) -> Bool = "duckdb_mb_append_timestamp"
 
 // ============================================================================
@@ -1103,7 +1103,7 @@ pub fn PreparedStatement::bind_date(
 pub fn PreparedStatement::bind_timestamp(
   self : PreparedStatement,
   index : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   if native_bind_timestamp(self, index, micros) {
     Ok(())
@@ -1127,7 +1127,7 @@ pub fn Appender::append_date(
 ///|
 pub fn Appender::append_timestamp(
   self : Appender,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   if native_appender_append_timestamp(self, micros) {
     Ok(())
@@ -1261,27 +1261,38 @@ pub fn timestamp_from_ymd_hms(
   hour : Int,
   minute : Int,
   second : Int,
-) -> Int {
+) -> Int64 {
   let date_days = date_from_ymd(year, month, day)
-  let seconds_per_day = 86400
-  let date_seconds = date_days * seconds_per_day
-  let time_seconds = hour * 3600 + minute * 60 + second
-  // Convert seconds to microseconds
-  (date_seconds + time_seconds) * 1000000
+  // Use Int64 to avoid overflow (Int is 32-bit for WASM compatibility)
+  let date_days_64 = date_days.to_int64()
+  let hour_64 = hour.to_int64()
+  let minute_64 = minute.to_int64()
+  let second_64 = second.to_int64()
+
+  let day_micros = date_days_64 * 86400L * 1000000L
+  let time_micros = (hour_64 * 3600L + minute_64 * 60L + second_64) * 1000000L
+  day_micros + time_micros
 }
 
 ///|
 /// Convert timestamp (microseconds since 1970-01-01) to date components.
 /// Note: This is a simplified calculation. For production use, use a proper date library.
-pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
-  let total_seconds = micros / 1000000
-  let days = total_seconds / 86400
-  let seconds_in_day = total_seconds % 86400
-  let hour = seconds_in_day / 3600
-  let remaining_seconds = seconds_in_day % 3600
-  let minute = remaining_seconds / 60
-  let second = remaining_seconds % 60
-  let (year, month, day) = date_to_ymd(days)
+pub fn timestamp_to_ymd_hms(micros : Int64) -> (Int, Int, Int, Int, Int, Int) {
+  let total_seconds = micros / 1000000L
+  let mut days = total_seconds / 86400L
+  let mut seconds_in_day = total_seconds % 86400L
+
+  // Handle negative seconds_in_day (fix for negative modulo)
+  if seconds_in_day < 0L {
+    days = days - 1L
+    seconds_in_day = seconds_in_day + 86400L
+  }
+
+  let hour = (seconds_in_day / 3600L).to_int()
+  let remaining_seconds = seconds_in_day % 3600L
+  let minute = (remaining_seconds / 60L).to_int()
+  let second = (remaining_seconds % 60L).to_int()
+  let (year, month, day) = date_to_ymd(days.to_int())
   (year, month, day, hour, minute, second)
 }
 

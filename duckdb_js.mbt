@@ -1499,7 +1499,7 @@ pub fn PreparedStatement::bind_date(
 pub fn PreparedStatement::bind_timestamp(
   self : PreparedStatement,
   index : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   // Convert microseconds to ISO timestamp string for JS
   let (year, month, day, hour, minute, second) = timestamp_to_ymd_hms(micros)
@@ -1526,7 +1526,7 @@ pub fn Appender::append_date(
 ///|
 pub fn Appender::append_timestamp(
   self : Appender,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = micros
