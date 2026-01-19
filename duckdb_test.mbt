@@ -972,9 +972,14 @@ test "interval helpers" {
     fail("expected 1 day, got \{i1.days}")
   }
   let i2 = interval_from_seconds(1)
-  // 1 second = 1000000 micros
-  if i2.micros != 1000000 {
-    fail("expected 1000000 micros, got \{i2.micros}")
+  // 1 second = 1000000 micros (Int64)
+  if i2.micros != 1000000L {
+    fail("expected 1000000L micros, got \{i2.micros}")
+  }
+  // Test interval_to_micros with days
+  let days_micros = interval_to_micros(i1)
+  if days_micros != 86400000000L {
+    fail("expected 86400000000L for 1 day, got \{days_micros}")
   }
   ()
 }
@@ -1353,6 +1358,31 @@ test "native decimal to parts" {
     fail("expected whole 123, got \{whole}")
   } else if frac != 45 {
     fail("expected frac 45, got \{frac}")
+  } else {
+    ()
+  }
+}
+
+///|
+test "native decimal negative roundtrip" {
+  // Test negative decimal round-trip
+  let d1 = decimal_from_parts(-100, 50, 2)
+  let (w1, f1) = decimal_to_parts(d1)
+  if w1 != -100 {
+    fail("expected whole -100, got \{w1}")
+  } else if f1 != 50 {
+    fail("expected frac 50, got \{f1}")
+  } else {
+    ()
+  }
+
+  // Test another negative value
+  let d2 = decimal_from_parts(-1, 99, 2)
+  let (w2, f2) = decimal_to_parts(d2)
+  if w2 != -1 {
+    fail("expected whole -1, got \{w2}")
+  } else if f2 != 99 {
+    fail("expected frac 99, got \{f2}")
   } else {
     ()
   }

@@ -204,7 +204,7 @@ extern "C" fn native_bind_interval(
   index : Int,
   months : Int,
   days : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Bool = "duckdb_mb_bind_interval"
 
 ///|
@@ -213,7 +213,7 @@ extern "C" fn native_appender_append_interval(
   append : Appender,
   months : Int,
   days : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Bool = "duckdb_mb_append_interval"
 
 // ----------------------------------------------------------------------------
@@ -1412,7 +1412,12 @@ pub fn decimal_from_parts(
   fractional : Int,
   scale : Int,
 ) -> Decimal {
-  let value = whole * _int_pow10(scale) + fractional
+  let divisor = _int_pow10(scale)
+  let value = if whole < 0 {
+    whole * divisor - fractional
+  } else {
+    whole * divisor + fractional
+  }
   let width = if whole == 0 {
     String::length(fractional.to_string())
   } else {
@@ -1427,7 +1432,12 @@ pub fn decimal_from_parts(
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
   let divisor = _int_pow10(decimal.scale)
   let whole = decimal.lower / divisor
-  let fractional = Int::abs(decimal.lower % divisor)
+  let remainder = decimal.lower % divisor
+  let fractional = if remainder < 0 {
+    divisor - Int::abs(remainder)
+  } else {
+    remainder
+  }
   (whole, fractional)
 }
 
@@ -1479,7 +1489,7 @@ pub fn Appender::append_interval(
 
 ///|
 /// Create an interval from months, days, and microseconds.
-pub fn interval_from_parts(months : Int, days : Int, micros : Int) -> Interval {
+pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
   { months, days, micros }
 }
 
@@ -1492,21 +1502,21 @@ pub fn interval_from_days(days : Int) -> Interval {
 ///|
 /// Create an interval from hours.
 pub fn interval_from_hours(hours : Int) -> Interval {
-  let micros = hours * 3600 * _int_pow10(6)
+  let micros = hours.to_int64() * 3600L * 1000000L
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from minutes.
 pub fn interval_from_minutes(minutes : Int) -> Interval {
-  let micros = minutes * 60 * _int_pow10(6)
+  let micros = minutes.to_int64() * 60L * 1000000L
   { months: 0, days: 0, micros }
 }
 
 ///|
 /// Create an interval from seconds.
 pub fn interval_from_seconds(seconds : Int) -> Interval {
-  let micros = seconds * _int_pow10(6)
+  let micros = seconds.to_int64() * 1000000L
   { months: 0, days: 0, micros }
 }
 
@@ -1519,8 +1529,8 @@ pub fn interval_from_months(months : Int) -> Interval {
 ///|
 /// Get the total microseconds equivalent of this interval.
 /// Note: This is approximate since months have varying lengths.
-pub fn interval_to_micros(interval : Interval) -> Int {
-  let days_micros = interval.days * 86400 * 1000000
+pub fn interval_to_micros(interval : Interval) -> Int64 {
+  let days_micros = interval.days.to_int64() * 86400L * 1000000L
   interval.micros + days_micros
 }
 

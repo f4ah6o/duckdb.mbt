@@ -130,19 +130,17 @@ test "prop_timestamp_from_ymd_hms_to_ymd_hms_roundtrip" {
   )
   inspect((y1, m1, d1, h1, min1, s1), content="(1970, 1, 1, 0, 0, 0)")
 
-  // KNOWN ISSUE: Timestamp calculation severely overflows 32-bit Int
-  // Safe range: ~2147 seconds from epoch (35 minutes) before overflow
-  // Testing small time values to avoid overflow
+  // Test common datetime
   let (y2, m2, d2, h2, min2, s2) = timestamp_to_ymd_hms(
-    timestamp_from_ymd_hms(1970, 1, 1, 0, 5, 45),
+    timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56),
   )
-  inspect((y2, m2, d2, h2, min2, s2), content="(1970, 1, 1, 0, 5, 45)")
+  inspect((y2, m2, d2, h2, min2, s2), content="(2024, 6, 3, 12, 34, 56)")
 
-  // Test at the edge of safe range (30 minutes = 1800 seconds, still safe)
+  // Test future date
   let (y3, m3, d3, h3, min3, s3) = timestamp_to_ymd_hms(
-    timestamp_from_ymd_hms(1970, 1, 1, 0, 30, 0),
+    timestamp_from_ymd_hms(2050, 12, 31, 23, 59, 59),
   )
-  inspect((y3, m3, d3, h3, min3, s3), content="(1970, 1, 1, 0, 30, 0)")
+  inspect((y3, m3, d3, h3, min3, s3), content="(2050, 12, 31, 23, 59, 59)")
 }
 ```
 
@@ -189,13 +187,10 @@ test "prop_decimal_from_parts_to_parts_roundtrip" {
   let (w2, f2) = decimal_to_parts(d2)
   inspect((w2, f2), content="(0, 0)")
 
-  // KNOWN ISSUE: Negative decimals don't round-trip correctly
-  // decimal_from_parts(-100, 50, 2) stores -99.50 instead of -100.50
-  // This is due to integer math: value = -100 * 100 + 50 = -9950
-  // When decoding: whole = -9950 / 100 = -99 (truncates toward zero)
+  // Test negative value
   let d3 = decimal_from_parts(-100, 50, 2)
   let (w3, f3) = decimal_to_parts(d3)
-  inspect((w3, f3), content="(-99, 50)")
+  inspect((w3, f3), content="(-100, 50)")
 }
 ```
 
@@ -208,22 +203,20 @@ Property: interval_to_micros correctly converts the interval components to total
 ```mbt check
 ///|
 test "prop_interval_from_parts_to_micros" {
-  // KNOWN ISSUE: Interval calculation overflows for days
-  // 1 day * 86400 * 1000000 = 86400000000 overflows 32-bit Int
-  // The overflow result is 500654080 (wraps around)
-  let i1 = interval_from_parts(0, 1, 0)
+  // Test 1 day in microseconds
+  let i1 = interval_from_parts(0, 1, 0L)
   let micros1 = interval_to_micros(i1)
-  inspect(micros1, content="500654080") // Documents the overflow behavior
+  inspect(micros1, content="86400000000")
 
-  // Test 1000 microseconds (no overflow)
-  let i2 = interval_from_parts(0, 0, 1000)
+  // Test 1000 microseconds
+  let i2 = interval_from_parts(0, 0, 1000L)
   let micros2 = interval_to_micros(i2)
   inspect(micros2, content="1000")
 
-  // Test combined: 1 day + 1000 microseconds (overflow affects days)
-  let i3 = interval_from_parts(0, 1, 1000)
+  // Test combined: 1 day + 1000 microseconds
+  let i3 = interval_from_parts(0, 1, 1000L)
   let micros3 = interval_to_micros(i3)
-  inspect(micros3, content="500655080") // Documents the overflow behavior
+  inspect(micros3, content="86400001000")
 }
 ```
 
@@ -714,70 +707,66 @@ test "prop_value_to_string_roundtrip_null" {
 
 #### prop_regression_timestamp_overflow
 
-Regression test: Document known timestamp overflow issue.
+Regression test: Verify timestamp calculations work correctly with Int64.
 
 ```mbt check
 ///|
 test "prop_regression_timestamp_overflow" {
-  // KNOWN ISSUE: Timestamp calculation overflows 32-bit Int
-  // Safe range: ~2147 seconds (35 minutes) from epoch
-  // This test documents the current limitation
+  // Fixed: Timestamp calculation now uses Int64 to avoid overflow
+  // Test a wide range of dates
 
-  // Safe values work correctly
   let (y1, m1, d1, h1, min1, s1) = timestamp_to_ymd_hms(
     timestamp_from_ymd_hms(1970, 1, 1, 0, 30, 0),
   )
   inspect((y1, m1, d1, h1, min1, s1), content="(1970, 1, 1, 0, 30, 0)")
 
-  // Values beyond safe range will overflow - this is expected behavior
-  // Future fix: Use Int64 for timestamp calculations
+  // Test date beyond the old 32-bit safe range
+  let (y2, m2, d2, h2, min2, s2) = timestamp_to_ymd_hms(
+    timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56),
+  )
+  inspect((y2, m2, d2, h2, min2, s2), content="(2024, 6, 3, 12, 34, 56)")
 }
 ```
 
 #### prop_regression_decimal_negative_values
 
-Regression test: Document known negative decimal issue.
+Regression test: Verify negative decimals round-trip correctly.
 
 ```mbt check
 ///|
 test "prop_regression_decimal_negative_values" {
-  // KNOWN ISSUE: Negative decimals don't round-trip correctly
-  // decimal_from_parts(-100, 50, 2) stores -99.50 instead of -100.50
-  // Issue: value = -100 * 100 + 50 = -9950
-  // When decoding: whole = -9950 / 100 = -99 (truncates toward zero)
+  // Fixed: Negative decimals now round-trip correctly
+  // decimal_from_parts(-100, 50, 2) correctly stores -100.50
 
   let d = decimal_from_parts(-100, 50, 2)
   let (w, f) = decimal_to_parts(d)
-  // This documents the current buggy behavior
-  inspect((w, f), content="(-99, 50)")
+  inspect((w, f), content="(-100, 50)")
 
-  // Correct behavior should be (-100, 50)
-  // Future fix: Handle negative whole part separately from fraction
+  // Test another negative value
+  let d2 = decimal_from_parts(-1, 50, 2)
+  let (w2, f2) = decimal_to_parts(d2)
+  inspect((w2, f2), content="(-1, 50)")
 }
 ```
 
 #### prop_regression_interval_overflow
 
-Regression test: Document known interval overflow issue.
+Regression test: Verify interval calculations work correctly with Int64.
 
 ```mbt check
 ///|
 test "prop_regression_interval_overflow" {
-  // KNOWN ISSUE: Interval calculation overflows for days
-  // 1 day * 86400 * 1000000 = 86400000000 overflows 32-bit Int
-  // The overflow result is 500654080 (wraps around)
+  // Fixed: Interval calculation now uses Int64 to avoid overflow
+  // 1 day * 86400 * 1000000 = 86400000000 now fits in Int64
 
-  let i = interval_from_parts(0, 1, 0)
+  let i = interval_from_parts(0, 1, 0L)
   let micros = interval_to_micros(i)
-  // This documents the current overflow behavior
-  inspect(micros, content="500654080")
+  inspect(micros, content="86400000000")
 
-  // Microseconds alone work fine
-  let i2 = interval_from_parts(0, 0, 1000000)
+  // Test large intervals
+  let i2 = interval_from_parts(0, 10000, 0L)
   let micros2 = interval_to_micros(i2)
-  inspect(micros2, content="1000000")
-
-  // Future fix: Use Int64 for interval calculations
+  inspect(micros2, content="864000000000000")
 }
 ```
 

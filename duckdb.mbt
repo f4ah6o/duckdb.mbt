@@ -150,7 +150,7 @@ pub struct Decimal {
 pub struct Interval {
   months : Int // Months
   days : Int // Days
-  micros : Int // Microseconds
+  micros : Int64 // Microseconds (Int64 to avoid overflow)
 }
 
 ///|

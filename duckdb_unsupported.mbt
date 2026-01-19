@@ -549,11 +549,11 @@ pub fn Appender::append_interval(
 }
 
 ///|
-pub fn interval_from_parts(months : Int, days : Int, micros : Int) -> Interval {
+pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
   let _ = months
   let _ = days
   let _ = micros
-  { months: 0, days: 0, micros: 0 }
+  { months: 0, days: 0, micros: 0L }
 }
 
 ///|
@@ -587,9 +587,9 @@ pub fn interval_from_months(months : Int) -> Interval {
 }
 
 ///|
-pub fn interval_to_micros(interval : Interval) -> Int {
+pub fn interval_to_micros(interval : Interval) -> Int64 {
   let _ = interval
-  0
+  0L
 }
 
 // ----------------------------------------------------------------------------

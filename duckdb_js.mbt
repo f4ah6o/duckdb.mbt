@@ -801,7 +801,7 @@ extern "js" fn js_bind_interval(
   index : Int,
   months : Int,
   days : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, String] =
   #|(stmt, index, months, days, micros) => {
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
@@ -1080,7 +1080,7 @@ extern "js" fn js_appender_append_interval(
   appender : Appender,
   months : Int,
   days : Int,
-  micros : Int,
+  micros : Int64,
 ) -> Result[Unit, String] =
   #|(appender, months, days, micros) => {
   #|  if (appender && appender.kind === "appender" && appender.appender) {
@@ -1633,21 +1633,24 @@ pub fn timestamp_from_ymd_hms(
   hour : Int,
   minute : Int,
   second : Int,
-) -> Int {
+) -> Int64 {
   let date_days = date_from_ymd(year, month, day)
-  let seconds_per_day = 86400
-  let date_seconds = date_days * seconds_per_day
-  let time_seconds = hour * 3600 + minute * 60 + second
-  (date_seconds + time_seconds) * 1000000
+  let date_days_64 = date_days.to_int64()
+  let day_micros = date_days_64 * 86400L * 1000000L
+  let hour_64 = hour.to_int64()
+  let minute_64 = minute.to_int64()
+  let second_64 = second.to_int64()
+  let time_micros = (hour_64 * 3600L + minute_64 * 60L + second_64) * 1000000L
+  day_micros + time_micros
 }
 
 ///|
 /// Convert timestamp (microseconds since 1970-01-01) to date components.
 /// Note: This is a simplified calculation. For production use, use a proper date library.
-pub fn timestamp_to_ymd_hms(micros : Int) -> (Int, Int, Int, Int, Int, Int) {
-  let total_seconds = micros / 1000000
-  let days = total_seconds / 86400
-  let seconds_in_day = total_seconds % 86400
+pub fn timestamp_to_ymd_hms(micros : Int64) -> (Int, Int, Int, Int, Int, Int) {
+  let total_seconds = micros / 1000000L
+  let days = (total_seconds / 86400L).to_int()
+  let seconds_in_day = (total_seconds % 86400L).to_int()
   let hour = seconds_in_day / 3600
   let remaining_seconds = seconds_in_day % 3600
   let minute = remaining_seconds / 60
@@ -2020,7 +2023,7 @@ pub fn Appender::append_decimal(
 
 ///|
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = int_pow10(scale)
+  let multiplier = int_pow10(scale).to_int()
   let scaled = (value * Double::from_int(multiplier)).to_int()
   let upper = if scaled >= 0 { 0 } else { -1 }
   { width, scale, lower: scaled, upper }
@@ -2028,7 +2031,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
 
 ///|
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(int_pow10(decimal.scale))
+  let divisor = Double::from_int(int_pow10(decimal.scale).to_int())
   Double::from_int(decimal.lower) / divisor
 }
 
@@ -2038,7 +2041,12 @@ pub fn decimal_from_parts(
   fractional : Int,
   scale : Int,
 ) -> Decimal {
-  let value = whole * int_pow10(scale) + fractional
+  let divisor = int_pow10(scale).to_int()
+  let value = if whole < 0 {
+    whole * divisor - fractional
+  } else {
+    whole * divisor + fractional
+  }
   let width = if whole == 0 {
     String::length(fractional.to_string())
   } else {
@@ -2050,9 +2058,14 @@ pub fn decimal_from_parts(
 
 ///|
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = int_pow10(decimal.scale)
+  let divisor = int_pow10(decimal.scale).to_int()
   let whole = decimal.lower / divisor
-  let fractional = Int::abs(decimal.lower % divisor)
+  let remainder = decimal.lower % divisor
+  let fractional = if remainder < 0 {
+    divisor - Int::abs(remainder)
+  } else {
+    remainder
+  }
   (whole, fractional)
 }
 
@@ -2096,7 +2109,7 @@ pub fn Appender::append_interval(
 }
 
 ///|
-pub fn interval_from_parts(months : Int, days : Int, micros : Int) -> Interval {
+pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
   { months, days, micros }
 }
 
@@ -2107,19 +2120,19 @@ pub fn interval_from_days(days : Int) -> Interval {
 
 ///|
 pub fn interval_from_hours(hours : Int) -> Interval {
-  let micros = hours * 3600 * 1000000
+  let micros = hours.to_int64() * 3600L * 1000000L
   { months: 0, days: 0, micros }
 }
 
 ///|
 pub fn interval_from_minutes(minutes : Int) -> Interval {
-  let micros = minutes * 60 * 1000000
+  let micros = minutes.to_int64() * 60L * 1000000L
   { months: 0, days: 0, micros }
 }
 
 ///|
 pub fn interval_from_seconds(seconds : Int) -> Interval {
-  let micros = seconds * 1000000
+  let micros = seconds.to_int64() * 1000000L
   { months: 0, days: 0, micros }
 }
 
@@ -2129,8 +2142,8 @@ pub fn interval_from_months(months : Int) -> Interval {
 }
 
 ///|
-pub fn interval_to_micros(interval : Interval) -> Int {
-  let days_micros = interval.days * 86400 * 1000000
+pub fn interval_to_micros(interval : Interval) -> Int64 {
+  let days_micros = interval.days.to_int64() * 86400L * 1000000L
   interval.micros + days_micros
 }
 
