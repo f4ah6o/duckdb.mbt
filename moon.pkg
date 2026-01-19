@@ -1,6 +1,4 @@
-import {
-  "f4ah6o/aletheia/pbt" as @pbt,
-}
+import { "f4ah6o/aletheia/pbt" as @pbt }
 
 options(
   "is-main": false,
@@ -12,25 +10,25 @@ options(
   },
   "native-stub": [ "duckdb_native.c" ],
   targets: {
+    "duckdb_appender_state_machine.mbt": [ "native" ],
     "duckdb_arrow_js.mbt": [ "js" ],
     "duckdb_arrow_native.mbt": [ "native" ],
     "duckdb_arrow_test.mbt": [ "native" ],
     "duckdb_arrow_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
+    "duckdb_blob_pbt_test.mbt": [ "native" ],
+    "duckdb_collection_pbt_test.mbt": [ "native" ],
+    "duckdb_connection_state_machine.mbt": [ "native" ],
+    "duckdb_decimal_pbt_test.mbt": [ "native" ],
+    "duckdb_interval_pbt_test.mbt": [ "native" ],
     "duckdb_js.mbt": [ "js" ],
     "duckdb_js_test.mbt": [ "js" ],
     "duckdb_native.mbt": [ "native" ],
     "duckdb_pbt_test.mbt": [ "native" ],
-    "duckdb_blob_pbt_test.mbt": [ "native" ],
-    "duckdb_decimal_pbt_test.mbt": [ "native" ],
-    "duckdb_interval_pbt_test.mbt": [ "native" ],
-    "duckdb_collection_pbt_test.mbt": [ "native" ],
-    "duckdb_connection_state_machine.mbt": [ "native" ],
-    "duckdb_appender_state_machine.mbt": [ "native" ],
-    "src/pbt/generators.mbt": [ "native" ],
-    "src/pbt/shrinkers.mbt": [ "native" ],
-    "src/pbt/properties.mbt": [ "native" ],
-    "src/pbt/stateful.mbt": [ "native" ],
     "duckdb_test.mbt": [ "native" ],
     "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
+    "src/pbt/generators.mbt": [ "native" ],
+    "src/pbt/properties.mbt": [ "native" ],
+    "src/pbt/shrinkers.mbt": [ "native" ],
+    "src/pbt/stateful.mbt": [ "native" ],
   },
 )
