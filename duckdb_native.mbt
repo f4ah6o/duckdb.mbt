@@ -287,18 +287,6 @@ extern "C" fn native_appender_append_map_varchar_varchar(
   entry_count : Int,
 ) -> Bool = "duckdb_mb_append_map_varchar_varchar"
 
-// ============================================================================
-// List Appender using DuckDB Value API
-// ============================================================================
-
-///|
-#borrow(appender, values, count)
-extern "C" fn native_appender_append_list_varchar_chunk(
-  appender : Appender,
-  values : Array[Bytes],
-  count : Int,
-) -> Bool = "duckdb_mb_append_list_varchar_chunk"
-
 ///|
 #borrow(conn)
 extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
@@ -550,7 +538,12 @@ pub fn ResultStream::next(
 ) -> Unit {
   let chunk = native_stream_fetch_chunk(self)
   if native_is_null_chunk(chunk) {
-    on_done(Err(DuckDBError::Message(last_error("fetch_chunk failed"))))
+    let msg = bytes_to_string(native_last_error())
+    if msg is "" {
+      on_done(Ok(None))
+    } else {
+      on_done(Err(DuckDBError::Message(msg)))
+    }
   } else {
     let row_count = native_chunk_row_count(chunk)
     let column_count = native_chunk_column_count(chunk)
@@ -1433,11 +1426,7 @@ pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
   let divisor = _int_pow10(decimal.scale)
   let whole = decimal.lower / divisor
   let remainder = decimal.lower % divisor
-  let fractional = if remainder < 0 {
-    divisor - Int::abs(remainder)
-  } else {
-    remainder
-  }
+  let fractional = if remainder < 0 { Int::abs(remainder) } else { remainder }
   (whole, fractional)
 }
 
@@ -1489,7 +1478,11 @@ pub fn Appender::append_interval(
 
 ///|
 /// Create an interval from months, days, and microseconds.
-pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
+pub fn interval_from_parts(
+  months : Int,
+  days : Int,
+  micros : Int64,
+) -> Interval {
   { months, days, micros }
 }
 
@@ -1766,20 +1759,35 @@ pub fn Appender::append_map(
 // ============================================================================
 
 ///|
-/// Append a list of VARCHAR values using the DuckDB DataChunk API.
-/// This properly appends a VARCHAR[] list to a list column.
+/// Append a list literal as VARCHAR.
+/// This serializes the list and relies on DuckDB casting when appropriate.
 pub fn Appender::append_list_varchar_value(
   self : Appender,
   values : Array[String],
 ) -> Result[Unit, DuckDBError] {
-  let encoded = values.map(fn(v) { @encoding/utf8.encode(v) })
-  if native_appender_append_list_varchar_chunk(self, encoded, encoded.length()) {
-    Ok(())
-  } else {
-    Err(
-      DuckDBError::Message(
-        appender_error(self, "append_list_varchar_value failed"),
-      ),
-    )
+  // Build a list literal and rely on DuckDB's cast from VARCHAR to LIST.
+  fn escape_list_item(s : String) -> String {
+    let sb = StringBuilder::new()
+    for c in s {
+      if c == '\'' {
+        sb..write_char('\'')..write_char('\'')
+      } else {
+        sb..write_char(c)
+      }
+    }
+    sb.to_string()
   }
+
+  let sb = StringBuilder::new()
+  sb..write_char('[')
+  for i, v in values {
+    if i > 0 {
+      sb..write_char(',')..write_char(' ')
+    }
+    sb..write_char('\'')
+    sb..write_view(escape_list_item(v))
+    sb..write_char('\'')
+  }
+  sb..write_char(']')
+  self.append_varchar(sb.to_string())
 }

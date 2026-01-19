@@ -134,28 +134,25 @@ pub fn is_valid_connection_transition(
 ///|
 /// Property: cannot query when not connected
 test "prop_connection_cannot_query_when_not_connected" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::NotConnected,
-    ConnectionCommand::Query("SELECT 1"),
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::NotConnected, ConnectionCommand::Query("SELECT 1")),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740001, 5)
-
   @pbt.assert_check(
     "cannot query when not connected",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       // Query from NotConnected should result in Error or stay NotConnected
       match new_state {
         ConnectionState::NotConnected => Ok(())
         ConnectionState::Error => Ok(())
-        ConnectionState::Connected => Err(
-          "Query from NotConnected should not result in Connected state",
-        )
+        ConnectionState::Connected =>
+          Err("Query from NotConnected should not result in Connected state")
         _ => Err("Unexpected state after query from NotConnected")
       }
     },
@@ -166,21 +163,19 @@ test "prop_connection_cannot_query_when_not_connected" {
 ///|
 /// Property: cannot close when not connected
 test "prop_connection_cannot_close_when_not_connected" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::NotConnected,
-    ConnectionCommand::Close,
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::NotConnected, ConnectionCommand::Close),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740002, 5)
-
   @pbt.assert_check(
     "cannot close when not connected",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       // Close from NotConnected should result in Error or stay NotConnected
       match new_state {
         ConnectionState::NotConnected => Ok(())
@@ -203,16 +198,12 @@ test "prop_connection_query_count_increases" {
     )
   })
   let config = @pbt.CheckConfig::new(100, 20, 740003, 20)
-
   @pbt.assert_check(
     "query count increases after query",
     gen,
     fn(input) {
       let (state, initial_count, cmd) = input
-      let model = ConnectionModel::{
-        state: state,
-        query_count: initial_count,
-      }
+      let model = ConnectionModel::{ state, query_count: initial_count }
       let new_model = execute_command_on_model(model, cmd)
       if new_model.query_count == initial_count + 1 {
         Ok(())
@@ -229,21 +220,19 @@ test "prop_connection_query_count_increases" {
 ///|
 /// Property: closed connection cannot query
 test "prop_connection_closed_cannot_query" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::Closed,
-    ConnectionCommand::Query("SELECT 1"),
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::Closed, ConnectionCommand::Query("SELECT 1")),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740004, 5)
-
   @pbt.assert_check(
     "closed connection cannot query",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       // Query from Closed should stay Closed
       match new_state {
         ConnectionState::Closed => Ok(())
@@ -257,21 +246,19 @@ test "prop_connection_closed_cannot_query" {
 ///|
 /// Property: connect transitions to connected
 test "prop_connection_connect_transitions" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::NotConnected,
-    ConnectionCommand::Connect,
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::NotConnected, ConnectionCommand::Connect),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740005, 5)
-
   @pbt.assert_check(
     "connect transitions to connected",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       match new_state {
         ConnectionState::Connected => Ok(())
         _ => Err("Connect should transition to Connected state")
@@ -284,21 +271,19 @@ test "prop_connection_connect_transitions" {
 ///|
 /// Property: close transitions to closed
 test "prop_connection_close_transitions" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::Connected,
-    ConnectionCommand::Close,
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::Connected, ConnectionCommand::Close),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740006, 5)
-
   @pbt.assert_check(
     "close transitions to closed",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       match new_state {
         ConnectionState::Closed => Ok(())
         _ => Err("Close should transition to Closed state")
@@ -311,21 +296,19 @@ test "prop_connection_close_transitions" {
 ///|
 /// Property: query transitions to query in progress
 test "prop_connection_query_transitions" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::Connected,
-    ConnectionCommand::Query("SELECT 1"),
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::Connected, ConnectionCommand::Query("SELECT 1")),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740007, 5)
-
   @pbt.assert_check(
     "query transitions to in progress",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 0 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 0 },
+          cmd,
+        ).state
       match new_state {
         ConnectionState::QueryInProgress => Ok(())
         _ => Err("Query should transition to QueryInProgress state")
@@ -338,21 +321,19 @@ test "prop_connection_query_transitions" {
 ///|
 /// Property: execute returns to connected
 test "prop_connection_execute_returns_to_connected" {
-  let gen = @pbt.Gen::pure((
-    ConnectionState::QueryInProgress,
-    ConnectionCommand::Execute,
-  ))
+  let gen = @pbt.Gen::pure(
+    (ConnectionState::QueryInProgress, ConnectionCommand::Execute),
+  )
   let config = @pbt.CheckConfig::new(10, 10, 740008, 5)
-
   @pbt.assert_check(
     "execute returns to connected",
     gen,
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-        ConnectionModel::{ state, query_count: 1 },
-        cmd,
-      ).state
+          ConnectionModel::{ state, query_count: 1 },
+          cmd,
+        ).state
       match new_state {
         ConnectionState::Connected => Ok(())
         _ => Err("Execute should return to Connected state")
@@ -385,7 +366,6 @@ test "prop_connection_valid_sequences" {
     ]),
   ])
   let config = @pbt.CheckConfig::new(50, 10, 740009, 10)
-
   @pbt.assert_check(
     "valid transition sequences",
     gen,
@@ -396,7 +376,8 @@ test "prop_connection_valid_sequences" {
         model = execute_command_on_model(model, cmd)
         // Check we never hit error state for valid sequences
         match model.state {
-          ConnectionState::Error => return Err("Valid sequence should not error")
+          ConnectionState::Error =>
+            return Err("Valid sequence should not error")
           _ => ()
         }
       }
@@ -411,18 +392,23 @@ test "prop_connection_valid_sequences" {
 test "prop_connection_invalid_transitions" {
   let gen = @pbt.Gen::one_of([
     // Query from NotConnected
-    @pbt.Gen::pure((ConnectionState::NotConnected, ConnectionCommand::Query("SELECT 1"))),
+    @pbt.Gen::pure(
+      (ConnectionState::NotConnected, ConnectionCommand::Query("SELECT 1")),
+    ),
     // Close from NotConnected
     @pbt.Gen::pure((ConnectionState::NotConnected, ConnectionCommand::Close)),
     // Query from Closed
-    @pbt.Gen::pure((ConnectionState::Closed, ConnectionCommand::Query("SELECT 1"))),
+    @pbt.Gen::pure(
+      (ConnectionState::Closed, ConnectionCommand::Query("SELECT 1")),
+    ),
     // Connect from Connected
     @pbt.Gen::pure((ConnectionState::Connected, ConnectionCommand::Connect)),
     // Prepare from QueryInProgress
-    @pbt.Gen::pure((ConnectionState::QueryInProgress, ConnectionCommand::Prepare("SELECT 1"))),
+    @pbt.Gen::pure(
+      (ConnectionState::QueryInProgress, ConnectionCommand::Prepare("SELECT 1")),
+    ),
   ])
   let config = @pbt.CheckConfig::new(100, 20, 740010, 20)
-
   @pbt.assert_check(
     "invalid transition detection",
     gen,
@@ -453,22 +439,21 @@ test "prop_connection_invalid_transitions" {
 /// Property: state machine invariants
 test "prop_connection_state_invariants" {
   let gen = @pbt.Gen::choose_int(0, 20).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::one_of([
-      @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(n) {
-        ConnectionCommand::Query("SELECT " + n.to_string())
-      }),
-      @pbt.Gen::pure(ConnectionCommand::Connect),
-      @pbt.Gen::pure(ConnectionCommand::Close),
-      @pbt.Gen::pure(ConnectionCommand::Execute),
-      @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(n) {
-        ConnectionCommand::Prepare("SELECT " + n.to_string())
-      }),
-    ])).map(fn(cmds) {
-      (cmds, len)
-    })
+    @pbt.Gen::array_of(
+      @pbt.Gen::one_of([
+        @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(n) {
+          ConnectionCommand::Query("SELECT " + n.to_string())
+        }),
+        @pbt.Gen::pure(ConnectionCommand::Connect),
+        @pbt.Gen::pure(ConnectionCommand::Close),
+        @pbt.Gen::pure(ConnectionCommand::Execute),
+        @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(n) {
+          ConnectionCommand::Prepare("SELECT " + n.to_string())
+        }),
+      ]),
+    ).map(fn(cmds) { (cmds, len) })
   })
   let config = @pbt.CheckConfig::new(200, 30, 740011, 20)
-
   @pbt.assert_check(
     "connection state invariants",
     gen,
@@ -482,7 +467,6 @@ test "prop_connection_state_invariants" {
         ConnectionState::Closed => seen_closed = true
         _ => ()
       }
-
       for cmd in cmds {
         model = execute_command_on_model(model, cmd)
         // If we've seen Closed, all subsequent states must be Closed
@@ -498,7 +482,6 @@ test "prop_connection_state_invariants" {
           }
         }
       }
-
       Ok(())
     },
     config~,

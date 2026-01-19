@@ -2109,7 +2109,11 @@ pub fn Appender::append_interval(
 }
 
 ///|
-pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
+pub fn interval_from_parts(
+  months : Int,
+  days : Int,
+  micros : Int64,
+) -> Interval {
   { months, days, micros }
 }
 

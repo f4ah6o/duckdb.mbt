@@ -471,7 +471,11 @@ duckdb_mb_chunk *duckdb_mb_stream_fetch_chunk(duckdb_mb_stream *stream) {
   duckdb_data_chunk chunk = duckdb_stream_fetch_chunk(*stream->result);
   if (!chunk) {
     const char *error = duckdb_result_error(stream->result);
-    duckdb_mb_set_error(error && error[0] ? error : "duckdb_stream_fetch_chunk failed");
+    if (error && error[0]) {
+      duckdb_mb_set_error(error);
+    } else {
+      duckdb_mb_set_error(NULL);
+    }
     return NULL;
   }
   duckdb_mb_chunk *mb_chunk = (duckdb_mb_chunk *)malloc(sizeof(duckdb_mb_chunk));
@@ -2141,8 +2145,8 @@ int32_t duckdb_mb_append_list_varchar_chunk(
     return 0;
   }
 
-  // Step 1: Create VARCHAR logical type (element type)
-  duckdb_logical_type varchar_type = duckdb_create_logical_type(DUCKDB_TYPE_VARCHAR);
+  duckdb_logical_type varchar_type =
+      duckdb_create_logical_type(DUCKDB_TYPE_VARCHAR);
   if (!varchar_type) {
     strncpy(mb_append->error, "failed to create varchar type",
             sizeof(mb_append->error) - 1);
@@ -2150,81 +2154,43 @@ int32_t duckdb_mb_append_list_varchar_chunk(
     return 0;
   }
 
-  // Step 2: Create LIST type from VARCHAR
   duckdb_logical_type list_type = duckdb_create_list_type(varchar_type);
   if (!list_type) {
-    // Not destroying varchar_type to avoid shared_ptr issue
     strncpy(mb_append->error, "failed to create list type",
             sizeof(mb_append->error) - 1);
     mb_append->error[sizeof(mb_append->error) - 1] = '\0';
     return 0;
   }
 
-  // Step 3: Create DataChunk with one column
-  // The chunk takes ownership of the type, so we pass it directly
-  duckdb_data_chunk chunk = duckdb_create_data_chunk(&list_type, 1);
-  if (!chunk) {
-    // Not destroying types to avoid shared_ptr issue
-    strncpy(mb_append->error, "failed to create data chunk",
-            sizeof(mb_append->error) - 1);
-    mb_append->error[sizeof(mb_append->error) - 1] = '\0';
-    return 0;
-  }
-
-  // Step 4: Set chunk size to 1 row
-  duckdb_data_chunk_set_size(chunk, 1);
-
-  // Step 6: Get the list vector from the chunk
-  duckdb_vector list_vector = duckdb_data_chunk_get_vector(chunk, 0);
-
-  // Step 7: Get the child VARCHAR vector
-  duckdb_vector child_vector = duckdb_list_vector_get_child(list_vector);
-
-  // Step 8: Get child vector data pointer
-  // Note: Not calling duckdb_list_vector_reserve/set_size as they cause crashes
-  // in DuckDB 1.4.3. The default vector capacity is sufficient for small lists.
-  duckdb_string_t *child_data = (duckdb_string_t *)duckdb_vector_get_data(child_vector);
-
-  // Step 9: Write each string to the child vector
-  for (int32_t i = 0; i < count; i++) {
-    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
-    const char *str = (const char *)values[i];
-
-    if (len <= 12 && str) {
-      // Use inlined storage for short strings (≤12 characters)
-      child_data[i].value.inlined.length = (uint32_t)len;
-      for (int32_t j = 0; j < len; j++) {
-        child_data[i].value.inlined.inlined[j] = str[j];
-      }
-    } else if (len > 12 && str) {
-      // Use pointer storage for longer strings
-      child_data[i].value.pointer.length = (uint32_t)len;
-      // Copy prefix (first 4 characters)
-      int32_t prefix_len = len < 4 ? len : 4;
-      for (int32_t j = 0; j < prefix_len; j++) {
-        child_data[i].value.pointer.prefix[j] = str[j];
-      }
-      child_data[i].value.pointer.ptr = (char *)str;
-    } else {
-      // Empty string
-      child_data[i].value.inlined.length = 0;
-      child_data[i].value.inlined.inlined[0] = '\0';
+  duckdb_value *child_values = NULL;
+  if (count > 0) {
+    child_values = (duckdb_value *)malloc(sizeof(duckdb_value) * (size_t)count);
+    if (!child_values) {
+      strncpy(mb_append->error, "failed to allocate list values",
+              sizeof(mb_append->error) - 1);
+      mb_append->error[sizeof(mb_append->error) - 1] = '\0';
+      duckdb_destroy_logical_type(&list_type);
+      return 0;
     }
   }
 
-  // Step 10: Set list entry in the parent vector
-  duckdb_list_entry *list_entries = (duckdb_list_entry *)duckdb_vector_get_data(list_vector);
-  list_entries[0].offset = 0;
-  list_entries[0].length = (idx_t)count;
+  for (int32_t i = 0; i < count; i++) {
+    int32_t len = values[i] ? Moonbit_array_length(values[i]) : 0;
+    const char *str = values[i] ? (const char *)values[i] : "";
+    child_values[i] = duckdb_create_varchar_length(str, (idx_t)len);
+  }
 
-  // Step 11: Append the data chunk
-  duckdb_state state = duckdb_append_data_chunk(mb_append->appender, chunk);
+  duckdb_value list_value =
+      duckdb_create_list_value(list_type, child_values, (idx_t)count);
 
-  // Step 12: Clean up
-  // Properly destroy the chunk and types - the shared_ptr issue was caused
-  // by duckdb_list_vector_reserve/set_size, not by destruction
-  duckdb_destroy_data_chunk(&chunk);
-  duckdb_destroy_logical_type(&varchar_type);
+  duckdb_state state = duckdb_append_value(mb_append->appender, list_value);
+
+  duckdb_destroy_value(&list_value);
+  for (int32_t i = 0; i < count; i++) {
+    duckdb_destroy_value(&child_values[i]);
+  }
+  free(child_values);
+  duckdb_destroy_logical_type(&list_type);
 
   if (state != DuckDBSuccess) {
     const char *error = duckdb_appender_error(mb_append->appender);

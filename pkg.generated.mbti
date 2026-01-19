@@ -30,7 +30,7 @@ pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
 
 pub let fixture_cases : Array[FixtureCase]
 
-pub fn int_pow10(Int) -> Int
+pub fn int_pow10(Int) -> Int64
 
 pub fn interval_from_days(Int) -> Interval
 
@@ -40,11 +40,11 @@ pub fn interval_from_minutes(Int) -> Interval
 
 pub fn interval_from_months(Int) -> Interval
 
-pub fn interval_from_parts(Int, Int, Int) -> Interval
+pub fn interval_from_parts(Int, Int, Int64) -> Interval
 
 pub fn interval_from_seconds(Int) -> Interval
 
-pub fn interval_to_micros(Interval) -> Int
+pub fn interval_to_micros(Interval) -> Int64
 
 pub fn is_double(String) -> Bool
 
@@ -76,9 +76,9 @@ pub fn parse_fraction_to_micros(String) -> Int
 
 pub fn parse_int(String) -> Int
 
-pub fn parse_time_to_micros(String) -> Result[Int, String]
+pub fn parse_time_to_micros(String) -> Result[Int64, String]
 
-pub fn parse_timestamp(String) -> Result[Int, String]
+pub fn parse_timestamp(String) -> Result[Int64, String]
 
 pub fn parse_value(String) -> Value
 
@@ -90,9 +90,9 @@ pub fn struct_from_pairs(Array[(String, String)]) -> Struct
 
 pub fn struct_get(Struct, String) -> String?
 
-pub fn timestamp_from_ymd_hms(Int, Int, Int, Int, Int, Int) -> Int
+pub fn timestamp_from_ymd_hms(Int, Int, Int, Int, Int, Int) -> Int64
 
-pub fn timestamp_to_ymd_hms(Int) -> (Int, Int, Int, Int, Int, Int)
+pub fn timestamp_to_ymd_hms(Int64) -> (Int, Int, Int, Int, Int, Int)
 
 // Errors
 pub suberror DuckDBError {
@@ -111,7 +111,7 @@ pub fn Appender::append_double(Self, Double) -> Result[Unit, DuckDBError]
 pub fn Appender::append_int(Self, Int) -> Result[Unit, DuckDBError]
 pub fn Appender::append_interval(Self, Interval) -> Result[Unit, DuckDBError]
 pub fn Appender::append_null(Self) -> Result[Unit, DuckDBError]
-pub fn Appender::append_timestamp(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_timestamp(Self, Int64) -> Result[Unit, DuckDBError]
 pub fn Appender::append_varchar(Self, String) -> Result[Unit, DuckDBError]
 pub fn Appender::begin_row(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::end_row(Self) -> Result[Unit, DuckDBError]
@@ -223,7 +223,7 @@ pub struct FixtureCase {
 pub struct Interval {
   months : Int
   days : Int
-  micros : Int
+  micros : Int64
 }
 
 pub(all) enum JsBackend {
@@ -236,10 +236,16 @@ pub struct List {
   elements : Array[String]
 }
 
+#external
+pub type LogicalType
+
 pub struct Map {
   keys : Array[String]
   values : Array[String]
 }
+
+#external
+pub type NativeDataChunk
 
 #external
 pub type PreparedStatement
@@ -255,7 +261,7 @@ pub fn PreparedStatement::bind_list_varchar(Self, Int, Array[String]) -> Result[
 pub fn PreparedStatement::bind_map(Self, Int, Map) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_null(Self, Int) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_struct(Self, Int, Struct) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_timestamp(Self, Int, Int) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_timestamp(Self, Int, Int64) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_varchar(Self, Int, String) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
@@ -277,7 +283,7 @@ pub fn QueryResult::get_decimal(Self, Int, Int) -> Decimal?
 pub fn QueryResult::get_double(Self, Int, Int) -> Double?
 pub fn QueryResult::get_int(Self, Int, Int) -> Int?
 pub fn QueryResult::get_string(Self, Int, Int) -> String?
-pub fn QueryResult::get_timestamp(Self, Int, Int) -> Int?
+pub fn QueryResult::get_timestamp(Self, Int, Int) -> Int64?
 pub fn QueryResult::get_value(Self, Int, Int) -> Value?
 pub fn QueryResult::row_count(Self) -> Int
 pub fn QueryResult::to_typed(Self) -> TypedQueryResult
@@ -313,8 +319,8 @@ pub fn TypedQueryResult::get_int(Self, Int, Int) -> Int?
 pub fn TypedQueryResult::get_int_column(Self, Int) -> Array[Int?]?
 pub fn TypedQueryResult::get_string(Self, Int, Int) -> String?
 pub fn TypedQueryResult::get_string_column(Self, Int) -> Array[String?]?
-pub fn TypedQueryResult::get_timestamp(Self, Int, Int) -> Int?
-pub fn TypedQueryResult::get_timestamp_column(Self, Int) -> Array[Int?]?
+pub fn TypedQueryResult::get_timestamp(Self, Int, Int) -> Int64?
+pub fn TypedQueryResult::get_timestamp_column(Self, Int) -> Array[Int64?]?
 pub fn TypedQueryResult::get_value(Self, Int, Int) -> Value?
 pub fn TypedQueryResult::is_null(Self, Int, Int) -> Bool
 pub fn TypedQueryResult::row_count(Self) -> Int
@@ -325,7 +331,7 @@ pub enum Value {
   Bool(Bool)
   String(String)
   Date(Int)
-  Timestamp(Int)
+  Timestamp(Int64)
   Decimal(Decimal)
   Blob(Bytes)
   Null
@@ -337,9 +343,12 @@ pub fn Value::as_decimal(Self) -> Decimal?
 pub fn Value::as_double(Self) -> Double?
 pub fn Value::as_int(Self) -> Int?
 pub fn Value::as_string(Self) -> String?
-pub fn Value::as_timestamp(Self) -> Int?
+pub fn Value::as_timestamp(Self) -> Int64?
 pub fn Value::is_null(Self) -> Bool
 pub fn Value::to_string(Self) -> String
+
+#external
+pub type Vector
 
 // Type aliases
 

@@ -470,7 +470,10 @@ test "prop_append_int_increases_row_count" {
   // This is a stateful test - actual implementation in state machine tests
   // Here we document the expected behavior
   // When append_int is called (with begin_row/end_row), row count increases
-  inspect("append_int should increase row count by 1", content="append_int should increase row count by 1")
+  inspect(
+    "append_int should increase row count by 1",
+    content="append_int should increase row count by 1",
+  )
 }
 ```
 
@@ -481,7 +484,10 @@ Property: append_bool increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_bool_increases_row_count" {
-  inspect("append_bool should increase row count by 1", content="append_bool should increase row count by 1")
+  inspect(
+    "append_bool should increase row count by 1",
+    content="append_bool should increase row count by 1",
+  )
 }
 ```
 
@@ -492,7 +498,10 @@ Property: append_varchar increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_varchar_increases_row_count" {
-  inspect("append_varchar should increase row count by 1", content="append_varchar should increase row count by 1")
+  inspect(
+    "append_varchar should increase row count by 1",
+    content="append_varchar should increase row count by 1",
+  )
 }
 ```
 
@@ -503,7 +512,10 @@ Property: append_double increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_double_increases_row_count" {
-  inspect("append_double should increase row count by 1", content="append_double should increase row count by 1")
+  inspect(
+    "append_double should increase row count by 1",
+    content="append_double should increase row count by 1",
+  )
 }
 ```
 
@@ -514,7 +526,10 @@ Property: append_date increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_date_increases_row_count" {
-  inspect("append_date should increase row count by 1", content="append_date should increase row count by 1")
+  inspect(
+    "append_date should increase row count by 1",
+    content="append_date should increase row count by 1",
+  )
 }
 ```
 
@@ -525,7 +540,10 @@ Property: append_timestamp increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_timestamp_increases_row_count" {
-  inspect("append_timestamp should increase row count by 1", content="append_timestamp should increase row count by 1")
+  inspect(
+    "append_timestamp should increase row count by 1",
+    content="append_timestamp should increase row count by 1",
+  )
 }
 ```
 
@@ -536,7 +554,10 @@ Property: append_null increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_null_increases_row_count" {
-  inspect("append_null should increase row count by 1", content="append_null should increase row count by 1")
+  inspect(
+    "append_null should increase row count by 1",
+    content="append_null should increase row count by 1",
+  )
 }
 ```
 
@@ -547,7 +568,10 @@ Property: append_blob increases the row count after end_row and flush.
 ```mbt check
 ///|
 test "prop_append_blob_increases_row_count" {
-  inspect("append_blob should increase row count by 1", content="append_blob should increase row count by 1")
+  inspect(
+    "append_blob should increase row count by 1",
+    content="append_blob should increase row count by 1",
+  )
 }
 ```
 
@@ -596,7 +620,6 @@ test "prop_value_to_string_roundtrip_bool" {
     Value::Bool(b) => inspect(b, content="true")
     _ => inspect("Expected Bool", content="Expected Bool")
   }
-
   let parsed2 = parse_value("false")
   match parsed2 {
     Value::Bool(b) => inspect(b, content="false")
@@ -785,7 +808,10 @@ test "prop_typedresult_preserves_data" {
 
   // Actual implementation requires database connection
   // This is a documentation placeholder
-  inspect("TypedQueryResult should preserve QueryResult data", content="TypedQueryResult should preserve QueryResult data")
+  inspect(
+    "TypedQueryResult should preserve QueryResult data",
+    content="TypedQueryResult should preserve QueryResult data",
+  )
 }
 ```
 
@@ -797,7 +823,10 @@ Property: TypedQueryResult correctly identifies NULL values.
 ///|
 test "prop_typedresult_null_handling" {
   // is_null should correctly identify NULL values in the result
-  inspect("is_null should return true for NULL values", content="is_null should return true for NULL values")
+  inspect(
+    "is_null should return true for NULL values",
+    content="is_null should return true for NULL values",
+  )
 }
 ```
 
@@ -811,7 +840,10 @@ test "prop_typedresult_type_safety" {
   // get_int should return Int values
   // get_double should return Double values
   // etc.
-  inspect("Typed getters should return correct types", content="Typed getters should return correct types")
+  inspect(
+    "Typed getters should return correct types",
+    content="Typed getters should return correct types",
+  )
 }
 ```
 

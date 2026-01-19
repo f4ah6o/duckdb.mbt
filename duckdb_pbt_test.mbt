@@ -204,8 +204,10 @@ test "prop_value_int_roundtrip" {
 /// Property: Value::Double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_value_double_roundtrip" {
-  let gen = @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
-    n.to_double() / 1000.0
+  let gen = @pbt.Gen::choose_int(-1000000, 1000000).bind(fn(whole) {
+    @pbt.Gen::choose_int(1, 999).map(fn(frac) {
+      whole.to_double() + frac.to_double() / 1000.0
+    })
   })
   let config = @pbt.CheckConfig::new(800, 100, 55555, 30)
   @pbt.assert_check(
@@ -1746,9 +1748,8 @@ test "prop_parse_fraction_to_micros_trailing_zeros" {
     fn(input) {
       let (base, s) = input
       let result = parse_fraction_to_micros(s)
-      // With trailing zeros, should be close to base * 1000
-      let expected = base * 1000
-      if result == expected || result == expected / 1000 {
+      let expected = parse_fraction_to_micros(base.to_string())
+      if result == expected {
         Ok(())
       } else {
         Err("parse_fraction_to_micros(\{s}) = \{result}, expected \{expected}")

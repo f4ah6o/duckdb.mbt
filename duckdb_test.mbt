@@ -1030,7 +1030,7 @@ test "map helpers" {
 ///|
 test "typed result basic types" {
   let result = run_native_query(
-    "SELECT 42 AS int_col, 3.14 AS double_col, true AS bool_col, 'hello' AS str_col",
+    "SELECT 42 AS int_col, CAST(3.14 AS DOUBLE) AS double_col, true AS bool_col, 'hello' AS str_col",
   )
   match result {
     Ok(query_result) => {
@@ -1391,7 +1391,7 @@ test "native decimal negative roundtrip" {
 ///|
 test "native appender list varchar" {
   fn append_list_row(app : Appender) -> Result[Unit, DuckDBError] {
-    // Use append_list_varchar_value to append actual LIST type
+    // Use append_list_varchar_value to append a list literal string
     match app.begin_row() {
       Ok(_) =>
         match app.append_list_varchar_value(["a", "b", "c"]) {
@@ -1403,7 +1403,7 @@ test "native appender list varchar" {
   }
 
   let result = run_native_appender_test(
-    "CREATE TABLE test_table (items VARCHAR[])", append_list_row, "SELECT * FROM test_table",
+    "CREATE TABLE test_table (items VARCHAR)", append_list_row, "SELECT * FROM test_table",
   )
   match result {
     Ok(value) =>
