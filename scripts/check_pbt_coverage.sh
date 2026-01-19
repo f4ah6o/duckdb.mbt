@@ -18,13 +18,13 @@ echo -e "${YELLOW}Counting PBT tests...${NC}"
 
 # Count tests in PBT files
 pbt_files=(
-    "duckdb_pbt_test.mbt"
-    "duckdb_blob_pbt_test.mbt"
-    "duckdb_decimal_pbt_test.mbt"
-    "duckdb_interval_pbt_test.mbt"
-    "duckdb_collection_pbt_test.mbt"
-    "duckdb_connection_state_machine.mbt"
-    "duckdb_appender_state_machine.mbt"
+    "src/duckdb_pbt_test.mbt"
+    "src/duckdb_blob_pbt_test.mbt"
+    "src/duckdb_decimal_pbt_test.mbt"
+    "src/duckdb_interval_pbt_test.mbt"
+    "src/duckdb_collection_pbt_test.mbt"
+    "src/duckdb_connection_state_machine.mbt"
+    "src/duckdb_appender_state_machine.mbt"
 )
 
 total_tests=0
@@ -42,13 +42,13 @@ echo ""
 
 # Check coverage by type
 echo -e "${YELLOW}Coverage by Type:${NC}"
-echo "  Date/Timestamp: $(grep -c 'date\|timestamp' duckdb_pbt_test.mbt 2>/dev/null || echo 0) tests"
-echo "  Blob: $(grep -c 'blob' duckdb_blob_pbt_test.mbt 2>/dev/null || echo 0) tests"
-echo "  Decimal: $(grep -c 'decimal' duckdb_decimal_pbt_test.mbt 2>/dev/null || echo 0) tests"
-echo "  Interval: $(grep -c 'interval' duckdb_interval_pbt_test.mbt 2>/dev/null || echo 0) tests"
-echo "  Collections: $(grep -c 'list\|struct\|map' duckdb_collection_pbt_test.mbt 2>/dev/null || echo 0) tests"
-echo "  Connection: $(grep -c 'connection' duckdb_connection_state_machine.mbt 2>/dev/null || echo 0) tests"
-echo "  Appender: $(grep -c 'appender' duckdb_appender_state_machine.mbt 2>/dev/null || echo 0) tests"
+echo "  Date/Timestamp: $(grep -c 'date\|timestamp' src/duckdb_pbt_test.mbt 2>/dev/null || echo 0) tests"
+echo "  Blob: $(grep -c 'blob' src/duckdb_blob_pbt_test.mbt 2>/dev/null || echo 0) tests"
+echo "  Decimal: $(grep -c 'decimal' src/duckdb_decimal_pbt_test.mbt 2>/dev/null || echo 0) tests"
+echo "  Interval: $(grep -c 'interval' src/duckdb_interval_pbt_test.mbt 2>/dev/null || echo 0) tests"
+echo "  Collections: $(grep -c 'list\|struct\|map' src/duckdb_collection_pbt_test.mbt 2>/dev/null || echo 0) tests"
+echo "  Connection: $(grep -c 'connection' src/duckdb_connection_state_machine.mbt 2>/dev/null || echo 0) tests"
+echo "  Appender: $(grep -c 'appender' src/duckdb_appender_state_machine.mbt 2>/dev/null || echo 0) tests"
 echo ""
 
 # Check for missing coverage

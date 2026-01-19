@@ -683,7 +683,7 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    "const bindTypes = " + JSON.stringify(bind_types) + ";",
   #|    "const fs = require('fs');",
   #|    "const path = require('path');",
-  #|    "const source = fs.readFileSync(path.join(process.cwd(), 'duckdb_js.mbt'), 'utf8');",
+  #|    "const source = fs.readFileSync(path.join(process.cwd(), 'src/duckdb_js.mbt'), 'utf8');",
   #|    "const toError = (err) => err && err.message ? err.message : String(err);",
   #|    "const extract = (name) => {",
   #|    "  const pattern = 'extern \"js\" fn ' + name + '[\\\\s\\\\S]*?=\\\\n((?:\\\\s*#\\\\|.*\\\\n)+)';",

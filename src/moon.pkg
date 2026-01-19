@@ -26,9 +26,9 @@ options(
     "duckdb_pbt_test.mbt": [ "native" ],
     "duckdb_test.mbt": [ "native" ],
     "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
-    "src/pbt/generators.mbt": [ "native" ],
-    "src/pbt/properties.mbt": [ "native" ],
-    "src/pbt/shrinkers.mbt": [ "native" ],
-    "src/pbt/stateful.mbt": [ "native" ],
+    "pbt/generators.mbt": [ "native" ],
+    "pbt/properties.mbt": [ "native" ],
+    "pbt/shrinkers.mbt": [ "native" ],
+    "pbt/stateful.mbt": [ "native" ],
   },
 )
