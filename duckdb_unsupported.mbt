@@ -397,17 +397,77 @@ pub fn Appender::append_timestamp(
 }
 
 ///|
+fn _is_leap_year(year : Int) -> Bool {
+  year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+}
+
+///|
+fn days_before_month(month : Int) -> Int {
+  match month {
+    1 => 0
+    2 => 31
+    3 => 59
+    4 => 90
+    5 => 120
+    6 => 151
+    7 => 181
+    8 => 212
+    9 => 243
+    10 => 273
+    11 => 304
+    12 => 334
+    _ => 0
+  }
+}
+
+///|
+fn count_leap_years_before(year : Int) -> Int {
+  let y = year - 1
+  y / 4 - y / 100 + y / 400
+}
+
+///|
 pub fn date_from_ymd(year : Int, month : Int, day : Int) -> Int {
-  let _ = year
-  let _ = month
-  let _ = day
-  0
+  let year_delta = year - 1970
+  let leap_years = count_leap_years_before(year) - count_leap_years_before(1970)
+  let year_days = year_delta * 365 + leap_years
+  let month_days = days_before_month(month)
+  let leap_day = if month > 2 && _is_leap_year(year) { 1 } else { 0 }
+  let day_days = day - 1
+  year_days + month_days + leap_day + day_days
 }
 
 ///|
 pub fn date_to_ymd(days : Int) -> (Int, Int, Int) {
-  let _ = days
-  (1970, 1, 1)
+  let mut remaining_days = days
+  let mut year = 1970
+  while remaining_days >= 365 {
+    let leap = if _is_leap_year(year) { 1 } else { 0 }
+    let days_in_year = 365 + leap
+    if remaining_days >= days_in_year {
+      remaining_days = remaining_days - days_in_year
+      year = year + 1
+    } else {
+      break
+    }
+  }
+  let is_leap = _is_leap_year(year)
+  let mut month = 1
+  let mut remaining = remaining_days
+  while month <= 12 {
+    let dim = match month {
+      2 => if is_leap { 29 } else { 28 }
+      4 | 6 | 9 | 11 => 30
+      _ => 31
+    }
+    if remaining < dim {
+      break
+    }
+    remaining = remaining - dim
+    month = month + 1
+  }
+  let day = remaining + 1
+  (year, month, day)
 }
 
 ///|
@@ -419,19 +479,31 @@ pub fn timestamp_from_ymd_hms(
   minute : Int,
   second : Int,
 ) -> Int64 {
-  let _ = year
-  let _ = month
-  let _ = day
-  let _ = hour
-  let _ = minute
-  let _ = second
-  0L
+  let date_days = date_from_ymd(year, month, day)
+  let date_days_64 = date_days.to_int64()
+  let hour_64 = hour.to_int64()
+  let minute_64 = minute.to_int64()
+  let second_64 = second.to_int64()
+  let day_micros = date_days_64 * 86400L * 1000000L
+  let time_micros = (hour_64 * 3600L + minute_64 * 60L + second_64) * 1000000L
+  day_micros + time_micros
 }
 
 ///|
 pub fn timestamp_to_ymd_hms(micros : Int64) -> (Int, Int, Int, Int, Int, Int) {
-  let _ = micros
-  (1970, 1, 1, 0, 0, 0)
+  let total_seconds = micros / 1000000L
+  let mut days = total_seconds / 86400L
+  let mut seconds_in_day = total_seconds % 86400L
+  if seconds_in_day < 0L {
+    days = days - 1L
+    seconds_in_day = seconds_in_day + 86400L
+  }
+  let hour = (seconds_in_day / 3600L).to_int()
+  let remaining_seconds = seconds_in_day % 3600L
+  let minute = (remaining_seconds / 60L).to_int()
+  let second = (remaining_seconds % 60L).to_int()
+  let (year, month, day) = date_to_ymd(days.to_int())
+  (year, month, day, hour, minute, second)
 }
 
 // ============================================================================
@@ -469,6 +541,17 @@ pub fn Appender::append_blob(
 // ----------------------------------------------------------------------------
 
 ///|
+fn _int_pow10(exp : Int) -> Int {
+  let mut result = 1
+  let mut i = 0
+  while i < exp {
+    result = result * 10
+    i = i + 1
+  }
+  result
+}
+
+///|
 pub fn PreparedStatement::bind_decimal(
   self : PreparedStatement,
   index : Int,
@@ -492,16 +575,16 @@ pub fn Appender::append_decimal(
 
 ///|
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let _ = value
-  let _ = width
-  let _ = scale
-  { width: 0, scale: 0, lower: 0, upper: 0 }
+  let multiplier = _int_pow10(scale)
+  let scaled = (value * Double::from_int(multiplier)).to_int()
+  let upper = if scaled >= 0 { 0 } else { -1 }
+  { width, scale, lower: scaled, upper }
 }
 
 ///|
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let _ = decimal
-  0.0
+  let divisor = Double::from_int(_int_pow10(decimal.scale))
+  Double::from_int(decimal.lower) / divisor
 }
 
 ///|
@@ -510,16 +593,32 @@ pub fn decimal_from_parts(
   fractional : Int,
   scale : Int,
 ) -> Decimal {
-  let _ = whole
-  let _ = fractional
-  let _ = scale
-  { width: 0, scale: 0, lower: 0, upper: 0 }
+  let divisor = _int_pow10(scale)
+  let value = if whole < 0 {
+    whole * divisor - fractional
+  } else {
+    whole * divisor + fractional
+  }
+  let width = if whole == 0 {
+    String::length(fractional.to_string())
+  } else {
+    String::length(whole.to_string()) + scale
+  }
+  let upper = if value >= 0 { 0 } else { -1 }
+  { width: width.max(1), scale, lower: value, upper }
 }
 
 ///|
 pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let _ = decimal
-  (0, 0)
+  let divisor = _int_pow10(decimal.scale)
+  let whole = decimal.lower / divisor
+  let remainder = decimal.lower % divisor
+  let fractional = if remainder < 0 {
+    divisor - Int::abs(remainder)
+  } else {
+    remainder
+  }
+  (whole, fractional)
 }
 
 // ----------------------------------------------------------------------------
@@ -549,47 +648,46 @@ pub fn Appender::append_interval(
 }
 
 ///|
-pub fn interval_from_parts(months : Int, days : Int, micros : Int64) -> Interval {
-  let _ = months
-  let _ = days
-  let _ = micros
-  { months: 0, days: 0, micros: 0L }
+pub fn interval_from_parts(
+  months : Int,
+  days : Int,
+  micros : Int64,
+) -> Interval {
+  { months, days, micros }
 }
 
 ///|
 pub fn interval_from_days(days : Int) -> Interval {
-  let _ = days
-  { months: 0, days: 0, micros: 0 }
+  { months: 0, days, micros: 0 }
 }
 
 ///|
 pub fn interval_from_hours(hours : Int) -> Interval {
-  let _ = hours
-  { months: 0, days: 0, micros: 0 }
+  let micros = hours.to_int64() * 3600L * 1000000L
+  { months: 0, days: 0, micros }
 }
 
 ///|
 pub fn interval_from_minutes(minutes : Int) -> Interval {
-  let _ = minutes
-  { months: 0, days: 0, micros: 0 }
+  let micros = minutes.to_int64() * 60L * 1000000L
+  { months: 0, days: 0, micros }
 }
 
 ///|
 pub fn interval_from_seconds(seconds : Int) -> Interval {
-  let _ = seconds
-  { months: 0, days: 0, micros: 0 }
+  let micros = seconds.to_int64() * 1000000L
+  { months: 0, days: 0, micros }
 }
 
 ///|
 pub fn interval_from_months(months : Int) -> Interval {
-  let _ = months
-  { months: 0, days: 0, micros: 0 }
+  { months, days: 0, micros: 0 }
 }
 
 ///|
 pub fn interval_to_micros(interval : Interval) -> Int64 {
-  let _ = interval
-  0L
+  let days_micros = interval.days.to_int64() * 86400L * 1000000L
+  interval.micros + days_micros
 }
 
 // ----------------------------------------------------------------------------
@@ -610,21 +708,21 @@ pub fn PreparedStatement::bind_list_varchar(
 
 ///|
 pub fn list_from_strings(elements : Array[String]) -> List {
-  let _ = elements
-  { elements: [] }
+  { elements, }
 }
 
 ///|
 pub fn list_length(list : List) -> Int {
-  let _ = list
-  0
+  list.elements.length()
 }
 
 ///|
 pub fn list_get(list : List, index : Int) -> String? {
-  let _ = list
-  let _ = index
-  None
+  if index >= 0 && index < list.elements.length() {
+    Some(list.elements[index])
+  } else {
+    None
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -648,28 +746,40 @@ pub fn struct_from_arrays(
   fields : Array[String],
   values : Array[String],
 ) -> Struct {
-  let _ = fields
-  let _ = values
-  { fields: [], values: [] }
+  { fields, values }
 }
 
 ///|
 pub fn struct_from_pairs(pairs : Array[(String, String)]) -> Struct {
-  let _ = pairs
-  { fields: [], values: [] }
+  let fields = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { fields, values }
 }
 
 ///|
-pub fn struct_get(s : Struct, field_name : String) -> String? {
-  let _ = s
-  let _ = field_name
+fn array_index_of(arr : Array[String], val : String) -> Int? {
+  let mut i = 0
+  while i < arr.length() {
+    if arr[i] == val {
+      return Some(i)
+    }
+    i = i + 1
+  }
   None
 }
 
 ///|
+pub fn struct_get(s : Struct, field_name : String) -> String? {
+  let idx = array_index_of(s.fields, field_name)
+  match idx {
+    Some(i) => if i < s.values.length() { Some(s.values[i]) } else { None }
+    None => None
+  }
+}
+
+///|
 pub fn struct_field_count(s : Struct) -> Int {
-  let _ = s
-  0
+  s.fields.length()
 }
 
 // ----------------------------------------------------------------------------
@@ -690,26 +800,26 @@ pub fn PreparedStatement::bind_map(
 
 ///|
 pub fn map_from_arrays(keys : Array[String], values : Array[String]) -> Map {
-  let _ = keys
-  let _ = values
-  { keys: [], values: [] }
+  { keys, values }
 }
 
 ///|
 pub fn map_from_pairs(pairs : Array[(String, String)]) -> Map {
-  let _ = pairs
-  { keys: [], values: [] }
+  let keys = pairs.map(fn(p) { p.0 })
+  let values = pairs.map(fn(p) { p.1 })
+  { keys, values }
 }
 
 ///|
 pub fn map_get(m : Map, key : String) -> String? {
-  let _ = m
-  let _ = key
-  None
+  let idx = array_index_of(m.keys, key)
+  match idx {
+    Some(i) => if i < m.values.length() { Some(m.values[i]) } else { None }
+    None => None
+  }
 }
 
 ///|
 pub fn map_size(m : Map) -> Int {
-  let _ = m
-  0
+  m.keys.length()
 }
