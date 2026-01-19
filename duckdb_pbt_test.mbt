@@ -417,10 +417,9 @@ test "prop_is_double_edge_cases" {
 /// Property: parse_double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_parse_double_roundtrip" {
-  let gen = @pbt.Gen::map(
-    @pbt.Gen::choose_int(-1000000, 1000000),
-    fn(n) { n.to_double() / 1000.0 },
-  )
+  let gen = @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+    n.to_double() / 1000.0
+  })
   let config = @pbt.CheckConfig::new(1000, 100, 141414, 50)
   @pbt.assert_check(
     "parse_double round-trip",

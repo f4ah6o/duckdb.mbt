@@ -723,7 +723,10 @@ pub fn parse_time_to_micros(s : String) -> Result[Int64, String] {
     let hour = parse_int(hour_str)
     let minute = parse_int(minute_str)
     // Use Int64 to avoid overflow
-    let base = (hour.to_int64() * 3600L + minute.to_int64() * 60L + second.to_int64()) * 1000000L
+    let base = (
+        hour.to_int64() * 3600L + minute.to_int64() * 60L + second.to_int64()
+      ) *
+      1000000L
     Ok(base + frac_micros.to_int64())
   }
 }

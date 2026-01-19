@@ -1268,7 +1268,6 @@ pub fn timestamp_from_ymd_hms(
   let hour_64 = hour.to_int64()
   let minute_64 = minute.to_int64()
   let second_64 = second.to_int64()
-
   let day_micros = date_days_64 * 86400L * 1000000L
   let time_micros = (hour_64 * 3600L + minute_64 * 60L + second_64) * 1000000L
   day_micros + time_micros
@@ -1287,7 +1286,6 @@ pub fn timestamp_to_ymd_hms(micros : Int64) -> (Int, Int, Int, Int, Int, Int) {
     days = days - 1L
     seconds_in_day = seconds_in_day + 86400L
   }
-
   let hour = (seconds_in_day / 3600L).to_int()
   let remaining_seconds = seconds_in_day % 3600L
   let minute = (remaining_seconds / 60L).to_int()

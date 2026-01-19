@@ -261,21 +261,18 @@ test "prop_list_get_element_access" {
     list_get(list, 0),
     content=(
       #|Some("apple")
-
     ),
   )
   inspect(
     list_get(list, 1),
     content=(
       #|Some("banana")
-
     ),
   )
   inspect(
     list_get(list, 2),
     content=(
       #|Some("cherry")
-
     ),
   )
   inspect(list_get(list, 3), content="None")
@@ -317,21 +314,18 @@ test "prop_struct_get_field_access" {
     struct_get(s, "name"),
     content=(
       #|Some("Alice")
-
     ),
   )
   inspect(
     struct_get(s, "age"),
     content=(
       #|Some("30")
-
     ),
   )
   inspect(
     struct_get(s, "city"),
     content=(
       #|Some("Tokyo")
-
     ),
   )
   inspect(struct_get(s, "missing"), content="None")
@@ -372,21 +366,18 @@ test "prop_map_get_key_lookup" {
     map_get(m, "apple"),
     content=(
       #|Some("red")
-
     ),
   )
   inspect(
     map_get(m, "banana"),
     content=(
       #|Some("yellow")
-
     ),
   )
   inspect(
     map_get(m, "grape"),
     content=(
       #|Some("purple")
-
     ),
   )
   inspect(map_get(m, "orange"), content="None")
