@@ -468,10 +468,10 @@ duckdb_mb_chunk *duckdb_mb_stream_fetch_chunk(duckdb_mb_stream *stream) {
     duckdb_mb_set_error("stream is null");
     return NULL;
   }
-  duckdb_data_chunk chunk = duckdb_fetch_chunk(*stream->result);
+  duckdb_data_chunk chunk = duckdb_stream_fetch_chunk(*stream->result);
   if (!chunk) {
     const char *error = duckdb_result_error(stream->result);
-    duckdb_mb_set_error(error && error[0] ? error : "duckdb_fetch_chunk failed");
+    duckdb_mb_set_error(error && error[0] ? error : "duckdb_stream_fetch_chunk failed");
     return NULL;
   }
   duckdb_mb_chunk *mb_chunk = (duckdb_mb_chunk *)malloc(sizeof(duckdb_mb_chunk));
