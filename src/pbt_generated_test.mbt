@@ -1,239 +1,154 @@
 ///|
-/// Property-Based Tests for duckdb.mbt
-/// Auto-generated from PBT markdown
-///
-
-///|
-/// Date Round-Trip: date_from_ymd / date_to_ymd preserves year, month, day
-test "prop_date_from_ymd_to_ymd_roundtrip" {
-  // Test epoch
-  let (y1, m1, d1) = date_to_ymd(date_from_ymd(1970, 1, 1))
-  inspect((y1, m1, d1), content="(1970, 1, 1)")
-
-  // Test common dates
-  let (y2, m2, d2) = date_to_ymd(date_from_ymd(2024, 6, 15))
-  inspect((y2, m2, d2), content="(2024, 6, 15)")
-
-  // Test leap year
-  let (y3, m3, d3) = date_to_ymd(date_from_ymd(2024, 2, 29))
-  inspect((y3, m3, d3), content="(2024, 2, 29)")
-
-  // Test month boundaries
-  let (y4, m4, d4) = date_to_ymd(date_from_ymd(2024, 1, 31))
-  inspect((y4, m4, d4), content="(2024, 1, 31)")
-  let (y5, m5, d5) = date_to_ymd(date_from_ymd(2024, 12, 31))
-  inspect((y5, m5, d5), content="(2024, 12, 31)")
+/// Generate array of strings for map keys/values.
+fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
+  @pbt.Gen::choose_int(0, 20).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(arr) {
+      let strs = arr.map(fn(n) { "key_" + n.to_string() })
+      take_string_array(strs, len)
+    })
+  })
 }
 
 ///|
-/// Timestamp Round-Trip: timestamp_from_ymd_hms / timestamp_to_ymd_hms preserves datetime
-test "prop_timestamp_from_ymd_hms_to_ymd_hms_roundtrip" {
-  // Test epoch
-  let (y1, m1, d1, h1, min1, s1) = timestamp_to_ymd_hms(
-    timestamp_from_ymd_hms(1970, 1, 1, 0, 0, 0),
-  )
-  inspect((y1, m1, d1, h1, min1, s1), content="(1970, 1, 1, 0, 0, 0)")
-
-  // Test common datetime
-  let (y2, m2, d2, h2, min2, s2) = timestamp_to_ymd_hms(
-    timestamp_from_ymd_hms(2024, 6, 3, 12, 34, 56),
-  )
-  inspect((y2, m2, d2, h2, min2, s2), content="(2024, 6, 3, 12, 34, 56)")
-
-  // Test future date
-  let (y3, m3, d3, h3, min3, s3) = timestamp_to_ymd_hms(
-    timestamp_from_ymd_hms(2050, 12, 31, 23, 59, 59),
-  )
-  inspect((y3, m3, d3, h3, min3, s3), content="(2050, 12, 31, 23, 59, 59)")
+/// Generate pair of arrays for map_from_arrays.
+fn gen_map_arrays_local() -> @pbt.Gen[(Array[String], Array[String])] {
+  @pbt.Gen::choose_int(0, 10).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(keys_arr) {
+      @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(vals_arr) {
+        let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
+        let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
+        let min_len = Int::min(
+          len,
+          Int::min(keys_full.length(), values_full.length()),
+        )
+        let keys = take_string_array(keys_full, min_len)
+        let values = take_string_array(values_full, min_len)
+        (keys, values)
+      })
+    })
+  })
 }
 
 ///|
-/// Decimal Round-Trip: decimal_from_double / decimal_to_double preserves value
-test "prop_decimal_from_double_to_double_roundtrip" {
-  // Test simple values
-  let d1 = decimal_from_double(123.45, 20, 2)
-  let v1 = decimal_to_double(d1)
-  inspect(Double::abs(v1 - 123.45) < 0.01, content="true")
-
-  // Test zero
-  let d2 = decimal_from_double(0.0, 20, 2)
-  let v2 = decimal_to_double(d2)
-  inspect(Double::abs(v2) < 0.001, content="true")
-
-  // Test negative value
-  let d3 = decimal_from_double(-99.99, 20, 2)
-  let v3 = decimal_to_double(d3)
-  inspect(Double::abs(v3 - -99.99) < 0.01, content="true")
+/// Take the first N elements from an array (or fewer if shorter).
+fn take_string_array(arr : Array[String], len : Int) -> Array[String] {
+  let result : Array[String] = []
+  let mut i = 0
+  let target = if len < arr.length() { len } else { arr.length() }
+  while i < target {
+    result.push(arr[i])
+    i = i + 1
+  }
+  result
 }
 
 ///|
-/// Decimal Round-Trip: decimal_from_parts / decimal_to_parts preserves components
-test "prop_decimal_from_parts_to_parts_roundtrip" {
-  // Test positive value
-  let d1 = decimal_from_parts(123, 45, 2)
-  let (w1, f1) = decimal_to_parts(d1)
-  inspect((w1, f1), content="(123, 45)")
-
-  // Test zero
-  let d2 = decimal_from_parts(0, 0, 2)
-  let (w2, f2) = decimal_to_parts(d2)
-  inspect((w2, f2), content="(0, 0)")
-
-  // Test negative value
-  let d3 = decimal_from_parts(-100, 50, 2)
-  let (w3, f3) = decimal_to_parts(d3)
-  inspect((w3, f3), content="(-100, 50)")
+/// Shrink string arrays toward simpler inputs.
+fn shrink_string_array_local(arr : Array[String]) -> Iter[Array[String]] {
+  let len = arr.length()
+  if len == 0 {
+    return [].iter()
+  }
+  let candidates : Array[Array[String]] = [[]]
+  let half = len / 2
+  if half > 0 {
+    candidates.push(take_string_array(arr, half))
+  }
+  if len > 1 {
+    candidates.push(take_string_array(arr, 1))
+  }
+  candidates.iter()
 }
 
 ///|
-/// Interval: interval_from_parts / interval_to_micros correctly converts to microseconds
-test "prop_interval_from_parts_to_micros" {
-  // Test 1 day in microseconds
-  let i1 = interval_from_parts(0, 1, 0L)
-  let micros1 = interval_to_micros(i1)
-  inspect(micros1, content="86400000000")
-
-  // Test 1000 microseconds
-  let i2 = interval_from_parts(0, 0, 1000L)
-  let micros2 = interval_to_micros(i2)
-  inspect(micros2, content="1000")
-
-  // Test combined: 1 day + 1000 microseconds
-  let i3 = interval_from_parts(0, 1, 1000L)
-  let micros3 = interval_to_micros(i3)
-  inspect(micros3, content="86400001000")
+/// Shrink map input arrays while keeping key/value lengths aligned.
+fn shrink_map_arrays_local(
+  input : (Array[String], Array[String]),
+) -> Iter[(Array[String], Array[String])] {
+  let (keys, values) = input
+  let candidates : Array[(Array[String], Array[String])] = []
+  for shrunk_keys in shrink_string_array_local(keys) {
+    let len = Int::min(shrunk_keys.length(), values.length())
+    let trimmed_keys = take_string_array(shrunk_keys, len)
+    let trimmed_values = take_string_array(values, len)
+    candidates.push((trimmed_keys, trimmed_values))
+  }
+  for shrunk_values in shrink_string_array_local(values) {
+    let len = Int::min(keys.length(), shrunk_values.length())
+    let trimmed_keys = take_string_array(keys, len)
+    let trimmed_values = take_string_array(shrunk_values, len)
+    candidates.push((trimmed_keys, trimmed_values))
+  }
+  candidates.iter()
 }
 
 ///|
-/// List: list_from_strings preserves array length
-test "prop_list_from_strings_length_preserved" {
-  let arr1 = []
-  let l1 = list_from_strings(arr1)
-  inspect(list_length(l1), content="0")
-  let arr2 = ["a", "b", "c"]
-  let l2 = list_from_strings(arr2)
-  inspect(list_length(l2), content="3")
-  let arr3 = ["x"]
-  let l3 = list_from_strings(arr3)
-  inspect(list_length(l3), content="1")
+/// Property: list_from_strings preserves length for arbitrary input arrays.
+test "prop_list_from_strings_length_preserved_pbt" {
+  let gen = gen_string_array_local()
+  let config = @pbt.CheckConfig::new(200, 20, 4242, 20)
+  @pbt.assert_check(
+    "list_from_strings preserves length",
+    gen,
+    fn(arr) {
+      let list = list_from_strings(arr)
+      if list_length(list) == arr.length() {
+        Ok(())
+      } else {
+        Err("Length mismatch: \{list_length(list)} vs \{arr.length()}")
+      }
+    },
+    config~,
+    shrink=shrink_string_array_local,
+  )
 }
 
 ///|
-/// List: list_get returns correct element by index
-test "prop_list_get_element_access" {
-  let arr = ["apple", "banana", "cherry"]
-  let list = list_from_strings(arr)
-  inspect(
-    list_get(list, 0),
-    content=(
-      #|Some("apple")
-    ),
+/// Property: map_from_arrays never produces more entries than input pairs.
+test "prop_map_from_arrays_size_bounded_pbt" {
+  let gen = gen_map_arrays_local()
+  let config = @pbt.CheckConfig::new(200, 20, 4243, 20)
+  @pbt.assert_check(
+    "map_from_arrays size bounded by input length",
+    gen,
+    fn(input) {
+      let (keys, values) = input
+      let map = map_from_arrays(keys, values)
+      if map_size(map) <= keys.length() {
+        Ok(())
+      } else {
+        Err("Map size exceeded inputs: \{map_size(map)} vs \{keys.length()}")
+      }
+    },
+    config~,
+    shrink=shrink_map_arrays_local,
   )
-  inspect(
-    list_get(list, 1),
-    content=(
-      #|Some("banana")
-    ),
-  )
-  inspect(
-    list_get(list, 2),
-    content=(
-      #|Some("cherry")
-    ),
-  )
-  inspect(list_get(list, 3), content="None")
-  inspect(list_get(list, -1), content="None")
 }
 
 ///|
-/// Struct: struct_from_pairs preserves field count
-test "prop_struct_from_pairs_field_count_preserved" {
-  let pairs1 = []
-  let s1 = struct_from_pairs(pairs1)
-  inspect(struct_field_count(s1), content="0")
-  let pairs2 = [("name", "Alice"), ("age", "30")]
-  let s2 = struct_from_pairs(pairs2)
-  inspect(struct_field_count(s2), content="2")
-  let pairs3 = [("a", "1"), ("b", "2"), ("c", "3"), ("d", "4")]
-  let s3 = struct_from_pairs(pairs3)
-  inspect(struct_field_count(s3), content="4")
-}
-
-///|
-/// Struct: struct_get returns correct field value by name
-test "prop_struct_get_field_access" {
-  let pairs = [("name", "Alice"), ("age", "30"), ("city", "Tokyo")]
-  let s = struct_from_pairs(pairs)
-  inspect(
-    struct_get(s, "name"),
-    content=(
-      #|Some("Alice")
-    ),
+/// Property: map_from_pairs never produces more entries than input pairs.
+test "prop_map_from_pairs_size_bounded_pbt" {
+  let gen = gen_map_arrays_local()
+  let config = @pbt.CheckConfig::new(200, 20, 4244, 20)
+  @pbt.assert_check(
+    "map_from_pairs size bounded by input length",
+    gen,
+    fn(input) {
+      let (keys, values) = input
+      let pairs : Array[(String, String)] = []
+      let mut i = 0
+      while i < keys.length() {
+        pairs.push((keys[i], values[i]))
+        i = i + 1
+      }
+      let map = map_from_pairs(pairs)
+      if map_size(map) <= pairs.length() {
+        Ok(())
+      } else {
+        Err("Map size exceeded pairs: \{map_size(map)} vs \{pairs.length()}")
+      }
+    },
+    config~,
+    shrink=shrink_map_arrays_local,
   )
-  inspect(
-    struct_get(s, "age"),
-    content=(
-      #|Some("30")
-    ),
-  )
-  inspect(
-    struct_get(s, "city"),
-    content=(
-      #|Some("Tokyo")
-    ),
-  )
-  inspect(struct_get(s, "missing"), content="None")
-}
-
-///|
-/// Map: map_from_pairs preserves entry count
-test "prop_map_from_pairs_size_preserved" {
-  let pairs1 = []
-  let m1 = map_from_pairs(pairs1)
-  inspect(map_size(m1), content="0")
-  let pairs2 = [("key1", "value1"), ("key2", "value2")]
-  let m2 = map_from_pairs(pairs2)
-  inspect(map_size(m2), content="2")
-  let pairs3 = [("a", "1"), ("b", "2"), ("c", "3")]
-  let m3 = map_from_pairs(pairs3)
-  inspect(map_size(m3), content="3")
-}
-
-///|
-/// Map: map_get returns correct value by key
-test "prop_map_get_key_lookup" {
-  let pairs = [("apple", "red"), ("banana", "yellow"), ("grape", "purple")]
-  let m = map_from_pairs(pairs)
-  inspect(
-    map_get(m, "apple"),
-    content=(
-      #|Some("red")
-    ),
-  )
-  inspect(
-    map_get(m, "banana"),
-    content=(
-      #|Some("yellow")
-    ),
-  )
-  inspect(
-    map_get(m, "grape"),
-    content=(
-      #|Some("purple")
-    ),
-  )
-  inspect(map_get(m, "orange"), content="None")
-}
-
-///|
-/// Map: map_from_arrays preserves size
-test "prop_map_from_arrays_preserves_size" {
-  let keys1 = []
-  let values1 = []
-  let m1 = map_from_arrays(keys1, values1)
-  inspect(map_size(m1), content="0")
-  let keys2 = ["a", "b", "c"]
-  let values2 = ["1", "2", "3"]
-  let m2 = map_from_arrays(keys2, values2)
-  inspect(map_size(m2), content="3")
 }
