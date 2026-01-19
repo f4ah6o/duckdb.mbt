@@ -1,0 +1,381 @@
+///|
+/// PBT Generators for DuckDB MoonBit bindings
+/// Provides value generators for property-based testing
+
+pub fn gen_date() -> @pbt.Gen[(Int, Int, Int)] {
+  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
+    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+      let max_day = match month {
+        2 => 29 // Simplified - will be filtered by tests
+        4 | 6 | 9 | 11 => 30
+        _ => 31
+      }
+      @pbt.Gen::choose_int(1, max_day).map(fn(day) { (year, month, day) })
+    })
+  })
+}
+
+///|
+/// Generate edge case dates including leap years and boundaries
+pub fn gen_date_edge() -> @pbt.Gen[(Int, Int, Int)] {
+  @pbt.Gen::one_of([
+    @pbt.Gen::pure((1970, 1, 1)), // Epoch
+    @pbt.Gen::pure((2000, 2, 29)), // Leap day (divisible by 400)
+    @pbt.Gen::pure((1900, 2, 28)), // Non-leap century
+    @pbt.Gen::pure((1900, 3, 1)), // Day after non-leap Feb 28
+    @pbt.Gen::pure((2024, 2, 29)), // Leap day
+    @pbt.Gen::pure((2023, 2, 28)), // Non-leap year
+    @pbt.Gen::pure((2099, 12, 31)), // Upper boundary
+    @pbt.Gen::pure((1970, 12, 31)), // End of first year
+    @pbt.Gen::pure((1971, 1, 1)), // Start of second year
+    @pbt.Gen::map(@pbt.Gen::choose_int(2000, 2024), fn(y) {
+      let is_leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+      let day = if is_leap { 29 } else { 28 }
+      (y, 2, day)
+    }),
+  ])
+}
+
+///|
+/// Generate safe timestamp values (within Int range)
+pub fn gen_timestamp_safe() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
+  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
+    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+      let max_day = match month {
+        2 => 29
+        4 | 6 | 9 | 11 => 30
+        _ => 31
+      }
+      @pbt.Gen::choose_int(1, max_day).bind(fn(day) {
+        @pbt.Gen::choose_int(0, 23).bind(fn(hour) {
+          @pbt.Gen::choose_int(0, 59).bind(fn(minute) {
+            @pbt.Gen::choose_int(0, 59).map(fn(second) {
+              (year, month, day, hour, minute, second)
+            })
+          })
+        })
+      })
+    })
+  })
+}
+
+///|
+/// Generate edge case timestamps
+pub fn gen_timestamp_edge() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
+  @pbt.Gen::one_of([
+    @pbt.Gen::pure((1970, 1, 1, 0, 0, 0)), // Epoch
+    @pbt.Gen::pure((1970, 1, 1, 23, 59, 59)), // End of epoch day
+    @pbt.Gen::pure((2000, 2, 29, 0, 0, 0)), // Leap day midnight
+    @pbt.Gen::pure((2000, 2, 29, 23, 59, 59)), // Leap day end
+    @pbt.Gen::pure((2099, 12, 31, 23, 59, 59)), // Upper boundary
+    @pbt.Gen::pure((1970, 1, 1, 0, 0, 1)), // One second after epoch
+    @pbt.Gen::map(@pbt.Gen::choose_int(0, 23), fn(h) {
+      (1970, 1, 1, h, 0, 0) // Hour variations on epoch
+    }),
+  ])
+}
+
+///|
+/// Generate Value variants with weighted frequency
+pub fn gen_value() -> @pbt.Gen[Value] {
+  @pbt.Gen::frequency([
+    (20, @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+      Value::Int(n)
+    })),
+    (15, @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+      Value::Double(n.to_double() / 1000.0)
+    })),
+    (5, @pbt.Gen::one_of([
+      @pbt.Gen::pure(Value::Bool(true)),
+      @pbt.Gen::pure(Value::Bool(false)),
+    ])),
+    (15, @pbt.Gen::map(@pbt.Gen::choose_int(0, 10000), fn(n) {
+      Value::String("test_" + n.to_string())
+    })),
+    (10, @pbt.Gen::map(gen_date(), fn((y, m, d)) {
+      Value::Date(date_to_days(y, m, d))
+    })),
+    (10, @pbt.Gen::map(gen_timestamp_safe(), fn((y, m, d, h, min, s)) {
+      Value::Timestamp(timestamp_from_ymd_hms(y, m, d, h, min, s))
+    })),
+    (5, gen_blob_value()),
+    (15, @pbt.Gen::pure(Value::Null)),
+  ])
+}
+
+///|
+/// Generate non-null Value variants
+pub fn gen_value_non_null() -> @pbt.Gen[Value] {
+  @pbt.Gen::frequency([
+    (25, @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+      Value::Int(n)
+    })),
+    (20, @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+      Value::Double(n.to_double() / 1000.0)
+    })),
+    (10, @pbt.Gen::one_of([
+      @pbt.Gen::pure(Value::Bool(true)),
+      @pbt.Gen::pure(Value::Bool(false)),
+    ])),
+    (20, @pbt.Gen::map(@pbt.Gen::choose_int(0, 10000), fn(n) {
+      Value::String("test_" + n.to_string())
+    })),
+    (15, @pbt.Gen::map(gen_date(), fn((y, m, d)) {
+      Value::Date(date_to_days(y, m, d))
+    })),
+    (10, @pbt.Gen::map(gen_timestamp_safe(), fn((y, m, d, h, min, s)) {
+      Value::Timestamp(timestamp_from_ymd_hms(y, m, d, h, min, s))
+    })),
+    (5, gen_blob_value()),
+  ])
+}
+
+///|
+/// Generate ColumnType variants
+pub fn gen_column_type() -> @pbt.Gen[ColumnType] {
+  @pbt.Gen::one_of([
+    @pbt.Gen::pure(ColumnType::Invalid),
+    @pbt.Gen::pure(ColumnType::Boolean),
+    @pbt.Gen::pure(ColumnType::TinyInt),
+    @pbt.Gen::pure(ColumnType::SmallInt),
+    @pbt.Gen::pure(ColumnType::Integer),
+    @pbt.Gen::pure(ColumnType::BigInt),
+    @pbt.Gen::pure(ColumnType::UTinyInt),
+    @pbt.Gen::pure(ColumnType::USmallInt),
+    @pbt.Gen::pure(ColumnType::UInteger),
+    @pbt.Gen::pure(ColumnType::UBigInt),
+    @pbt.Gen::pure(ColumnType::Float),
+    @pbt.Gen::pure(ColumnType::Double),
+    @pbt.Gen::pure(ColumnType::Timestamp),
+    @pbt.Gen::pure(ColumnType::Date),
+    @pbt.Gen::pure(ColumnType::Time),
+    @pbt.Gen::pure(ColumnType::Interval),
+    @pbt.Gen::pure(ColumnType::HugeInt),
+    @pbt.Gen::pure(ColumnType::UHugeInt),
+    @pbt.Gen::pure(ColumnType::Varchar),
+    @pbt.Gen::pure(ColumnType::Blob),
+    @pbt.Gen::pure(ColumnType::Decimal),
+    @pbt.Gen::pure(ColumnType::TimestampS),
+    @pbt.Gen::pure(ColumnType::TimestampMs),
+    @pbt.Gen::pure(ColumnType::TimestampNs),
+    @pbt.Gen::pure(ColumnType::Enum),
+    @pbt.Gen::pure(ColumnType::List),
+    @pbt.Gen::pure(ColumnType::Struct),
+    @pbt.Gen::pure(ColumnType::Map),
+    @pbt.Gen::pure(ColumnType::Array),
+    @pbt.Gen::pure(ColumnType::Uuid),
+    @pbt.Gen::pure(ColumnType::Union),
+    @pbt.Gen::pure(ColumnType::Bit),
+    @pbt.Gen::pure(ColumnType::TimeTz),
+    @pbt.Gen::pure(ColumnType::TimestampTz),
+    @pbt.Gen::map(@pbt.Gen::choose_int(-100, 1000), fn(n) {
+      ColumnType::Unknown(n)
+    }),
+  ])
+}
+
+///|
+/// Generate safe Decimal values (within valid width/scale bounds)
+pub fn gen_decimal_safe() -> @pbt.Gen[Decimal] {
+  @pbt.Gen::choose_int(1, 38).bind(fn(width) {
+    @pbt.Gen::choose_int(0, width).map(fn(scale) {
+      let value = @pbt.Gen::choose_int(-1000000, 1000000)
+      Decimal::{ width, scale, lower: value, upper: 0 }
+    })
+  })
+}
+
+///|
+/// Generate edge case Decimal values
+pub fn gen_decimal_edge() -> @pbt.Gen[Decimal] {
+  @pbt.Gen::one_of([
+    // Width/scale boundaries
+    @pbt.Gen::pure(Decimal::{ width: 1, scale: 0, lower: 0, upper: 0 }),
+    @pbt.Gen::pure(Decimal::{ width: 38, scale: 0, lower: 0, upper: 0 }),
+    @pbt.Gen::pure(Decimal::{ width: 38, scale: 38, lower: 0, upper: 0 }),
+    @pbt.Gen::pure(Decimal::{ width: 10, scale: 2, lower: 0, upper: 0 }),
+    // Negative values
+    @pbt.Gen::pure(Decimal::{ width: 10, scale: 2, lower: -1, upper: -1 }),
+    @pbt.Gen::pure(Decimal::{ width: 10, scale: 2, lower: -100, upper: -1 }),
+    // Zero
+    @pbt.Gen::pure(Decimal::{ width: 5, scale: 2, lower: 0, upper: 0 }),
+    // Large positive values
+    @pbt.Gen::map(@pbt.Gen::choose_int(100000, 1000000), fn(n) {
+      Decimal::{ width: 20, scale: 4, lower: n, upper: 0 }
+    }),
+    // Scale = width (all decimal places)
+    @pbt.Gen::map(@pbt.Gen::choose_int(1, 10), fn(scale) {
+      Decimal::{ width: scale, scale: scale, lower: 123, upper: 0 }
+    }),
+  ])
+}
+
+///|
+/// Generate safe Interval values
+pub fn gen_interval_safe() -> @pbt.Gen[Interval] {
+  @pbt.Gen::choose_int(-1000, 1000).bind(fn(months) {
+    @pbt.Gen::choose_int(-1000, 1000).bind(fn(days) {
+      @pbt.Gen::choose_int(-1000000, 1000000).map(fn(micros) {
+        Interval::{ months, days, micros }
+      })
+    })
+  })
+}
+
+///|
+/// Generate edge case Interval values
+pub fn gen_interval_edge() -> @pbt.Gen[Interval] {
+  @pbt.Gen::one_of([
+    // Zero interval
+    @pbt.Gen::pure(Interval::{ months: 0, days: 0, micros: 0 }),
+    // Individual components
+    @pbt.Gen::map(@pbt.Gen::choose_int(-10000, 10000), fn(m) {
+      Interval::{ months: m, days: 0, micros: 0 }
+    }),
+    @pbt.Gen::map(@pbt.Gen::choose_int(-10000, 10000), fn(d) {
+      Interval::{ months: 0, days: d, micros: 0 }
+    }),
+    @pbt.Gen::map(@pbt.Gen::choose_int(-10000000, 10000000), fn(u) {
+      Interval::{ months: 0, days: 0, micros: u }
+    }),
+    // Boundary combinations
+    @pbt.Gen::pure(Interval::{ months: 1, days: 0, micros: 0 }),
+    @pbt.Gen::pure(Interval::{ months: 0, days: 1, micros: 0 }),
+    @pbt.Gen::pure(Interval::{ months: 0, days: 0, micros: 1000000 }), // 1 second
+    @pbt.Gen::pure(Interval::{ months: 0, days: 0, micros: 60000000 }), // 1 minute
+    @pbt.Gen::pure(Interval::{ months: 0, days: 0, micros: 3600000000 }), // 1 hour
+    // Negative values
+    @pbt.Gen::pure(Interval::{ months: -1, days: 0, micros: 0 }),
+    @pbt.Gen::pure(Interval::{ months: 0, days: -1, micros: 0 }),
+    @pbt.Gen::pure(Interval::{ months: 0, days: 0, micros: -1 }),
+    // Mixed signs
+    @pbt.Gen::pure(Interval::{ months: 1, days: -1, micros: 1000000 }),
+  ])
+}
+
+///|
+/// Generate Bytes (byte array) for blob testing
+pub fn gen_bytes() -> @pbt.Gen[Bytes] {
+  @pbt.Gen::choose_int(0, 1000).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 255)).map(fn(arr) {
+      if arr.length() == 0 {
+        Bytes::empty()
+      } else {
+        let mut bytes = Array::make(len, 0.to_uint8())
+        let mut i = 0
+        for val in arr {
+          if i < len {
+            bytes[i] = val.to_uint8()
+            i = i + 1
+          }
+        }
+        Bytes::from_array(bytes)
+      }
+    })
+  })
+}
+
+///|
+/// Generate Value::Blob variants
+pub fn gen_blob_value() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(gen_bytes(), fn(bytes) { Value::Blob(bytes) })
+}
+
+///|
+/// Generate empty blob value
+pub fn gen_blob_empty() -> @pbt.Gen[Value] {
+  @pbt.Gen::pure(Value::Blob(Bytes::empty()))
+}
+
+///|
+/// Generate List values
+pub fn gen_list_value() -> @pbt.Gen[List] {
+  @pbt.Gen::choose_int(0, 100).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(-1000, 1000)).map(fn(arr) {
+      let strs = arr.map(fn(n) { n.to_string() })
+      List::{ elements: strs }
+    })
+  })
+}
+
+///|
+/// Generate Struct values
+pub fn gen_struct_value() -> @pbt.Gen[Struct] {
+  @pbt.Gen::choose_int(0, 10).bind(fn(field_count) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(values_arr) {
+      let fields = Array::makei(field_count, fn(i) { "field_" + i.to_string() })
+      let values = values_arr.map(fn(n) { n.to_string() })
+      @pbt.Gen::pure(Struct::{ fields, values })
+    })
+  })
+}
+
+///|
+/// Generate Map values
+pub fn gen_map_value() -> @pbt.Gen[Map] {
+  @pbt.Gen::choose_int(0, 20).bind(fn(size) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(keys_arr) {
+      @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(vals_arr) {
+        let keys = keys_arr.map(fn(n) { "key_" + n.to_string() })
+        let values = vals_arr.map(fn(n) { "val_" + n.to_string() })
+        Map::{ keys, values }
+      })
+    })
+  })
+}
+
+///|
+/// Generate small integer for bounded testing
+pub fn gen_small_int() -> @pbt.Gen[Int] {
+  @pbt.Gen::choose_int(-100, 100)
+}
+
+///|
+/// Generate non-negative integer
+pub fn gen_nat() -> @pbt.Gen[Int] {
+  @pbt.Gen::choose_int(0, 1000000)
+}
+
+///|
+/// Generate string for testing
+pub fn gen_string() -> @pbt.Gen[String] {
+  @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(len) {
+    let mut s = ""
+    let mut i = 0
+    while i < len {
+      s = s + "x"
+      i = i + 1
+    }
+    s
+  })
+}
+
+///|
+/// Generate alphanumeric string
+pub fn gen_alphanum_string() -> @pbt.Gen[String] {
+  @pbt.Gen::map(@pbt.Gen::choose_int(0, 50), fn(len) {
+    let mut s = ""
+    let mut i = 0
+    let chars = "abc123xyz"
+    while i < len {
+      let idx = i % chars.length()
+      s = s + chars[idx].to_string()
+      i = i + 1
+    }
+    s
+  })
+}
+
+///|
+/// Generate array of values
+pub fn gen_value_array() -> @pbt.Gen[Array[Value]] {
+  @pbt.Gen::choose_int(0, 50).bind(fn(len) {
+    @pbt.Gen::array_of(gen_value_non_null()).map(fn(arr) {
+      if arr.length() > len {
+        arr.view(start_offset=0, end_offset=len).to_array()
+      } else {
+        arr
+      }
+    })
+  })
+}
