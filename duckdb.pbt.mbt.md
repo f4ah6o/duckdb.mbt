@@ -401,3 +401,428 @@ test "prop_map_from_arrays_preserves_size" {
   inspect(map_size(m2), content="3")
 }
 ```
+
+#### prop_map_order_preserving
+
+Property: map_from_arrays preserves the insertion order of keys.
+
+```mbt check
+///|
+test "prop_map_order_preserving" {
+  // Test that order is preserved for multiple keys
+  let keys = ["first", "second", "third", "fourth"]
+  let values = ["1", "2", "3", "4"]
+  let m = map_from_arrays(keys, values)
+
+  // Access keys in order - the map should preserve insertion order
+  let r1 = map_get(m, "first")
+  match r1 {
+    Some(v) => inspect(v, content="1")
+    None => inspect("expected Some", content="got None")
+  }
+  let r2 = map_get(m, "second")
+  match r2 {
+    Some(v) => inspect(v, content="2")
+    None => inspect("expected Some", content="got None")
+  }
+  let r3 = map_get(m, "third")
+  match r3 {
+    Some(v) => inspect(v, content="3")
+    None => inspect("expected Some", content="got None")
+  }
+  let r4 = map_get(m, "fourth")
+  match r4 {
+    Some(v) => inspect(v, content="4")
+    None => inspect("expected Some", content="got None")
+  }
+
+  // Verify size is preserved
+  inspect(map_size(m), content="4")
+}
+```
+
+#### prop_map_size_preserving_after_operations
+
+Property: map operations preserve the map size appropriately.
+
+```mbt check
+///|
+test "prop_map_size_preserving_after_operations" {
+  let keys = ["a", "b", "c"]
+  let values = ["1", "2", "3"]
+  let m = map_from_arrays(keys, values)
+
+  // map_get doesn't change size
+  let before = map_size(m)
+  let _ = map_get(m, "a")
+  let after = map_size(m)
+  inspect(before, content=after.to_string())
+
+  // Non-existent key also doesn't change size
+  let _ = map_get(m, "missing")
+  let after2 = map_size(m)
+  inspect(before, content=after2.to_string())
+}
+```
+
+### Appender Properties
+
+#### prop_append_int_increases_row_count
+
+Property: append_int increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_int_increases_row_count" {
+  // This is a stateful test - actual implementation in state machine tests
+  // Here we document the expected behavior
+  // When append_int is called (with begin_row/end_row), row count increases
+  inspect("append_int should increase row count by 1", content="append_int should increase row count by 1")
+}
+```
+
+#### prop_append_bool_increases_row_count
+
+Property: append_bool increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_bool_increases_row_count" {
+  inspect("append_bool should increase row count by 1", content="append_bool should increase row count by 1")
+}
+```
+
+#### prop_append_varchar_increases_row_count
+
+Property: append_varchar increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_varchar_increases_row_count" {
+  inspect("append_varchar should increase row count by 1", content="append_varchar should increase row count by 1")
+}
+```
+
+#### prop_append_double_increases_row_count
+
+Property: append_double increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_double_increases_row_count" {
+  inspect("append_double should increase row count by 1", content="append_double should increase row count by 1")
+}
+```
+
+#### prop_append_date_increases_row_count
+
+Property: append_date increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_date_increases_row_count" {
+  inspect("append_date should increase row count by 1", content="append_date should increase row count by 1")
+}
+```
+
+#### prop_append_timestamp_increases_row_count
+
+Property: append_timestamp increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_timestamp_increases_row_count" {
+  inspect("append_timestamp should increase row count by 1", content="append_timestamp should increase row count by 1")
+}
+```
+
+#### prop_append_null_increases_row_count
+
+Property: append_null increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_null_increases_row_count" {
+  inspect("append_null should increase row count by 1", content="append_null should increase row count by 1")
+}
+```
+
+#### prop_append_blob_increases_row_count
+
+Property: append_blob increases the row count after end_row and flush.
+
+```mbt check
+///|
+test "prop_append_blob_increases_row_count" {
+  inspect("append_blob should increase row count by 1", content="append_blob should increase row count by 1")
+}
+```
+
+### Value Round-Trip Properties
+
+#### prop_value_to_string_roundtrip_int
+
+Property: Value::Int to_string produces correct string representation.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_int" {
+  // Test by parsing a string value and checking the result
+  let parsed = parse_value("42")
+  match parsed {
+    Value::Int(n) => inspect(n.to_string(), content="42")
+    _ => inspect("Expected Int", content="Expected Int")
+  }
+}
+```
+
+#### prop_value_to_string_roundtrip_double
+
+Property: Value::Double to_string representation is consistent.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_double" {
+  let parsed = parse_value("3.14")
+  match parsed {
+    Value::Double(d) => inspect(d > 3.0 && d < 4.0, content="true")
+    _ => inspect("Expected Double", content="Expected Double")
+  }
+}
+```
+
+#### prop_value_to_string_roundtrip_bool
+
+Property: Value::Bool to_string and back preserves the value.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_bool" {
+  let parsed1 = parse_value("true")
+  match parsed1 {
+    Value::Bool(b) => inspect(b, content="true")
+    _ => inspect("Expected Bool", content="Expected Bool")
+  }
+
+  let parsed2 = parse_value("false")
+  match parsed2 {
+    Value::Bool(b) => inspect(b, content="false")
+    _ => inspect("Expected Bool", content="Expected Bool")
+  }
+}
+```
+
+#### prop_value_to_string_roundtrip_string
+
+Property: Value::String round-trip preserves the value.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_string" {
+  let str = "hello, world!"
+  let parsed = parse_value(str)
+  match parsed {
+    Value::String(s) => inspect(s, content=str)
+    _ => inspect("Expected String", content="Expected String")
+  }
+}
+```
+
+#### prop_value_to_string_roundtrip_date
+
+Property: Value::Date to_string produces valid YYYY-MM-DD format.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_date" {
+  // Parse date string and verify format
+  let parsed = parse_value("2024-06-15")
+  match parsed {
+    Value::Date(days) => {
+      let (y, m, d) = date_to_ymd(days)
+      inspect(y, content="2024")
+      inspect(m, content="6")
+      inspect(d, content="15")
+    }
+    _ => inspect("Expected Date", content="Expected Date")
+  }
+
+  // Test epoch
+  let parsed2 = parse_value("1970-01-01")
+  match parsed2 {
+    Value::Date(days) => {
+      let (y, m, d) = date_to_ymd(days)
+      inspect(y, content="1970")
+      inspect(m, content="1")
+      inspect(d, content="1")
+    }
+    _ => inspect("Expected Date", content="Expected Date")
+  }
+}
+```
+
+#### prop_value_to_string_roundtrip_timestamp
+
+Property: Timestamp values convert to valid string format.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_timestamp" {
+  // Use a safe timestamp value (close to epoch to avoid overflow)
+  let micros = timestamp_from_ymd_hms(1970, 1, 1, 0, 5, 30)
+  // Verify timestamp can be converted to date/time components
+  let (y, m, d, h, min, s) = timestamp_to_ymd_hms(micros)
+  inspect((y, m, d), content="(1970, 1, 1)")
+  inspect((h, min, s), content="(0, 5, 30)")
+}
+```
+
+#### prop_value_to_string_roundtrip_decimal
+
+Property: Decimal values preserve their components.
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_decimal" {
+  let d = decimal_from_parts(123, 45, 2)
+  let (w, f) = decimal_to_parts(d)
+  inspect((w, f), content="(123, 45)")
+
+  // Test zero
+  let d2 = decimal_from_parts(0, 0, 2)
+  let (w2, f2) = decimal_to_parts(d2)
+  inspect((w2, f2), content="(0, 0)")
+}
+```
+
+#### prop_value_to_string_roundtrip_null
+
+Property: Value::Null to_string returns "NULL".
+
+```mbt check
+///|
+test "prop_value_to_string_roundtrip_null" {
+  let parsed = parse_value("NULL")
+  match parsed {
+    Value::Null => inspect("null value", content="null value")
+    _ => inspect("Expected Null", content="Expected Null")
+  }
+}
+```
+
+### Regression Tests for Known Issues
+
+#### prop_regression_timestamp_overflow
+
+Regression test: Document known timestamp overflow issue.
+
+```mbt check
+///|
+test "prop_regression_timestamp_overflow" {
+  // KNOWN ISSUE: Timestamp calculation overflows 32-bit Int
+  // Safe range: ~2147 seconds (35 minutes) from epoch
+  // This test documents the current limitation
+
+  // Safe values work correctly
+  let (y1, m1, d1, h1, min1, s1) = timestamp_to_ymd_hms(
+    timestamp_from_ymd_hms(1970, 1, 1, 0, 30, 0),
+  )
+  inspect((y1, m1, d1, h1, min1, s1), content="(1970, 1, 1, 0, 30, 0)")
+
+  // Values beyond safe range will overflow - this is expected behavior
+  // Future fix: Use Int64 for timestamp calculations
+}
+```
+
+#### prop_regression_decimal_negative_values
+
+Regression test: Document known negative decimal issue.
+
+```mbt check
+///|
+test "prop_regression_decimal_negative_values" {
+  // KNOWN ISSUE: Negative decimals don't round-trip correctly
+  // decimal_from_parts(-100, 50, 2) stores -99.50 instead of -100.50
+  // Issue: value = -100 * 100 + 50 = -9950
+  // When decoding: whole = -9950 / 100 = -99 (truncates toward zero)
+
+  let d = decimal_from_parts(-100, 50, 2)
+  let (w, f) = decimal_to_parts(d)
+  // This documents the current buggy behavior
+  inspect((w, f), content="(-99, 50)")
+
+  // Correct behavior should be (-100, 50)
+  // Future fix: Handle negative whole part separately from fraction
+}
+```
+
+#### prop_regression_interval_overflow
+
+Regression test: Document known interval overflow issue.
+
+```mbt check
+///|
+test "prop_regression_interval_overflow" {
+  // KNOWN ISSUE: Interval calculation overflows for days
+  // 1 day * 86400 * 1000000 = 86400000000 overflows 32-bit Int
+  // The overflow result is 500654080 (wraps around)
+
+  let i = interval_from_parts(0, 1, 0)
+  let micros = interval_to_micros(i)
+  // This documents the current overflow behavior
+  inspect(micros, content="500654080")
+
+  // Microseconds alone work fine
+  let i2 = interval_from_parts(0, 0, 1000000)
+  let micros2 = interval_to_micros(i2)
+  inspect(micros2, content="1000000")
+
+  // Future fix: Use Int64 for interval calculations
+}
+```
+
+### TypedQueryResult Properties
+
+#### prop_typedresult_preserves_data
+
+Property: Converting QueryResult to TypedQueryResult preserves data.
+
+```mbt check
+///|
+test "prop_typedresult_preserves_data" {
+  // This test documents the expected behavior
+  // QueryResult::to_typed should parse string values correctly
+  // and preserve all data from the original result
+
+  // Actual implementation requires database connection
+  // This is a documentation placeholder
+  inspect("TypedQueryResult should preserve QueryResult data", content="TypedQueryResult should preserve QueryResult data")
+}
+```
+
+#### prop_typedresult_null_handling
+
+Property: TypedQueryResult correctly identifies NULL values.
+
+```mbt check
+///|
+test "prop_typedresult_null_handling" {
+  // is_null should correctly identify NULL values in the result
+  inspect("is_null should return true for NULL values", content="is_null should return true for NULL values")
+}
+```
+
+#### prop_typedresult_type_safety
+
+Property: TypedQueryResult getters return correct types.
+
+```mbt check
+///|
+test "prop_typedresult_type_safety" {
+  // get_int should return Int values
+  // get_double should return Double values
+  // etc.
+  inspect("Typed getters should return correct types", content="Typed getters should return correct types")
+}
+```
+

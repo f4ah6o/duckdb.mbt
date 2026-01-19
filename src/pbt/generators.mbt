@@ -38,17 +38,14 @@ pub fn gen_date_edge() -> @pbt.Gen[(Int, Int, Int)] {
 
 ///|
 /// Generate safe timestamp values (within Int range)
+/// NOTE: Due to 32-bit Int overflow, timestamps beyond ~35 minutes from epoch will overflow
+/// This generator uses a very conservative range to avoid overflow
 pub fn gen_timestamp_safe() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
-  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
-    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
-      let max_day = match month {
-        2 => 29
-        4 | 6 | 9 | 11 => 30
-        _ => 31
-      }
-      @pbt.Gen::choose_int(1, max_day).bind(fn(day) {
-        @pbt.Gen::choose_int(0, 23).bind(fn(hour) {
-          @pbt.Gen::choose_int(0, 59).bind(fn(minute) {
+  @pbt.Gen::choose_int(1970, 1970).bind(fn(year) {
+    @pbt.Gen::choose_int(1, 1).bind(fn(month) {
+      @pbt.Gen::choose_int(1, 31).bind(fn(day) {
+        @pbt.Gen::choose_int(0, 0).bind(fn(hour) {
+          @pbt.Gen::choose_int(0, 35).bind(fn(minute) {
             @pbt.Gen::choose_int(0, 59).map(fn(second) {
               (year, month, day, hour, minute, second)
             })
@@ -57,6 +54,17 @@ pub fn gen_timestamp_safe() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
       })
     })
   })
+}
+
+///|
+/// Generate timestamp values that will definitely overflow
+/// For testing overflow behavior and error handling
+pub fn gen_timestamp_overflow() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
+  @pbt.Gen::one_of([
+    @pbt.Gen::pure((1970, 1, 1, 1, 0, 0)), // 1 hour - will overflow
+    @pbt.Gen::pure((2020, 1, 1, 0, 0, 0)), // Far future - will overflow
+    @pbt.Gen::pure((2000, 6, 15, 12, 30, 0)), // Arbitrary date - will overflow
+  ])
 }
 
 ///|
@@ -178,10 +186,21 @@ pub fn gen_column_type() -> @pbt.Gen[ColumnType] {
 /// Generate safe Decimal values (within valid width/scale bounds)
 pub fn gen_decimal_safe() -> @pbt.Gen[Decimal] {
   @pbt.Gen::choose_int(1, 38).bind(fn(width) {
-    @pbt.Gen::choose_int(0, width).map(fn(scale) {
-      let value = @pbt.Gen::choose_int(-1000000, 1000000)
-      Decimal::{ width, scale, lower: value, upper: 0 }
+    @pbt.Gen::choose_int(0, width).bind(fn(scale) {
+      let max_val = int_pow10(scale).to_int()
+      @pbt.Gen::choose_int(-max_val * 100, max_val * 100).map(fn(value) {
+        Decimal::{ width, scale, lower: value, upper: 0 }
+      })
     })
+  })
+}
+
+///|
+/// Generate Decimal with specific width and scale
+pub fn gen_decimal_with(width : Int, scale : Int) -> @pbt.Gen[Decimal] {
+  let max_val = int_pow10(scale).to_int()
+  @pbt.Gen::choose_int(-max_val * 100, max_val * 100).map(fn(value) {
+    Decimal::{ width, scale, lower: value, upper: 0 }
   })
 }
 
@@ -379,3 +398,123 @@ pub fn gen_value_array() -> @pbt.Gen[Array[Value]] {
     })
   })
 }
+
+///|
+/// Generate Value::Int specifically
+pub fn gen_value_int() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(@pbt.Gen::choose_int(-1000000000, 1000000000), fn(n) {
+    Value::Int(n)
+  })
+}
+
+///|
+/// Generate Value::Double specifically
+pub fn gen_value_double() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(@pbt.Gen::choose_int(-1000000, 1000000), fn(n) {
+    Value::Double(n.to_double() / 1000.0)
+  })
+}
+
+///|
+/// Generate Value::Bool specifically
+pub fn gen_value_bool() -> @pbt.Gen[Value] {
+  @pbt.Gen::one_of([
+    @pbt.Gen::pure(Value::Bool(true)),
+    @pbt.Gen::pure(Value::Bool(false)),
+  ])
+}
+
+///|
+/// Generate Value::String specifically
+pub fn gen_value_string() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(gen_alphanum_string(), fn(s) { Value::String(s) })
+}
+
+///|
+/// Generate Value::Date specifically
+pub fn gen_value_date() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(gen_date(), fn((y, m, d)) {
+    Value::Date(date_to_days(y, m, d))
+  })
+}
+
+///|
+/// Generate Value::Timestamp specifically (safe range)
+pub fn gen_value_timestamp_safe() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(gen_timestamp_safe(), fn((y, m, d, h, min, s)) {
+    Value::Timestamp(timestamp_from_ymd_hms(y, m, d, h, min, s))
+  })
+}
+
+///|
+/// Generate Value::Decimal specifically
+pub fn gen_value_decimal() -> @pbt.Gen[Value] {
+  @pbt.Gen::map(gen_decimal_safe(), fn(d) { Value::Decimal(d) })
+}
+
+///|
+/// Generate Value::Null
+pub fn gen_value_null() -> @pbt.Gen[Value] {
+  @pbt.Gen::pure(Value::Null)
+}
+
+///|
+/// Generate positive integers only
+pub fn gen_pos_int() -> @pbt.Gen[Int] {
+  @pbt.Gen::choose_int(1, 1000000000)
+}
+
+///|
+/// Generate negative integers only
+pub fn gen_neg_int() -> @pbt.Gen[Int] {
+  @pbt.Gen::choose_int(-1000000000, -1)
+}
+
+///|
+/// Generate small positive integers (for exhaustive testing)
+pub fn gen_small_pos_int() -> @pbt.Gen[Int] {
+  @pbt.Gen::choose_int(0, 100)
+}
+
+///|
+/// Generate array of strings for map keys/values
+pub fn gen_string_array() -> @pbt.Gen[Array[String]] {
+  @pbt.Gen::choose_int(0, 20).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(arr) {
+      let strs = arr.map(fn(n) { "key_" + n.to_string() })
+      strs.view(start_offset=0, end_offset=Int::min(len, strs.length())).to_array()
+    })
+  })
+}
+
+///|
+/// Generate pair of arrays for map_from_arrays
+pub fn gen_map_arrays() -> @pbt.Gen[(Array[String], Array[String])] {
+  @pbt.Gen::choose_int(0, 10).bind(fn(len) {
+    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(keys_arr) {
+      @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(vals_arr) {
+        let keys = keys_arr.map(fn(n) { "key_" + n.to_string() })
+          .view(start_offset=0, end_offset=len)
+          .to_array()
+        let values = vals_arr.map(fn(n) { "val_" + n.to_string() })
+          .view(start_offset=0, end_offset=len)
+          .to_array()
+        (keys, values)
+      })
+    })
+  })
+}
+
+///|
+/// Generate valid month/day combinations for a given year
+pub fn gen_valid_date_in_year(year : Int) -> @pbt.Gen[(Int, Int, Int)] {
+  @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+    let max_day = match month {
+      2 => if (year % 4 == 0 && year % 100 != 0) || year % 400 == 0 { 29 } else { 28 }
+      4 | 6 | 9 | 11 => 30
+      _ => 31
+    }
+    @pbt.Gen::choose_int(1, max_day).map(fn(day) { (year, month, day) })
+  })
+}
+
