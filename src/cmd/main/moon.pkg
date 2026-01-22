@@ -1,4 +1,6 @@
-import { "f4ah6o/duckdb" as @lib }
+import {
+  "f4ah6o/duckdb" as @lib,
+}
 
 options(
   "is-main": true,

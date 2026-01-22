@@ -1,4 +1,7 @@
-import { "f4ah6o/aletheia/pbt" as @pbt }
+import {
+  "f4ah6o/aletheia/pbt" as @pbt,
+  "moonbitlang/core/int" as @int,
+}
 
 options(
   "is-main": false,
