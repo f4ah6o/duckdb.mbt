@@ -2674,3 +2674,139 @@ test "prop_map_from_pairs_size_bounded_pbt" {
   )
 }
 ```
+
+---
+
+## Manual Properties (Checked)
+
+### prop_date_roundtrip_valid_ymd
+
+Round-trip property: `date_to_ymd(date_from_ymd(y,m,d)) == (y,m,d)` for valid dates.
+
+```mbt check
+///|
+fn pow10_int(exp : Int) -> Int {
+  let mut result = 1
+  let mut i = 0
+  while i < exp {
+    result = result * 10
+    i = i + 1
+  }
+  result
+}
+
+///|
+fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
+  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
+    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+      let max_day = days_in_month(year, month)
+      @pbt.Gen::choose_int(1, max_day).map(fn(day) {
+        (year, month, day)
+      })
+    })
+  })
+}
+
+///|
+test "prop_date_roundtrip_valid_ymd" {
+  let gen = gen_valid_date()
+  let config = @pbt.CheckConfig::new(200, 20, 730001, 20)
+  @pbt.assert_check(
+    "date_from_ymd/date_to_ymd round-trip",
+    gen,
+    fn(input) {
+      let (year, month, day) = input
+      let days = date_from_ymd(year, month, day)
+      let (y2, m2, d2) = date_to_ymd(days)
+      if year == y2 && month == m2 && day == d2 {
+        Ok(())
+      } else {
+        Err("round-trip failed: (\{year},\{month},\{day}) -> (\{y2},\{m2},\{d2})")
+      }
+    },
+    config~,
+  )
+}
+```
+
+### prop_timestamp_roundtrip_valid_ymd_hms
+
+Round-trip property: `timestamp_to_ymd_hms(timestamp_from_ymd_hms(...))` returns original parts.
+
+```mbt check
+///|
+fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
+  gen_valid_date().bind(fn(date) {
+    let (year, month, day) = date
+    @pbt.Gen::choose_int(0, 23).bind(fn(hour) {
+      @pbt.Gen::choose_int(0, 59).bind(fn(minute) {
+        @pbt.Gen::choose_int(0, 59).map(fn(second) {
+          (year, month, day, hour, minute, second)
+        })
+      })
+    })
+  })
+}
+
+///|
+test "prop_timestamp_roundtrip_valid_ymd_hms" {
+  let gen = gen_valid_timestamp_parts()
+  let config = @pbt.CheckConfig::new(200, 20, 730002, 20)
+  @pbt.assert_check(
+    "timestamp_from_ymd_hms/timestamp_to_ymd_hms round-trip",
+    gen,
+    fn(input) {
+      let (year, month, day, hour, minute, second) = input
+      let micros = timestamp_from_ymd_hms(year, month, day, hour, minute, second)
+      let (y2, m2, d2, h2, min2, s2) = timestamp_to_ymd_hms(micros)
+      if year == y2 && month == m2 && day == d2 && hour == h2 && minute == min2 && second == s2 {
+        Ok(())
+      } else {
+        Err(
+          "round-trip failed: (\{year},\{month},\{day},\{hour},\{minute},\{second}) -> (\{y2},\{m2},\{d2},\{h2},\{min2},\{s2})",
+        )
+      }
+    },
+    config~,
+  )
+}
+```
+
+### prop_decimal_parts_roundtrip
+
+Round-trip property: `decimal_to_parts(decimal_from_parts(whole, frac, scale))` returns original parts.
+
+```mbt check
+///|
+fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
+  @pbt.Gen::choose_int(0, 6).bind(fn(scale) {
+    let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
+    @pbt.Gen::choose_int(0, 1000).bind(fn(whole) {
+      @pbt.Gen::choose_int(0, max_frac).map(fn(frac) {
+        (whole, frac, scale)
+      })
+    })
+  })
+}
+
+///|
+test "prop_decimal_parts_roundtrip" {
+  let gen = gen_decimal_parts()
+  let config = @pbt.CheckConfig::new(200, 20, 730003, 20)
+  @pbt.assert_check(
+    "decimal_from_parts/decimal_to_parts round-trip",
+    gen,
+    fn(input) {
+      let (whole, frac, scale) = input
+      let dec = decimal_from_parts(whole, frac, scale)
+      let (whole2, frac2) = decimal_to_parts(dec)
+      if whole == whole2 && frac == frac2 {
+        Ok(())
+      } else {
+        Err("round-trip failed: (\{whole},\{frac},\{scale}) -> (\{whole2},\{frac2})")
+      }
+    },
+    config~,
+  )
+}
+```
