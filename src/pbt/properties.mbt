@@ -10,10 +10,10 @@ pub fn prop_roundtrip[A : Show, B : Show](
   decode: (B) -> A,
   name: String,
   equal: (A, A) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(original) {
@@ -39,10 +39,10 @@ pub fn prop_idempotent[A : Show](
   operation: (A) -> A,
   name: String,
   equal: (A, A) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(input) {
@@ -69,10 +69,10 @@ pub fn prop_invariant[A : Show, B : Show](
   invariant: (A) -> B,
   name: String,
   equal: (B, B) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(input) {
@@ -98,7 +98,7 @@ pub fn prop_associative[A : Show](
   operation: (A, A) -> A,
   name: String,
   equal: (A, A) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : ((A, A, A)) -> Iter[(A, A, A)],
 ) -> Unit {
   let triple_gen = gen.bind(fn(a) {
@@ -117,7 +117,7 @@ pub fn prop_associative[A : Show](
     candidates.iter()
   }
 
-  @pbt.assert_check(
+  assert_check(
     name,
     triple_gen,
     fn((a, b, c)) {
@@ -143,12 +143,12 @@ pub fn prop_commutative[A : Show](
   operation: (A, A) -> A,
   name: String,
   equal: (A, A) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : ((A, A)) -> Iter[(A, A)],
 ) -> Unit {
   let pair_gen = gen.bind(fn(a) { gen.map(fn(b) { (a, b) }) })
 
-  @pbt.assert_check(
+  assert_check(
     name,
     pair_gen,
     fn((a, b)) {
@@ -175,10 +175,10 @@ pub fn prop_identity[A : Show](
   identity: A,
   name: String,
   equal: (A, A) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(x) {
@@ -202,10 +202,10 @@ pub fn prop_reflexive[A : Show](
   gen: @pbt.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(x) {
@@ -226,12 +226,12 @@ pub fn prop_symmetric[A : Show](
   gen: @pbt.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : ((A, A)) -> Iter[(A, A)],
 ) -> Unit {
   let pair_gen = gen.bind(fn(a) { gen.map(fn(b) { (a, b) }) })
 
-  @pbt.assert_check(
+  assert_check(
     name,
     pair_gen,
     fn((a, b)) {
@@ -256,7 +256,7 @@ pub fn prop_transitive[A : Show](
   gen: @pbt.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : ((A, A, A)) -> Iter[(A, A, A)],
 ) -> Unit {
   let triple_gen = gen.bind(fn(a) {
@@ -271,7 +271,7 @@ pub fn prop_transitive[A : Show](
     candidates.iter()
   }
 
-  @pbt.assert_check(
+  assert_check(
     name,
     triple_gen,
     fn((a, b, c)) {
@@ -299,10 +299,10 @@ pub fn prop_consistency[A : Show, B : Show](
   f2: (A) -> B,
   name: String,
   equal: (B, B) -> Bool,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(input) {
@@ -328,12 +328,12 @@ pub fn prop_monotonic[A : Show](
   f: (A) -> Int,
   leq: (A, A) -> Bool,
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : ((A, A)) -> Iter[(A, A)],
 ) -> Unit {
   let pair_gen = gen.bind(fn(a) { gen.map(fn(b) { (a, b) }) })
 
-  @pbt.assert_check(
+  assert_check(
     name,
     pair_gen,
     fn((a, b)) {
@@ -363,10 +363,10 @@ pub fn prop_preservation[A : Show](
   operation: (A) -> A,
   predicate: (A) -> Bool,
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(input) {
@@ -391,10 +391,10 @@ pub fn prop_error_preservation[A : Show, B : Show](
   gen: @pbt.Gen[A],
   operation: (A) -> Result[B, String],
   name: String,
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
-  @pbt.assert_check(
+  assert_check(
     name,
     gen,
     fn(input) {

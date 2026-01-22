@@ -1,7 +1,17 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "f4ah6o/duckdb"
 
+import {
+  "moonbitlang/quickcheck",
+}
+
 // Values
+pub fn[T] array_of(@quickcheck.Gen[T]) -> @quickcheck.Gen[Array[T]]
+
+pub fn[A : Show] assert_check(String, @quickcheck.Gen[A], (A) -> Result[Unit, String], config? : CheckConfig, shrink? : (A) -> Iter[A]) -> Unit
+
+pub fn[A : Show] check_with_stats(@quickcheck.Gen[A], (A) -> (Result[Unit, String], String?), config? : CheckConfig) -> CheckResult
+
 pub fn column_type_from_id(Int) -> ColumnType
 
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
@@ -82,6 +92,8 @@ pub fn parse_timestamp(String) -> Result[Int64, String]
 
 pub fn parse_value(String) -> Value
 
+pub fn shrink_int(Int) -> Iter[Int]
+
 pub fn struct_field_count(Struct) -> Int
 
 pub fn struct_from_arrays(Array[String], Array[String]) -> Struct
@@ -138,6 +150,15 @@ pub fn ArrowResult::row_count(Self) -> Int
 pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]
 }
+
+type CheckConfig
+pub fn CheckConfig::default() -> Self
+pub fn CheckConfig::new(Int, Int, Int, Int, discard_ratio? : Int) -> Self
+pub fn CheckConfig::seed(Self) -> Int
+
+type CheckResult
+pub fn CheckResult::passed(Self) -> Bool
+pub fn CheckResult::stats(Self) -> String?
 
 pub enum ColumnType {
   Invalid

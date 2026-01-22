@@ -241,11 +241,9 @@ pub fn execute_appender_command_on_model(
 ///|
 /// Property: cannot append before begin row
 test "prop_appender_cannot_append_before_begin_row" {
-  let gen = @pbt.Gen::pure(
-    (AppenderState::Ready, AppenderCommand::AppendInt(42)),
-  )
-  let config = @pbt.CheckConfig::new(10, 10, 750001, 5)
-  @pbt.assert_check(
+  let gen = @pbt.pure((AppenderState::Ready, AppenderCommand::AppendInt(42)))
+  let config = CheckConfig::new(10, 10, 750001, 5)
+  assert_check(
     "cannot append before begin row",
     gen,
     fn(input) {
@@ -272,11 +270,11 @@ test "prop_appender_cannot_append_before_begin_row" {
 ///|
 /// Property: must call end row after all columns
 test "prop_appender_must_end_row_after_columns" {
-  let gen = @pbt.Gen::choose_int(1, 10).map(fn(col_count) {
+  let gen = @pbt.int_range(1, 10).map(fn(col_count) {
     (AppenderState::RowInProgress, col_count, AppenderCommand::EndRow)
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750002, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750002, 20)
+  assert_check(
     "must call end row after all columns",
     gen,
     fn(input) {
@@ -304,7 +302,7 @@ test "prop_appender_must_end_row_after_columns" {
 ///|
 /// Property: flush preserves row count
 test "prop_appender_flush_preserves_row_count" {
-  let gen = @pbt.Gen::choose_int(0, 100).map(fn(row_count) {
+  let gen = @pbt.int_range(0, 100).map(fn(row_count) {
     let model = AppenderModel::{
       state: AppenderState::Ready,
       column_count: 0,
@@ -314,8 +312,8 @@ test "prop_appender_flush_preserves_row_count" {
     }
     (model, row_count)
   })
-  let config = @pbt.CheckConfig::new(200, 50, 750003, 30)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 50, 750003, 30)
+  assert_check(
     "flush preserves row count",
     gen,
     fn(input) {
@@ -340,11 +338,11 @@ test "prop_appender_flush_preserves_row_count" {
 ///|
 /// Property: row count increases only after end row and flush
 test "prop_appender_row_count_increases" {
-  let gen = @pbt.Gen::choose_int(1, 10).map(fn(col_count) {
+  let gen = @pbt.int_range(1, 10).map(fn(col_count) {
     appender_model_initial(col_count)
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750004, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750004, 20)
+  assert_check(
     "row count increases correctly",
     gen,
     fn(model) {
@@ -401,11 +399,11 @@ test "prop_appender_row_count_increases" {
 ///|
 /// Property: create transitions to ready
 test "prop_appender_create_transitions" {
-  let gen = @pbt.Gen::pure(
+  let gen = @pbt.pure(
     (AppenderState::NotCreated, AppenderCommand::Create("test_table")),
   )
-  let config = @pbt.CheckConfig::new(10, 10, 750005, 5)
-  @pbt.assert_check(
+  let config = CheckConfig::new(10, 10, 750005, 5)
+  assert_check(
     "create transitions to ready",
     gen,
     fn(input) {
@@ -424,9 +422,9 @@ test "prop_appender_create_transitions" {
 ///|
 /// Property: begin row transitions to row in progress
 test "prop_appender_begin_row_transitions" {
-  let gen = @pbt.Gen::pure((AppenderState::Ready, AppenderCommand::BeginRow))
-  let config = @pbt.CheckConfig::new(10, 10, 750006, 5)
-  @pbt.assert_check(
+  let gen = @pbt.pure((AppenderState::Ready, AppenderCommand::BeginRow))
+  let config = CheckConfig::new(10, 10, 750006, 5)
+  assert_check(
     "begin row transitions to row in progress",
     gen,
     fn(input) {
@@ -451,13 +449,13 @@ test "prop_appender_begin_row_transitions" {
 ///|
 /// Property: close transitions to closed
 test "prop_appender_close_transitions" {
-  let gen = @pbt.Gen::one_of([
-    @pbt.Gen::pure((AppenderState::Ready, AppenderCommand::Close)),
-    @pbt.Gen::pure((AppenderState::RowInProgress, AppenderCommand::Close)),
-    @pbt.Gen::pure((AppenderState::Flushed, AppenderCommand::Close)),
+  let gen = @pbt.one_of([
+    @pbt.pure((AppenderState::Ready, AppenderCommand::Close)),
+    @pbt.pure((AppenderState::RowInProgress, AppenderCommand::Close)),
+    @pbt.pure((AppenderState::Flushed, AppenderCommand::Close)),
   ])
-  let config = @pbt.CheckConfig::new(30, 10, 750007, 10)
-  @pbt.assert_check(
+  let config = CheckConfig::new(30, 10, 750007, 10)
+  assert_check(
     "close transitions to closed",
     gen,
     fn(input) {
@@ -482,7 +480,7 @@ test "prop_appender_close_transitions" {
 ///|
 /// Property: appending beyond column count errors
 test "prop_appender_append_beyond_columns_errors" {
-  let gen = @pbt.Gen::choose_int(1, 10).map(fn(col_count) {
+  let gen = @pbt.int_range(1, 10).map(fn(col_count) {
     let model = AppenderModel::{
       state: AppenderState::RowInProgress,
       column_count: col_count, // Already at max
@@ -492,8 +490,8 @@ test "prop_appender_append_beyond_columns_errors" {
     }
     (model, col_count)
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750008, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750008, 20)
+  assert_check(
     "appending beyond column count errors",
     gen,
     fn(input) {
@@ -515,8 +513,8 @@ test "prop_appender_append_beyond_columns_errors" {
 ///|
 /// Property: end row with incomplete columns errors
 test "prop_appender_end_row_incomplete_errors" {
-  let gen = @pbt.Gen::choose_int(1, 10).bind(fn(col_count) {
-    @pbt.Gen::choose_int(0, col_count - 1).map(fn(current_count) {
+  let gen = @pbt.int_range(1, 10).bind(fn(col_count) {
+    @pbt.int_range(0, col_count - 1).map(fn(current_count) {
       let model = AppenderModel::{
         state: AppenderState::RowInProgress,
         column_count: current_count, // Incomplete
@@ -527,8 +525,8 @@ test "prop_appender_end_row_incomplete_errors" {
       (model, col_count, current_count)
     })
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750009, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750009, 20)
+  assert_check(
     "end row with incomplete columns errors",
     gen,
     fn(input) {
@@ -550,14 +548,14 @@ test "prop_appender_end_row_incomplete_errors" {
 ///|
 /// Property: closed appender cannot accept commands
 test "prop_appender_closed_no_commands" {
-  let gen = @pbt.Gen::one_of([
-    @pbt.Gen::pure(AppenderCommand::BeginRow),
-    @pbt.Gen::pure(AppenderCommand::AppendInt(42)),
-    @pbt.Gen::pure(AppenderCommand::EndRow),
-    @pbt.Gen::pure(AppenderCommand::Flush),
+  let gen = @pbt.one_of([
+    @pbt.pure(AppenderCommand::BeginRow),
+    @pbt.pure(AppenderCommand::AppendInt(42)),
+    @pbt.pure(AppenderCommand::EndRow),
+    @pbt.pure(AppenderCommand::Flush),
   ])
-  let config = @pbt.CheckConfig::new(50, 10, 750010, 10)
-  @pbt.assert_check(
+  let config = CheckConfig::new(50, 10, 750010, 10)
+  assert_check(
     "closed appender cannot accept commands",
     gen,
     fn(cmd) {
@@ -582,7 +580,7 @@ test "prop_appender_closed_no_commands" {
 ///|
 /// Property: valid appender sequence
 test "prop_appender_valid_sequence" {
-  let gen = @pbt.Gen::choose_int(1, 5).map(fn(col_count) {
+  let gen = @pbt.int_range(1, 5).map(fn(col_count) {
     let cmds : Array[AppenderCommand] = [
       AppenderCommand::Create("test_table"),
       AppenderCommand::BeginRow,
@@ -595,8 +593,8 @@ test "prop_appender_valid_sequence" {
     cmds.push(AppenderCommand::Close)
     (col_count, cmds)
   })
-  let config = @pbt.CheckConfig::new(50, 10, 750011, 10)
-  @pbt.assert_check(
+  let config = CheckConfig::new(50, 10, 750011, 10)
+  assert_check(
     "valid appender sequence",
     gen,
     fn(input) {
@@ -625,11 +623,11 @@ test "prop_appender_valid_sequence" {
 ///|
 /// Property: multiple rows can be appended
 test "prop_appender_multiple_rows" {
-  let gen = @pbt.Gen::choose_int(1, 10).map(fn(row_count) {
+  let gen = @pbt.int_range(1, 10).map(fn(row_count) {
     (row_count, 3) // 3 columns
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750012, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750012, 20)
+  assert_check(
     "multiple rows can be appended",
     gen,
     fn(input) {
@@ -688,11 +686,11 @@ test "prop_appender_multiple_rows" {
 ///|
 /// Property: column count resets after end row
 test "prop_appender_column_count_resets" {
-  let gen = @pbt.Gen::choose_int(1, 10).map(fn(col_count) {
+  let gen = @pbt.int_range(1, 10).map(fn(col_count) {
     appender_model_initial(col_count)
   })
-  let config = @pbt.CheckConfig::new(100, 20, 750013, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(100, 20, 750013, 20)
+  assert_check(
     "column count resets after end row",
     gen,
     fn(model) {
@@ -731,22 +729,22 @@ test "prop_appender_column_count_resets" {
 ///|
 /// Property: appender state is always valid
 test "prop_appender_state_always_valid" {
-  let gen = @pbt.Gen::choose_int(1, 5).bind(fn(col_count) {
-    @pbt.Gen::choose_int(0, 30).bind(fn(len) {
-      @pbt.Gen::array_of(
-        @pbt.Gen::one_of([
-          @pbt.Gen::pure(AppenderCommand::Create("test_table")),
-          @pbt.Gen::pure(AppenderCommand::BeginRow),
-          @pbt.Gen::pure(AppenderCommand::AppendInt(42)),
-          @pbt.Gen::pure(AppenderCommand::EndRow),
-          @pbt.Gen::pure(AppenderCommand::Flush),
-          @pbt.Gen::pure(AppenderCommand::Close),
+  let gen = @pbt.int_range(1, 5).bind(fn(col_count) {
+    @pbt.int_range(0, 30).bind(fn(len) {
+      array_of(
+        @pbt.one_of([
+          @pbt.pure(AppenderCommand::Create("test_table")),
+          @pbt.pure(AppenderCommand::BeginRow),
+          @pbt.pure(AppenderCommand::AppendInt(42)),
+          @pbt.pure(AppenderCommand::EndRow),
+          @pbt.pure(AppenderCommand::Flush),
+          @pbt.pure(AppenderCommand::Close),
         ]),
       ).map(fn(cmds) { (col_count, cmds) })
     })
   })
-  let config = @pbt.CheckConfig::new(200, 30, 750014, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 30, 750014, 20)
+  assert_check(
     "appender state always valid",
     gen,
     fn(input) {

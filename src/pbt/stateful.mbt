@@ -69,10 +69,10 @@ pub fn stateful_test[S, C, R](
 /// Run a stateful test
 pub fn run_stateful_test[S : Show, C : Show, R : Show](
   test: StatefulTest[S, C, R],
-  config: @pbt.CheckConfig,
+  config: CheckConfig,
 ) -> Result[Unit, String] {
   // Generate command sequences
-  let rs = @quickcheck/splitmix.new(seed=config.seed)
+  let rs = @splitmix.new(seed=config.seed.to_uint64())
   let size = config.max_size
 
   let mut case_index = 0
@@ -125,7 +125,7 @@ pub fn run_stateful_test[S : Show, C : Show, R : Show](
 pub fn assert_stateful_test[S : Show, C : Show, R : Show](
   label: String,
   test: StatefulTest[S, C, R],
-  config? : @pbt.CheckConfig = @pbt.CheckConfig::default(),
+  config? : CheckConfig = CheckConfig::default(),
 ) -> Unit raise {
   match run_stateful_test(test, config) {
     Ok(_) => ()
@@ -275,13 +275,13 @@ pub fn is_valid_appender_transition(
 ///|
 /// Generate random command sequence for connection state machine
 pub fn gen_connection_commands() -> @pbt.Gen[Array[String]] {
-  @pbt.Gen::choose_int(0, 20).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::one_of([
-      @pbt.Gen::pure("connect"),
-      @pbt.Gen::pure("query"),
-      @pbt.Gen::pure("close"),
-      @pbt.Gen::pure("prepare"),
-      @pbt.Gen::map(@pbt.Gen::choose_int(0, 100), fn(n) {
+  @pbt.int_range(0, 20).bind(fn(len) {
+    array_of(@pbt.one_of([
+      @pbt.pure("connect"),
+      @pbt.pure("query"),
+      @pbt.pure("close"),
+      @pbt.pure("prepare"),
+      @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
         "query_" + n.to_string()
       }),
     ]))
@@ -291,14 +291,14 @@ pub fn gen_connection_commands() -> @pbt.Gen[Array[String]] {
 ///|
 /// Generate random command sequence for appender state machine
 pub fn gen_appender_commands() -> @pbt.Gen[Array[String]] {
-  @pbt.Gen::choose_int(0, 30).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::one_of([
-      @pbt.Gen::pure("create"),
-      @pbt.Gen::pure("begin_row"),
-      @pbt.Gen::pure("append"),
-      @pbt.Gen::pure("end_row"),
-      @pbt.Gen::pure("flush"),
-      @pbt.Gen::pure("close"),
+  @pbt.int_range(0, 30).bind(fn(len) {
+    array_of(@pbt.one_of([
+      @pbt.pure("create"),
+      @pbt.pure("begin_row"),
+      @pbt.pure("append"),
+      @pbt.pure("end_row"),
+      @pbt.pure("flush"),
+      @pbt.pure("close"),
     ]))
   })
 }

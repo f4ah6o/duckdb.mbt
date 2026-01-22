@@ -1,5 +1,5 @@
 import {
-  "f4ah6o/aletheia/pbt" as @pbt,
+  "moonbitlang/quickcheck" as @pbt,
   "moonbitlang/core/int" as @int,
 }
 

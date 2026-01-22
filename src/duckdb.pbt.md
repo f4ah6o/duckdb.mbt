@@ -93,17 +93,17 @@ Invariant property: map_get preserves element order
 ```mbt nocheck
 test "prop_map_get_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -131,17 +131,17 @@ Invariant property: bind_map preserves element order
 ```mbt nocheck
 test "prop_bind_map_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -169,17 +169,17 @@ Invariant property: map_get preserves length
 ```mbt nocheck
 test "prop_map_get_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -207,17 +207,17 @@ Invariant property: map_get preserves length
 ```mbt nocheck
 test "prop_map_get_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -245,17 +245,17 @@ Invariant property: map_get preserves length
 ```mbt nocheck
 test "prop_map_get_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -283,17 +283,17 @@ Invariant property: map_size preserves element order
 ```mbt nocheck
 test "prop_map_size_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -321,17 +321,17 @@ Invariant property: bind_map preserves length
 ```mbt nocheck
 test "prop_bind_map_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -359,17 +359,17 @@ Invariant property: bind_map preserves length
 ```mbt nocheck
 test "prop_bind_map_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -397,17 +397,17 @@ Invariant property: bind_map preserves length
 ```mbt nocheck
 test "prop_bind_map_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -435,17 +435,17 @@ Invariant property: map_size preserves length
 ```mbt nocheck
 test "prop_map_size_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -473,17 +473,17 @@ Invariant property: map_size preserves length
 ```mbt nocheck
 test "prop_map_size_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -511,17 +511,17 @@ Invariant property: map_size preserves length
 ```mbt nocheck
 test "prop_map_size_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -549,17 +549,17 @@ Invariant property: append_map preserves element order
 ```mbt nocheck
 test "prop_append_map_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -587,17 +587,17 @@ Invariant property: append_int does not decrease length
 ```mbt nocheck
 test "prop_append_int_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -625,17 +625,17 @@ Invariant property: append_int does not decrease length
 ```mbt nocheck
 test "prop_append_int_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -663,17 +663,17 @@ Invariant property: append_int does not decrease length
 ```mbt nocheck
 test "prop_append_int_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -701,17 +701,17 @@ Invariant property: append_map does not decrease length
 ```mbt nocheck
 test "prop_append_map_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -739,17 +739,17 @@ Invariant property: append_map preserves length
 ```mbt nocheck
 test "prop_append_map_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -777,17 +777,17 @@ Invariant property: append_blob does not decrease length
 ```mbt nocheck
 test "prop_append_blob_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -815,17 +815,17 @@ Invariant property: append_blob does not decrease length
 ```mbt nocheck
 test "prop_append_blob_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -853,17 +853,17 @@ Invariant property: append_blob does not decrease length
 ```mbt nocheck
 test "prop_append_blob_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -891,17 +891,17 @@ Invariant property: append_bool does not decrease length
 ```mbt nocheck
 test "prop_append_bool_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -929,17 +929,17 @@ Invariant property: append_bool does not decrease length
 ```mbt nocheck
 test "prop_append_bool_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -967,17 +967,17 @@ Invariant property: append_bool does not decrease length
 ```mbt nocheck
 test "prop_append_bool_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1005,17 +1005,17 @@ Invariant property: append_date does not decrease length
 ```mbt nocheck
 test "prop_append_date_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1043,17 +1043,17 @@ Invariant property: append_date does not decrease length
 ```mbt nocheck
 test "prop_append_date_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1081,17 +1081,17 @@ Invariant property: append_date does not decrease length
 ```mbt nocheck
 test "prop_append_date_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1119,17 +1119,17 @@ Invariant property: append_null does not decrease length
 ```mbt nocheck
 test "prop_append_null_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1157,17 +1157,17 @@ Invariant property: append_null does not decrease length
 ```mbt nocheck
 test "prop_append_null_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1195,17 +1195,17 @@ Invariant property: append_null does not decrease length
 ```mbt nocheck
 test "prop_append_null_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1233,17 +1233,17 @@ Invariant property: append_bigint does not decrease length
 ```mbt nocheck
 test "prop_append_bigint_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1271,17 +1271,17 @@ Invariant property: append_bigint does not decrease length
 ```mbt nocheck
 test "prop_append_bigint_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1309,17 +1309,17 @@ Invariant property: append_bigint does not decrease length
 ```mbt nocheck
 test "prop_append_bigint_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1347,17 +1347,17 @@ Invariant property: append_double does not decrease length
 ```mbt nocheck
 test "prop_append_double_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1385,17 +1385,17 @@ Invariant property: append_double does not decrease length
 ```mbt nocheck
 test "prop_append_double_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1423,17 +1423,17 @@ Invariant property: append_double does not decrease length
 ```mbt nocheck
 test "prop_append_double_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1461,17 +1461,17 @@ Invariant property: append_struct does not decrease length
 ```mbt nocheck
 test "prop_append_struct_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1499,17 +1499,17 @@ Invariant property: map_from_pairs preserves element order
 ```mbt nocheck
 test "prop_map_from_pairs_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1537,17 +1537,17 @@ Invariant property: append_decimal does not decrease length
 ```mbt nocheck
 test "prop_append_decimal_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1575,17 +1575,17 @@ Invariant property: append_decimal does not decrease length
 ```mbt nocheck
 test "prop_append_decimal_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1613,17 +1613,17 @@ Invariant property: append_decimal does not decrease length
 ```mbt nocheck
 test "prop_append_decimal_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1651,17 +1651,17 @@ Invariant property: append_varchar does not decrease length
 ```mbt nocheck
 test "prop_append_varchar_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1689,17 +1689,17 @@ Invariant property: append_varchar does not decrease length
 ```mbt nocheck
 test "prop_append_varchar_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1727,17 +1727,17 @@ Invariant property: append_varchar does not decrease length
 ```mbt nocheck
 test "prop_append_varchar_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1765,17 +1765,17 @@ Invariant property: map_from_arrays preserves element order
 ```mbt nocheck
 test "prop_map_from_arrays_invariant_orderpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1803,17 +1803,17 @@ Invariant property: map_from_pairs preserves length
 ```mbt nocheck
 test "prop_map_from_pairs_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1841,17 +1841,17 @@ Invariant property: map_from_pairs preserves length
 ```mbt nocheck
 test "prop_map_from_pairs_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1879,17 +1879,17 @@ Invariant property: map_from_pairs preserves length
 ```mbt nocheck
 test "prop_map_from_pairs_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1917,17 +1917,17 @@ Invariant property: append_interval does not decrease length
 ```mbt nocheck
 test "prop_append_interval_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1955,17 +1955,17 @@ Invariant property: append_interval does not decrease length
 ```mbt nocheck
 test "prop_append_interval_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -1993,17 +1993,17 @@ Invariant property: append_interval does not decrease length
 ```mbt nocheck
 test "prop_append_interval_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2031,17 +2031,17 @@ Invariant property: create_appender does not decrease length
 ```mbt nocheck
 test "prop_create_appender_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2069,17 +2069,17 @@ Invariant property: create_appender does not decrease length
 ```mbt nocheck
 test "prop_create_appender_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2107,17 +2107,17 @@ Invariant property: create_appender does not decrease length
 ```mbt nocheck
 test "prop_create_appender_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2145,17 +2145,17 @@ Invariant property: map_from_arrays preserves length
 ```mbt nocheck
 test "prop_map_from_arrays_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2183,17 +2183,17 @@ Invariant property: map_from_arrays preserves length
 ```mbt nocheck
 test "prop_map_from_arrays_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2221,17 +2221,17 @@ Invariant property: map_from_arrays preserves length
 ```mbt nocheck
 test "prop_map_from_arrays_invariant_lengthpreserving" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2259,17 +2259,17 @@ Invariant property: append_timestamp does not decrease length
 ```mbt nocheck
 test "prop_append_timestamp_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2297,17 +2297,17 @@ Invariant property: append_timestamp does not decrease length
 ```mbt nocheck
 test "prop_append_timestamp_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2335,17 +2335,17 @@ Invariant property: append_timestamp does not decrease length
 ```mbt nocheck
 test "prop_append_timestamp_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2373,17 +2373,17 @@ Invariant property: append_list_varchar does not decrease length
 ```mbt nocheck
 test "prop_append_list_varchar_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2411,17 +2411,17 @@ Invariant property: appender_model_initial does not decrease length
 ```mbt nocheck
 test "prop_appender_model_initial_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2449,17 +2449,17 @@ Invariant property: append_list_varchar_value does not decrease length
 ```mbt nocheck
 test "prop_append_list_varchar_value_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2487,17 +2487,17 @@ Invariant property: execute_appender_command_on_model does not decrease length
 ```mbt nocheck
 test "prop_execute_appender_command_on_model_invariant_lengthincreasing" {
   let gen = @pbt.frequency([
-    (70, @pbt.Gen::choose_int(-100, 100)),
-    (10, @pbt.Gen::pure(0)),
-    (10, @pbt.Gen::pure(1)),
-    (5, @pbt.Gen::pure(-1)),
-    (5, @pbt.Gen::one_of([
-      @pbt.Gen::pure(2147483647),
-      @pbt.Gen::pure(-2147483648)
+    (70, @pbt.int_range(-100, 100)),
+    (10, @pbt.pure(0)),
+    (10, @pbt.pure(1)),
+    (5, @pbt.pure(-1)),
+    (5, @pbt.one_of([
+      @pbt.pure(2147483647),
+      @pbt.pure(-2147483648)
     ]))
   ])
-  let config = @pbt.CheckConfig::new(cases=100, max_size=30, seed=42)
-  let result = @pbt.check_with_stats(gen, fn(x : Int) {
+  let config = CheckConfig::new(cases=100, max_size=30, seed=42)
+  let result = check_with_stats(gen, fn(x : Int) {
     let label = if x == 0 {
       Some("zero")
     } else if x == 1 || x == -1 {
@@ -2525,8 +2525,8 @@ test "prop_execute_appender_command_on_model_invariant_lengthincreasing" {
 ///|
 /// Generate array of strings for map keys/values.
 fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
-  @pbt.Gen::choose_int(0, 20).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(arr) {
+  @pbt.int_range(0, 20).bind(fn(len) {
+    array_of(@pbt.int_range(0, 100)).map(fn(arr) {
       let strs = arr.map(fn(n) { "key_" + n.to_string() })
       take_string_array(strs, len)
     })
@@ -2536,9 +2536,9 @@ fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
 ///|
 /// Generate pair of arrays for map_from_arrays.
 fn gen_map_arrays_local() -> @pbt.Gen[(Array[String], Array[String])] {
-  @pbt.Gen::choose_int(0, 10).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(keys_arr) {
-      @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(vals_arr) {
+  @pbt.int_range(0, 10).bind(fn(len) {
+    array_of(@pbt.int_range(0, 100)).bind(fn(keys_arr) {
+      array_of(@pbt.int_range(0, 100)).map(fn(vals_arr) {
         let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
         let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
         let min_len = Int::min(len, Int::min(keys_full.length(), values_full.length()))
@@ -2607,8 +2607,8 @@ fn shrink_map_arrays_local(
 /// Property: list_from_strings preserves length for arbitrary input arrays.
 test "prop_list_from_strings_length_preserved_pbt" {
   let gen = gen_string_array_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4242, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4242, 20)
+  assert_check(
     "list_from_strings preserves length",
     gen,
     fn(arr) {
@@ -2628,8 +2628,8 @@ test "prop_list_from_strings_length_preserved_pbt" {
 /// Property: map_from_arrays never produces more entries than input pairs.
 test "prop_map_from_arrays_size_bounded_pbt" {
   let gen = gen_map_arrays_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4243, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4243, 20)
+  assert_check(
     "map_from_arrays size bounded by input length",
     gen,
     fn(input) {
@@ -2650,8 +2650,8 @@ test "prop_map_from_arrays_size_bounded_pbt" {
 /// Property: map_from_pairs never produces more entries than input pairs.
 test "prop_map_from_pairs_size_bounded_pbt" {
   let gen = gen_map_arrays_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4244, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4244, 20)
+  assert_check(
     "map_from_pairs size bounded by input length",
     gen,
     fn(input) {
@@ -2697,10 +2697,10 @@ fn pow10_int(exp : Int) -> Int {
 
 ///|
 fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
-    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+  @pbt.int_range(1970, 2100).bind(fn(year) {
+    @pbt.int_range(1, 12).bind(fn(month) {
       let max_day = days_in_month(year, month)
-      @pbt.Gen::choose_int(1, max_day).map(fn(day) {
+      @pbt.int_range(1, max_day).map(fn(day) {
         (year, month, day)
       })
     })
@@ -2710,8 +2710,8 @@ fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
 ///|
 test "prop_date_roundtrip_valid_ymd" {
   let gen = gen_valid_date()
-  let config = @pbt.CheckConfig::new(200, 20, 730001, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730001, 20)
+  assert_check(
     "date_from_ymd/date_to_ymd round-trip",
     gen,
     fn(input) {
@@ -2738,9 +2738,9 @@ Round-trip property: `timestamp_to_ymd_hms(timestamp_from_ymd_hms(...))` returns
 fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
   gen_valid_date().bind(fn(date) {
     let (year, month, day) = date
-    @pbt.Gen::choose_int(0, 23).bind(fn(hour) {
-      @pbt.Gen::choose_int(0, 59).bind(fn(minute) {
-        @pbt.Gen::choose_int(0, 59).map(fn(second) {
+    @pbt.int_range(0, 23).bind(fn(hour) {
+      @pbt.int_range(0, 59).bind(fn(minute) {
+        @pbt.int_range(0, 59).map(fn(second) {
           (year, month, day, hour, minute, second)
         })
       })
@@ -2751,8 +2751,8 @@ fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
 ///|
 test "prop_timestamp_roundtrip_valid_ymd_hms" {
   let gen = gen_valid_timestamp_parts()
-  let config = @pbt.CheckConfig::new(200, 20, 730002, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730002, 20)
+  assert_check(
     "timestamp_from_ymd_hms/timestamp_to_ymd_hms round-trip",
     gen,
     fn(input) {
@@ -2779,10 +2779,10 @@ Round-trip property: `decimal_to_parts(decimal_from_parts(whole, frac, scale))` 
 ```mbt check
 ///|
 fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.Gen::choose_int(0, 6).bind(fn(scale) {
+  @pbt.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
-    @pbt.Gen::choose_int(0, 1000).bind(fn(whole) {
-      @pbt.Gen::choose_int(0, max_frac).map(fn(frac) {
+    @pbt.int_range(0, 1000).bind(fn(whole) {
+      @pbt.int_range(0, max_frac).map(fn(frac) {
         (whole, frac, scale)
       })
     })
@@ -2792,8 +2792,8 @@ fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
 ///|
 test "prop_decimal_parts_roundtrip" {
   let gen = gen_decimal_parts()
-  let config = @pbt.CheckConfig::new(200, 20, 730003, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730003, 20)
+  assert_check(
     "decimal_from_parts/decimal_to_parts round-trip",
     gen,
     fn(input) {

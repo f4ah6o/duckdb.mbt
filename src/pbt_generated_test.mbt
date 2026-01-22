@@ -1,8 +1,8 @@
 ///|
 /// Generate array of strings for map keys/values.
 fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
-  @pbt.Gen::choose_int(0, 20).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(arr) {
+  @pbt.int_range(0, 20).bind(fn(len) {
+    @pbt.Gen::fmap(array_of(@pbt.int_range(0, 100)), fn(arr) {
       let strs = arr.map(fn(n) { "key_" + n.to_string() })
       take_string_array(strs, len)
     })
@@ -12,9 +12,9 @@ fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
 ///|
 /// Generate pair of arrays for map_from_arrays.
 fn gen_map_arrays_local() -> @pbt.Gen[(Array[String], Array[String])] {
-  @pbt.Gen::choose_int(0, 10).bind(fn(len) {
-    @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).bind(fn(keys_arr) {
-      @pbt.Gen::array_of(@pbt.Gen::choose_int(0, 100)).map(fn(vals_arr) {
+  @pbt.int_range(0, 10).bind(fn(len) {
+    array_of(@pbt.int_range(0, 100)).bind(fn(keys_arr) {
+      @pbt.Gen::fmap(array_of(@pbt.int_range(0, 100)), fn(vals_arr) {
         let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
         let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
         let min_len = Int::min(
@@ -86,8 +86,8 @@ fn shrink_map_arrays_local(
 /// Property: list_from_strings preserves length for arbitrary input arrays.
 test "prop_list_from_strings_length_preserved_pbt" {
   let gen = gen_string_array_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4242, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4242, 20)
+  assert_check(
     "list_from_strings preserves length",
     gen,
     fn(arr) {
@@ -107,8 +107,8 @@ test "prop_list_from_strings_length_preserved_pbt" {
 /// Property: map_from_arrays never produces more entries than input pairs.
 test "prop_map_from_arrays_size_bounded_pbt" {
   let gen = gen_map_arrays_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4243, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4243, 20)
+  assert_check(
     "map_from_arrays size bounded by input length",
     gen,
     fn(input) {
@@ -129,8 +129,8 @@ test "prop_map_from_arrays_size_bounded_pbt" {
 /// Property: map_from_pairs never produces more entries than input pairs.
 test "prop_map_from_pairs_size_bounded_pbt" {
   let gen = gen_map_arrays_local()
-  let config = @pbt.CheckConfig::new(200, 20, 4244, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 4244, 20)
+  assert_check(
     "map_from_pairs size bounded by input length",
     gen,
     fn(input) {
@@ -166,10 +166,12 @@ fn pow10_int(exp : Int) -> Int {
 
 ///|
 fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.Gen::choose_int(1970, 2100).bind(fn(year) {
-    @pbt.Gen::choose_int(1, 12).bind(fn(month) {
+  @pbt.int_range(1970, 2100).bind(fn(year) {
+    @pbt.int_range(1, 12).bind(fn(month) {
       let max_day = days_in_month(year, month)
-      @pbt.Gen::choose_int(1, max_day).map(fn(day) { (year, month, day) })
+      @pbt.Gen::fmap(@pbt.int_range(1, max_day), fn(day) {
+        (year, month, day)
+      })
     })
   })
 }
@@ -177,8 +179,8 @@ fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
 ///|
 test "prop_date_roundtrip_valid_ymd" {
   let gen = gen_valid_date()
-  let config = @pbt.CheckConfig::new(200, 20, 730001, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730001, 20)
+  assert_check(
     "date_from_ymd/date_to_ymd round-trip",
     gen,
     fn(input) {
@@ -201,9 +203,9 @@ test "prop_date_roundtrip_valid_ymd" {
 fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
   gen_valid_date().bind(fn(date) {
     let (year, month, day) = date
-    @pbt.Gen::choose_int(0, 23).bind(fn(hour) {
-      @pbt.Gen::choose_int(0, 59).bind(fn(minute) {
-        @pbt.Gen::choose_int(0, 59).map(fn(second) {
+    @pbt.int_range(0, 23).bind(fn(hour) {
+      @pbt.int_range(0, 59).bind(fn(minute) {
+        @pbt.Gen::fmap(@pbt.int_range(0, 59), fn(second) {
           (year, month, day, hour, minute, second)
         })
       })
@@ -214,8 +216,8 @@ fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
 ///|
 test "prop_timestamp_roundtrip_valid_ymd_hms" {
   let gen = gen_valid_timestamp_parts()
-  let config = @pbt.CheckConfig::new(200, 20, 730002, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730002, 20)
+  assert_check(
     "timestamp_from_ymd_hms/timestamp_to_ymd_hms round-trip",
     gen,
     fn(input) {
@@ -243,10 +245,12 @@ test "prop_timestamp_roundtrip_valid_ymd_hms" {
 
 ///|
 fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.Gen::choose_int(0, 6).bind(fn(scale) {
+  @pbt.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
-    @pbt.Gen::choose_int(0, 1000).bind(fn(whole) {
-      @pbt.Gen::choose_int(0, max_frac).map(fn(frac) { (whole, frac, scale) })
+    @pbt.int_range(0, 1000).bind(fn(whole) {
+      let frac_gen =
+        if max_frac == 0 { @pbt.pure(0) } else { @pbt.int_range(0, max_frac) }
+      @pbt.Gen::fmap(frac_gen, fn(frac) { (whole, frac, scale) })
     })
   })
 }
@@ -254,8 +258,8 @@ fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
 ///|
 test "prop_decimal_parts_roundtrip" {
   let gen = gen_decimal_parts()
-  let config = @pbt.CheckConfig::new(200, 20, 730003, 20)
-  @pbt.assert_check(
+  let config = CheckConfig::new(200, 20, 730003, 20)
+  assert_check(
     "decimal_from_parts/decimal_to_parts round-trip",
     gen,
     fn(input) {

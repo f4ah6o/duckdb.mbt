@@ -2,7 +2,7 @@
   "name": "f4ah6o/duckdb",
   "version": "0.5.0",
   "deps": {
-    "f4ah6o/aletheia": "0.5.0"
+    "moonbitlang/quickcheck": "0.9.10"
   },
   "readme": "README.mbt.md",
   "repository": "https://github.com/f4ah6o/duckdb.mbt",
