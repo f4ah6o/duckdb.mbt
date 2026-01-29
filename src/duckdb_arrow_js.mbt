@@ -341,53 +341,6 @@ fn parse_str_to_int(s : String) -> Int {
   }
 }
 
-// Simple string to Double parser
-
-///|
-fn parse_str_to_double(s : String) -> Double {
-  // Find dot position and parse integer part in one pass
-  let mut dot_idx = -1
-  let mut int_val = 0
-  let mut i = 0
-  let negative = if s.length() > 0 && s[0] == '-' {
-    i = 1
-    true
-  } else {
-    false
-  }
-  while i < s.length() {
-    let c = s[i]
-    if c == '.' {
-      dot_idx = i
-      break
-    }
-    if c >= '0' && c <= '9' {
-      int_val = int_val * 10 + (c.to_int() - '0'.to_int())
-    }
-    i = i + 1
-  }
-  if dot_idx >= 0 {
-    // Parse fractional part
-    let mut frac_val = 0.0
-    let mut divisor = 10.0
-    i = dot_idx + 1
-    while i < s.length() {
-      let c = s[i]
-      if c >= '0' && c <= '9' {
-        frac_val = frac_val + (c.to_int() - '0'.to_int()).to_double() / divisor
-        divisor = divisor * 10.0
-      }
-      i = i + 1
-    }
-    let sign = if negative { -1.0 } else { 1.0 }
-    sign * (int_val.to_double() + frac_val)
-  } else if negative {
-    -int_val.to_double()
-  } else {
-    int_val.to_double()
-  }
-}
-
 ///|
 fn parse_json_int_array(json : String) -> Array[Int] {
   let parsed = @json.parse(json) catch { _ => return [] }
@@ -396,7 +349,7 @@ fn parse_json_int_array(json : String) -> Array[Int] {
       let result : Array[Int] = []
       for item in items {
         match item {
-          Json::Number(n) => result.push(parse_str_to_int(n.to_string()))
+          Json::Number(n, ..) => result.push(parse_str_to_int(n.to_string()))
           Json::String(s) =>
             // Handle BigInt strings
             result.push(parse_str_to_int(s))
@@ -420,7 +373,7 @@ fn parse_json_double_array(json : String) -> Array[Double] {
       let result : Array[Double] = []
       for item in items {
         match item {
-          Json::Number(n) => result.push(n)
+          Json::Number(n, ..) => result.push(n)
           Json::Null => result.push(0.0)
           _ => result.push(0.0)
         }

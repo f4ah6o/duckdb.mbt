@@ -1,6 +1,7 @@
 import {
   "moonbitlang/quickcheck" as @pbt,
   "moonbitlang/core/int" as @int,
+  "moonbitlang/core/json" as @json,
 }
 
 options(

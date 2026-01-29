@@ -1,6 +1,6 @@
 {
   "name": "f4ah6o/duckdb",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "deps": {
     "moonbitlang/quickcheck": "0.9.10"
   },
