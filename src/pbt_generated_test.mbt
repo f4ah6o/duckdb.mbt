@@ -169,9 +169,7 @@ fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
   @pbt.int_range(1970, 2100).bind(fn(year) {
     @pbt.int_range(1, 12).bind(fn(month) {
       let max_day = days_in_month(year, month)
-      @pbt.Gen::fmap(@pbt.int_range(1, max_day), fn(day) {
-        (year, month, day)
-      })
+      @pbt.Gen::fmap(@pbt.int_range(1, max_day), fn(day) { (year, month, day) })
     })
   })
 }
@@ -248,8 +246,11 @@ fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
   @pbt.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
     @pbt.int_range(0, 1000).bind(fn(whole) {
-      let frac_gen =
-        if max_frac == 0 { @pbt.pure(0) } else { @pbt.int_range(0, max_frac) }
+      let frac_gen = if max_frac == 0 {
+        @pbt.pure(0)
+      } else {
+        @pbt.int_range(0, max_frac)
+      }
       @pbt.Gen::fmap(frac_gen, fn(frac) { (whole, frac, scale) })
     })
   })
