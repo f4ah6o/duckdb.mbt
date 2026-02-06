@@ -50,6 +50,11 @@ pub fn ArrowResult::get_schema(
   self : ArrowResult,
 ) -> Result[ArrowSchemaInfo, DuckDBError] {
   let _ = self
+  let _ = ArrowSchemaInfo::{
+    fields: [
+      ArrowField::{ name: "", nullable: false, type_id: "" },
+    ],
+  }
   Err(
     DuckDBError::Message("arrow integration is not available for this target"),
   )
