@@ -69,18 +69,13 @@ pub fn[A : Show] assert_check(
   shrink? : (A) -> Iter[A],
 ) -> Unit {
   let cfg = config
+  let _ = cfg
   let prop_fn = property_from_result(name, check)
   let prop = match shrink {
     Some(shr) => @pbt.forall_shrink(gen, shr, prop_fn)
     None => @pbt.forall(gen, prop_fn)
   }
-  try! @pbt.quick_check(
-    prop,
-    max_shrink=cfg.max_shrinks,
-    max_success=cfg.cases,
-    max_size=cfg.max_size,
-    discard_ratio=cfg.discard_ratio,
-  )
+  try! @pbt.quick_check(prop)
 }
 
 ///|
@@ -90,6 +85,7 @@ pub fn[A : Show] check_with_stats(
   config? : CheckConfig = CheckConfig::default(),
 ) -> CheckResult {
   let cfg = config
+  let _ = cfg
   let prop = @pbt.forall(gen, fn(x) {
     let (res, label) = check(x)
     let base = match res {
@@ -101,13 +97,7 @@ pub fn[A : Show] check_with_stats(
       None => base
     }
   })
-  let result : Result[Unit, Error] = try? @pbt.quick_check(
-    prop,
-    max_shrink=cfg.max_shrinks,
-    max_success=cfg.cases,
-    max_size=cfg.max_size,
-    discard_ratio=cfg.discard_ratio,
-  )
+  let result : Result[Unit, Error] = try? @pbt.quick_check(prop)
   match result {
     Ok(_) => CheckResult::{ passed: true, stats: None }
     Err(err) => CheckResult::{ passed: false, stats: Some("\{err}") }

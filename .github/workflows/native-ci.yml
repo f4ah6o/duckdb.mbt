@@ -1,0 +1,49 @@
+name: Native CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Install DuckDB (macOS)
+        if: runner.os == 'macOS'
+        run: brew install duckdb
+
+      - name: Install DuckDB (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl unzip
+          curl -fsSL -o /tmp/libduckdb-linux-amd64.zip \
+            https://github.com/duckdb/duckdb/releases/latest/download/libduckdb-linux-amd64.zip
+          unzip -o /tmp/libduckdb-linux-amd64.zip -d /tmp/libduckdb
+          sudo cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
+          sudo cp /tmp/libduckdb/duckdb.h /usr/local/include/
+          sudo ldconfig
+
+      - name: Moon version
+        run: moon version --all
+
+      - name: Check native
+        run: moon check --target native
+
+      - name: Test native
+        run: moon test --target native

@@ -6,7 +6,7 @@ options(
   "is-main": true,
   link: {
     "native": {
-      "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -lduckdb",
+      "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L/usr/lib -lduckdb",
     },
   },
 )

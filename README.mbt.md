@@ -91,7 +91,24 @@ moon build --target-native -- -L/usr/local/lib -Wl,-rpath,/usr/local/lib -lduckd
 ```
 
 Or set `PKG_CONFIG_PATH` if libduckdb provides a pkg-config file. The default
-`src/moon.pkg` includes Homebrew paths for macOS (`/opt/homebrew`).
+`src/moon.pkg` includes common include/library search paths for both macOS and
+Ubuntu:
+
+- Include: `/opt/homebrew/include`, `/usr/local/include`, `/usr/include`
+- Library: `/opt/homebrew/lib`, `/usr/local/lib`, `/usr/lib`
+
+The linker still requires `-lduckdb`, so `libduckdb` must be installed on the
+machine.
+
+#### Troubleshooting Native Link Errors
+
+If you hit errors like `Undefined symbols ... _duckdb_*`, check:
+
+1. `duckdb.h` exists in one of the include paths above.
+2. `libduckdb.dylib` (macOS) or `libduckdb.so` (Linux) exists in one of the
+   library paths above.
+3. `moon test --target native` runs in an environment where those paths are
+   visible to the linker.
 
 ### JavaScript Targets
 
