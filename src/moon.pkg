@@ -1,7 +1,7 @@
 import {
-  "moonbitlang/quickcheck" as @pbt,
-  "moonbitlang/core/int" as @int,
-  "moonbitlang/core/json" as @json,
+  "moonbitlang/quickcheck" @pbt,
+  "moonbitlang/core/int",
+  "moonbitlang/core/json",
 }
 
 options(
@@ -31,11 +31,11 @@ options(
     "duckdb_pbt_test.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_test.mbt": [ "native" ],
     "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
-    "pbt_generated_test.mbt": [ "native" ],
     "pbt/generators.mbt": [ "and", "native", "wasm-gc" ],
     "pbt/properties.mbt": [ "and", "native", "wasm-gc" ],
     "pbt/shrinkers.mbt": [ "and", "native", "wasm-gc" ],
     "pbt/stateful.mbt": [ "and", "native", "wasm-gc" ],
     "pbt_compat.mbt": [ "native" ],
+    "pbt_generated_test.mbt": [ "native" ],
   },
 )

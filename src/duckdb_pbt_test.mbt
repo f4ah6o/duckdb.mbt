@@ -1950,7 +1950,7 @@ test "prop_shrink_string_produces_shorter_strings" {
         if shrunk.length() < original_len {
           found_shorter = true
         }
-      } else {
+      } nobreak {
         ()
       }
       if found_shorter || original_len <= 1 {

@@ -233,7 +233,7 @@ fn decode_string_array(json : Json) -> Result[Array[String], String] {
           Json::String(value) => out.push(value)
           _ => return Err("expected string array")
         }
-      } else {
+      } nobreak {
         ()
       }
       Ok(out)
@@ -253,7 +253,7 @@ fn decode_bool_array(json : Json) -> Result[Array[Bool], String] {
           Json::False => out.push(false)
           _ => return Err("expected bool array")
         }
-      } else {
+      } nobreak {
         ()
       }
       Ok(out)
@@ -272,7 +272,7 @@ fn decode_string_matrix(json : Json) -> Result[Array[Array[String]], String] {
           Ok(row) => out.push(row)
           Err(message) => return Err(message)
         }
-      } else {
+      } nobreak {
         ()
       }
       Ok(out)
@@ -291,7 +291,7 @@ fn decode_bool_matrix(json : Json) -> Result[Array[Array[Bool]], String] {
           Ok(row) => out.push(row)
           Err(message) => return Err(message)
         }
-      } else {
+      } nobreak {
         ()
       }
       Ok(out)
@@ -422,7 +422,7 @@ test "js node fixtures" {
           }
       }
     }
-  } else {
+  } nobreak {
     ()
   }
 }
@@ -771,7 +771,7 @@ fn run_js_prepare_query(
         bind_types.push(typ)
       }
     }
-  } else {
+  } nobreak {
     ()
   }
   let payload = js_run_prepare_query(backend, sql, bind_values, bind_types)
@@ -797,7 +797,7 @@ fn run_js_wrapper_prepare_query(
         bind_types.push(typ)
       }
     }
-  } else {
+  } nobreak {
     ()
   }
   let payload = js_run_wrapper_prepare_query(

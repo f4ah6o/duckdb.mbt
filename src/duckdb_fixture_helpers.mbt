@@ -51,7 +51,7 @@ fn expect_string_array(
   }
   for i = 0; i < expected.length(); i = i + 1 {
     expect_string(case_name, "\{label}[\{i}]", actual[i], expected[i])
-  } else {
+  } nobreak {
     ()
   }
 }
@@ -71,7 +71,7 @@ fn expect_bool_array(
   }
   for i = 0; i < expected.length(); i = i + 1 {
     expect_bool(case_name, "\{label}[\{i}]", actual[i], expected[i])
-  } else {
+  } nobreak {
     ()
   }
 }
@@ -96,7 +96,7 @@ fn expect_string_matrix(
       actual[row],
       expected[row],
     )
-  } else {
+  } nobreak {
     ()
   }
 }
@@ -116,7 +116,7 @@ fn expect_bool_matrix(
   }
   for row = 0; row < expected.length(); row = row + 1 {
     expect_bool_array(case_name, "\{label}[\{row}]", actual[row], expected[row])
-  } else {
+  } nobreak {
     ()
   }
 }

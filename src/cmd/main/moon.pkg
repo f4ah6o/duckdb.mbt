@@ -1,5 +1,5 @@
 import {
-  "f4ah6o/duckdb" as @lib,
+  "f4ah6o/duckdb" @lib,
 }
 
 options(

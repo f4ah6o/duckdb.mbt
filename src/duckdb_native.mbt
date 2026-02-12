@@ -469,7 +469,7 @@ pub fn Connection::query(
       column_types.push(
         column_type_from_id(native_result_column_type(result, col)),
       )
-    } else {
+    } nobreak {
       ()
     }
     let rows : Array[Array[String]] = []
@@ -487,12 +487,12 @@ pub fn Connection::query(
             bytes_to_string(native_result_value(result, col, row)),
           )
         }
-      } else {
+      } nobreak {
         ()
       }
       rows.push(row_values)
       nulls.push(row_nulls)
-    } else {
+    } nobreak {
       ()
     }
     native_result_destroy(result)
@@ -525,7 +525,7 @@ pub fn ResultStream::columns(self : ResultStream) -> Array[String] {
   let columns : Array[String] = []
   for col = 0; col < column_count; col = col + 1 {
     columns.push(bytes_to_string(native_stream_column_name(self, col)))
-  } else {
+  } nobreak {
     ()
   }
   columns
@@ -567,12 +567,12 @@ pub fn ResultStream::next(
               bytes_to_string(native_chunk_value(chunk, col, row)),
             )
           }
-        } else {
+        } nobreak {
           ()
         }
         rows.push(row_values)
         nulls.push(row_nulls)
-      } else {
+      } nobreak {
         ()
       }
       native_chunk_destroy(chunk)
@@ -882,7 +882,7 @@ pub fn PreparedStatement::execute(
       column_types.push(
         column_type_from_id(native_result_column_type(result, col)),
       )
-    } else {
+    } nobreak {
       ()
     }
     let rows : Array[Array[String]] = []
@@ -900,12 +900,12 @@ pub fn PreparedStatement::execute(
             bytes_to_string(native_result_value(result, col, row)),
           )
         }
-      } else {
+      } nobreak {
         ()
       }
       rows.push(row_values)
       nulls.push(row_nulls)
-    } else {
+    } nobreak {
       ()
     }
     native_result_destroy(result)

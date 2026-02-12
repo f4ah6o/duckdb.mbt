@@ -165,7 +165,7 @@ fn column_types_from_ids(
     } else {
       column_types.push(ColumnType::Unknown(-1))
     }
-  } else {
+  } nobreak {
     ()
   }
   column_types

@@ -127,7 +127,6 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ : Value = Value::Blob(Bytes::default())
   let _ : Value = Value::Null
   let _ : TypedQueryResult = { columns: [], data: [] }
-
 }
 
 // ============================================================================

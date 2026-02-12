@@ -91,7 +91,7 @@ test "native fixtures" {
       Ok(value) => expect_query_result(case, value)
       Err(message) => fail("fixture '\{case.name}' failed: \{message}")
     }
-  } else {
+  } nobreak {
     ()
   }
 }
@@ -370,7 +370,7 @@ test "native prepare multiple rows" {
               }
             None => fail("row \{row}: expected non-null value")
           }
-        } else {
+        } nobreak {
           ()
         }
       }

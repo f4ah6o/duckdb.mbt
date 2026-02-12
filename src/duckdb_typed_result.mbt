@@ -14,7 +14,7 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
   let data : Array[Array[Value]] = []
   for col in 0..<column_count {
     data.push([])
-  } else {
+  } nobreak {
     ()
   }
 
@@ -33,10 +33,10 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
         parse_value_with_type(self.rows[row][col], column_type)
       }
       data[col].push(value)
-    } else {
+    } nobreak {
       ()
     }
-  } else {
+  } nobreak {
     ()
   }
   { columns: self.columns, data }
@@ -225,7 +225,7 @@ pub fn TypedQueryResult::get_int_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -249,7 +249,7 @@ pub fn TypedQueryResult::get_double_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -273,7 +273,7 @@ pub fn TypedQueryResult::get_bool_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -297,7 +297,7 @@ pub fn TypedQueryResult::get_string_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -321,7 +321,7 @@ pub fn TypedQueryResult::get_date_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -345,7 +345,7 @@ pub fn TypedQueryResult::get_timestamp_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)
@@ -369,7 +369,7 @@ pub fn TypedQueryResult::get_decimal_column(
           Value::Null => result.push(None)
           _ => result.push(None)
         }
-      } else {
+      } nobreak {
         ()
       }
       Some(result)

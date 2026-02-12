@@ -257,7 +257,7 @@ fn parse_arrow_schema_json(
           }
           _ => return Err(DuckDBError::Message("invalid field format"))
         }
-      } else {
+      } nobreak {
         ()
       }
       Ok(ArrowSchemaInfo::{ fields, })
@@ -356,7 +356,7 @@ fn parse_json_int_array(json : String) -> Array[Int] {
           Json::Null => result.push(0)
           _ => result.push(0)
         }
-      } else {
+      } nobreak {
         ()
       }
       result
@@ -377,7 +377,7 @@ fn parse_json_double_array(json : String) -> Array[Double] {
           Json::Null => result.push(0.0)
           _ => result.push(0.0)
         }
-      } else {
+      } nobreak {
         ()
       }
       result
@@ -398,7 +398,7 @@ fn parse_json_string_array(json : String) -> Array[String] {
           Json::Null => result.push("")
           _ => result.push("")
         }
-      } else {
+      } nobreak {
         ()
       }
       result
@@ -420,7 +420,7 @@ fn parse_json_bool_array(json : String) -> Array[Bool] {
           Json::Null => result.push(false)
           _ => result.push(false)
         }
-      } else {
+      } nobreak {
         ()
       }
       result
