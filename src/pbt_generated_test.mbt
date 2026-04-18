@@ -427,36 +427,31 @@ test "prop_interval_from_parts_to_micros" {
 ///|
 /// Round-trip: list_get(list_from_strings(arr), i) == Some(arr[i]) for valid i.
 test "prop_list_get_roundtrip" {
-  let gen = gen_string_array_local().bind(fn(arr) {
-    if arr.length() == 0 {
-      @pbt.Gen::fmap(@pbt.pure(0), fn(_) { (arr, -1) })
-    } else {
-      @pbt.Gen::fmap(@pbt.int_range(0, arr.length() - 1), fn(idx) { (arr, idx) })
-    }
-  })
+  let gen = gen_string_array_local()
   let config = CheckConfig::new(200, 20, 810007, 20)
   assert_check(
-    "list_get returns the element at a valid index",
+    "list_get returns the element at each valid index",
     gen,
-    fn(input) {
-      let (arr, idx) = input
+    fn(arr) {
       let list = list_from_strings(arr)
-      if idx < 0 {
-        Ok(())
-      } else {
-        match list_get(list, idx) {
+      let mut i = 0
+      while i < arr.length() {
+        match list_get(list, i) {
           Some(v) =>
-            if v == arr[idx] {
-              Ok(())
-            } else {
-              Err("list_get(\{idx}) = \{v} but arr[\{idx}] = \{arr[idx]}")
+            if v != arr[i] {
+              return Err("list_get(\{i}) = \{v} but arr[\{i}] = \{arr[i]}")
             }
           None =>
-            Err("list_get(\{idx}) = None for arr of length \{arr.length()}")
+            return Err(
+              "list_get(\{i}) = None for arr of length \{arr.length()}",
+            )
         }
+        i = i + 1
       }
+      Ok(())
     },
     config~,
+    shrink=shrink_string_array_local,
   )
 }
 
@@ -489,73 +484,47 @@ test "prop_list_get_out_of_range" {
 ///|
 /// Round-trip: map_get returns the value associated with any key from map_from_arrays.
 test "prop_map_get_returns_known_value" {
-  let gen = gen_map_arrays_local().bind(fn(input) {
-    let (keys, values) = input
-    if keys.length() == 0 {
-      @pbt.Gen::fmap(@pbt.pure(0), fn(_) { (keys, values, -1) })
-    } else {
-      @pbt.Gen::fmap(@pbt.int_range(0, keys.length() - 1), fn(idx) {
-        (keys, values, idx)
-      })
-    }
-  })
+  let gen = gen_map_arrays_local()
   let config = CheckConfig::new(200, 20, 810009, 20)
   assert_check(
-    "map_get(map, keys[i]) == Some(values[i]) for first occurrence",
+    "map_get returns the value bound to the first occurrence of each key",
     gen,
     fn(input) {
-      let (keys, values, idx) = input
+      let (keys, values) = input
       let map = map_from_arrays(keys, values)
-      if idx < 0 {
-        Ok(())
-      } else {
-        let key = keys[idx]
-        let first = {
-          let mut i = 0
-          let mut found = -1
-          while i < keys.length() {
-            if keys[i] == key {
-              found = i
-              break
-            }
-            i = i + 1
-          }
-          found
+      let mut i = 0
+      while i < keys.length() {
+        let key = keys[i]
+        let mut first = 0
+        while keys[first] != key {
+          first = first + 1
         }
         match map_get(map, key) {
           Some(v) =>
-            if v == values[first] {
-              Ok(())
-            } else {
-              Err("map_get(\{key}) = \{v}, expected \{values[first]}")
+            if v != values[first] {
+              return Err("map_get(\{key}) = \{v}, expected \{values[first]}")
             }
-          None => Err("map_get(\{key}) = None, expected Some")
+          None => return Err("map_get(\{key}) = None, expected Some")
         }
+        i = i + 1
       }
+      Ok(())
     },
     config~,
+    shrink=shrink_map_arrays_local,
   )
 }
 
 ///|
 /// Roundtrip: struct_from_pairs preserves fields in order.
 test "prop_struct_from_pairs_field_count_and_get" {
-  let gen = gen_map_arrays_local().bind(fn(input) {
-    let (keys, values) = input
-    if keys.length() == 0 {
-      @pbt.Gen::fmap(@pbt.pure(0), fn(_) { (keys, values, -1) })
-    } else {
-      @pbt.Gen::fmap(@pbt.int_range(0, keys.length() - 1), fn(idx) {
-        (keys, values, idx)
-      })
-    }
-  })
+  let gen = gen_map_arrays_local()
   let config = CheckConfig::new(200, 20, 810010, 20)
   assert_check(
-    "struct_field_count == pairs.length() and struct_get returns value",
+    "struct_from_pairs preserves field_count and round-trips via struct_get",
     gen,
     fn(input) {
-      let (keys, values, idx) = input
+      let (keys, values) = input
       let pairs : Array[(String, String)] = []
       let mut i = 0
       while i < keys.length() {
@@ -568,34 +537,26 @@ test "prop_struct_from_pairs_field_count_and_get" {
           "field_count=\{struct_field_count(s)} vs pairs=\{pairs.length()}",
         )
       }
-      if idx < 0 {
-        Ok(())
-      } else {
-        let key = keys[idx]
-        let first = {
-          let mut j = 0
-          let mut found = -1
-          while j < keys.length() {
-            if keys[j] == key {
-              found = j
-              break
-            }
-            j = j + 1
-          }
-          found
+      let mut j = 0
+      while j < keys.length() {
+        let key = keys[j]
+        let mut first = 0
+        while keys[first] != key {
+          first = first + 1
         }
         match struct_get(s, key) {
           Some(v) =>
-            if v == values[first] {
-              Ok(())
-            } else {
-              Err("struct_get(\{key}) = \{v}, expected \{values[first]}")
+            if v != values[first] {
+              return Err("struct_get(\{key}) = \{v}, expected \{values[first]}")
             }
-          None => Err("struct_get(\{key}) = None, expected Some")
+          None => return Err("struct_get(\{key}) = None, expected Some")
         }
+        j = j + 1
       }
+      Ok(())
     },
     config~,
+    shrink=shrink_map_arrays_local,
   )
 }
 
@@ -634,7 +595,7 @@ test "prop_struct_from_arrays_matches_from_pairs" {
 /// is_special_float_string returns true for each known special marker.
 test "prop_is_special_float_string_accepts_known" {
   let specials = ["nan", "NaN", "inf", "Infinity", "-inf", "-Infinity"]
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, specials.length() - 1), fn(i) {
+  let gen = @pbt.Gen::fmap(@pbt.int_range(0, specials.length()), fn(i) {
     specials[i]
   })
   let config = CheckConfig::new(200, 20, 810012, 20)

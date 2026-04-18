@@ -152,7 +152,7 @@ extern "C" fn native_appender_append_timestamp(
 // ----------------------------------------------------------------------------
 
 ///|
-#borrow(stmt)
+#borrow(stmt, data)
 extern "C" fn native_bind_blob(
   stmt : PreparedStatement,
   index : Int,
@@ -161,7 +161,7 @@ extern "C" fn native_bind_blob(
 ) -> Bool = "duckdb_mb_bind_blob"
 
 ///|
-#borrow(append)
+#borrow(append, data)
 extern "C" fn native_appender_append_blob(
   append : Appender,
   data : Bytes,
@@ -221,7 +221,7 @@ extern "C" fn native_appender_append_interval(
 // ----------------------------------------------------------------------------
 
 ///|
-#borrow(stmt)
+#borrow(stmt, values)
 extern "C" fn native_bind_list_varchar(
   stmt : PreparedStatement,
   index : Int,
@@ -234,7 +234,7 @@ extern "C" fn native_bind_list_varchar(
 // ----------------------------------------------------------------------------
 
 ///|
-#borrow(stmt)
+#borrow(stmt, field_names, field_values)
 extern "C" fn native_bind_struct_varchar(
   stmt : PreparedStatement,
   index : Int,
@@ -248,7 +248,7 @@ extern "C" fn native_bind_struct_varchar(
 // ----------------------------------------------------------------------------
 
 ///|
-#borrow(stmt)
+#borrow(stmt, keys, values)
 extern "C" fn native_bind_map_varchar_varchar(
   stmt : PreparedStatement,
   index : Int,
@@ -262,7 +262,7 @@ extern "C" fn native_bind_map_varchar_varchar(
 // ----------------------------------------------------------------------------
 
 ///|
-#borrow(appender)
+#borrow(appender, values)
 extern "C" fn native_appender_append_list_varchar(
   appender : Appender,
   values : Array[Bytes],
@@ -270,7 +270,7 @@ extern "C" fn native_appender_append_list_varchar(
 ) -> Bool = "duckdb_mb_append_list_varchar"
 
 ///|
-#borrow(appender)
+#borrow(appender, field_names, field_values)
 extern "C" fn native_appender_append_struct_varchar(
   appender : Appender,
   field_names : Array[Bytes],
@@ -279,7 +279,7 @@ extern "C" fn native_appender_append_struct_varchar(
 ) -> Bool = "duckdb_mb_append_struct_varchar"
 
 ///|
-#borrow(appender)
+#borrow(appender, keys, values)
 extern "C" fn native_appender_append_map_varchar_varchar(
   appender : Appender,
   keys : Array[Bytes],
