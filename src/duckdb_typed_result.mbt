@@ -12,7 +12,7 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
 
   // Initialize column arrays
   let data : Array[Array[Value]] = []
-  for col in 0..<column_count {
+  for _ in 0..<column_count {
     data.push([])
   } nobreak {
     ()

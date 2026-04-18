@@ -212,19 +212,19 @@ pub fn parse_int(s : String) -> Int {
       start = 1
     }
   }
-  let limit = if negative { @int.min_value } else { -@int.max_value }
+  let limit = if negative { @int.MIN_VALUE } else { -@int.MAX_VALUE }
   let multmin = limit / 10
   for i in start..<s.length() {
     let c = s[i]
     if c >= '0' && c <= '9' {
       let digit = c.to_int() - '0'.to_int()
       if result < multmin {
-        return if negative { @int.min_value } else { @int.max_value }
+        return if negative { @int.MIN_VALUE } else { @int.MAX_VALUE }
       }
       result = result * 10
       let next = result - digit
       if next < limit {
-        return if negative { @int.min_value } else { @int.max_value }
+        return if negative { @int.MIN_VALUE } else { @int.MAX_VALUE }
       }
       result = next
     }

@@ -1764,9 +1764,9 @@ test "prop_parse_fraction_to_micros_trailing_zeros" {
 /// Parsing should handle max integer correctly
 test "prop_parse_int_max_boundary" {
   let gen = @pbt.one_of([
-    @pbt.pure(@int.max_value.to_string()),
-    @pbt.pure((@int.max_value - 1).to_string()),
-    @pbt.pure(@int.max_value.to_string() + "0"),
+    @pbt.pure(@int.MAX_VALUE.to_string()),
+    @pbt.pure((@int.MAX_VALUE - 1).to_string()),
+    @pbt.pure(@int.MAX_VALUE.to_string() + "0"),
   ])
   let config = CheckConfig::new(50, 10, 616161, 10)
   assert_check(
@@ -1775,7 +1775,7 @@ test "prop_parse_int_max_boundary" {
     fn(s) {
       let result = parse_int(s)
       // Should not crash and should return something reasonable
-      if result >= @int.max_value - 1 {
+      if result >= @int.MAX_VALUE - 1 {
         Ok(())
       } else {
         Err("parse_int(\{s}) = \{result}, too small")
@@ -1790,8 +1790,8 @@ test "prop_parse_int_max_boundary" {
 /// Parsing should handle min integer correctly
 test "prop_parse_int_min_boundary" {
   let gen = @pbt.one_of([
-    @pbt.pure(@int.min_value.to_string()),
-    @pbt.pure((@int.min_value + 1).to_string()),
+    @pbt.pure(@int.MIN_VALUE.to_string()),
+    @pbt.pure((@int.MIN_VALUE + 1).to_string()),
   ])
   let config = CheckConfig::new(50, 10, 626262, 10)
   assert_check(
@@ -1800,7 +1800,7 @@ test "prop_parse_int_min_boundary" {
     fn(s) {
       let result = parse_int(s)
       // Should not crash and should return something reasonable
-      if result <= @int.min_value + 1 {
+      if result <= @int.MIN_VALUE + 1 {
         Ok(())
       } else {
         Err("parse_int(\{s}) = \{result}, too large")
