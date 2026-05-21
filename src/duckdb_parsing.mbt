@@ -243,10 +243,10 @@ pub fn parse_double(s : String) -> Double {
   let dot_index = find_dot(s)
   match dot_index {
     Some(idx) => {
-      let int_part = s.view(start_offset=0, end_offset=idx).to_string()
+      let int_part = s.view(start_offset=0, end_offset=idx).to_owned()
       let frac_part = s
         .view(start_offset=idx + 1, end_offset=s.length())
-        .to_string()
+        .to_owned()
       let int_val = parse_int(int_part)
       let frac_val = parse_fractional(frac_part)
       let sign = if s.length() > 0 && s[0] == '-' { -1.0 } else { 1.0 }
@@ -294,9 +294,9 @@ pub fn parse_date(s : String) -> Result[Int, String] {
   if !is_date(s) {
     Err("invalid date format")
   } else {
-    let year_str = s.view(start_offset=0, end_offset=4).to_string()
-    let month_str = s.view(start_offset=5, end_offset=7).to_string()
-    let day_str = s.view(start_offset=8, end_offset=10).to_string()
+    let year_str = s.view(start_offset=0, end_offset=4).to_owned()
+    let month_str = s.view(start_offset=5, end_offset=7).to_owned()
+    let day_str = s.view(start_offset=8, end_offset=10).to_owned()
     let year = parse_int(year_str)
     let month = parse_int(month_str)
     let day = parse_int(day_str)
@@ -376,12 +376,12 @@ pub fn parse_timestamp(s : String) -> Result[Int64, String] {
   if !is_timestamp(s) {
     Err("invalid timestamp format")
   } else {
-    let date_part = s.view(start_offset=0, end_offset=10).to_string()
+    let date_part = s.view(start_offset=0, end_offset=10).to_owned()
     match parse_date(date_part) {
       Ok(days) => {
         let time_part = s
           .view(start_offset=11, end_offset=s.length())
-          .to_string()
+          .to_owned()
         match parse_time_to_micros(time_part) {
           Ok(micros) => {
             // Use Int64 to avoid overflow
@@ -436,24 +436,24 @@ pub fn parse_time_to_micros(s : String) -> Result[Int64, String] {
   if colon_count < 2 {
     Err("invalid time format")
   } else {
-    let hour_str = s.view(start_offset=0, end_offset=colon1).to_string()
+    let hour_str = s.view(start_offset=0, end_offset=colon1).to_owned()
     let minute_str = s
       .view(start_offset=colon1 + 1, end_offset=colon2)
-      .to_string()
+      .to_owned()
     let sec_part = s
       .view(start_offset=colon2 + 1, end_offset=s.length())
-      .to_string()
+      .to_owned()
 
     // Parse seconds (may have fractional part)
     let dot_idx = find_dot(sec_part)
     let (second, frac_micros) = match dot_idx {
       Some(idx) => {
         let second = parse_int(
-          sec_part.view(start_offset=0, end_offset=idx).to_string(),
+          sec_part.view(start_offset=0, end_offset=idx).to_owned(),
         )
         let frac = sec_part
           .view(start_offset=idx + 1, end_offset=sec_part.length())
-          .to_string()
+          .to_owned()
         (second, parse_fraction_to_micros(frac))
       }
       None => (parse_int(sec_part), 0)
