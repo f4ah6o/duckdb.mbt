@@ -210,12 +210,19 @@ pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
 
 #external
 pub type Connection
+pub fn Connection::attach_quack(Self, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::create_appender(Self, String, String, on_done~ : (Result[Appender, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::create_quack_secret(Self, String, scope? : String, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::install_quack(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::load_quack(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::prepare(Self, String, on_done~ : (Result[PreparedStatement, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::quack_query(Self, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query_arrow(Self, String, on_done~ : (Result[ArrowResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query_stream(Self, String, on_done~ : (Result[ResultStream, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::start_quack_server(Self, String, token? : String, allow_other_hostname? : Bool, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::stop_quack_server(Self, String, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 
 pub struct DataChunk {
   columns : Array[String]
@@ -374,4 +381,3 @@ pub type Vector
 // Type aliases
 
 // Traits
-

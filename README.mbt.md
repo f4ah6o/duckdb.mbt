@@ -137,6 +137,72 @@ npm install @duckdb/duckdb-wasm@^1.33.1-dev18.0
 - **Node.js Advanced Types** - Decimal, Interval, Blob are supported for bind/append; List/Struct/Map are VARCHAR-only
 - **JS Appender Date/Timestamp** - Not implemented (native only)
 
+## Quack Remote Protocol
+
+Quack support is exposed as thin SQL helpers on `Connection`. The helpers use
+DuckDB's `quack` extension instead of implementing the low-level
+`application/duckdb` wire format in MoonBit.
+
+Quack is experimental in DuckDB 1.5.x and is distributed from DuckDB's
+`core_nightly` extension repository. Function names, defaults, and protocol
+details may change before DuckDB 2.0.
+
+```mbt nocheck
+connect(on_ready=fn(result) {
+  match result {
+    Ok(conn) => {
+      conn.install_quack(on_done=fn(_) { () })
+      conn.load_quack(on_done=fn(_) { () })
+      conn.start_quack_server(
+        "quack:localhost",
+        token="super_secret",
+        on_done=fn(started) {
+          match started {
+            Ok(info) => println("quack server: \{info.rows}")
+            Err(err) => println("quack serve failed: \{err}")
+          }
+        },
+      )
+    }
+    Err(err) => println("connect failed: \{err}")
+  }
+})
+```
+
+Client helpers cover scoped secrets, stateless remote queries, and attached
+remote catalogs:
+
+```mbt nocheck
+conn.create_quack_secret(
+  "super_secret",
+  scope="quack:localhost",
+  on_done=fn(_) { () },
+)
+
+conn.quack_query(
+  "quack:localhost",
+  "SELECT 42 AS answer",
+  token="super_secret",
+  on_done=fn(result) {
+    match result {
+      Ok(rows) => println("\{rows.rows}")
+      Err(err) => println("quack query failed: \{err}")
+    }
+  },
+)
+
+conn.attach_quack(
+  "quack:localhost",
+  "remote_db",
+  token="super_secret",
+  on_done=fn(_) { () },
+)
+```
+
+For non-local endpoints, DuckDB's Quack client assumes HTTPS by default. Use
+`disable_ssl=true` only when a remote endpoint is intentionally served over
+plain HTTP, and prefer a TLS-terminating reverse proxy for exposed services.
+
 ## Usage
 
 ```mbt nocheck

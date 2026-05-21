@@ -239,6 +239,248 @@ pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
 }
 
 // ============================================================================
+// Quack SQL helpers
+// ============================================================================
+
+///|
+fn quack_sql_string(value : String) -> String {
+  let sb = StringBuilder::new()
+  ignore(sb.write_char('\''))
+  for c in value {
+    if c == '\'' {
+      ignore(sb..write_char('\'').write_char('\''))
+    } else {
+      ignore(sb.write_char(c))
+    }
+  }
+  ignore(sb.write_char('\''))
+  sb.to_string()
+}
+
+///|
+fn quack_is_identifier_char(c : Char) -> Bool {
+  (c >= 'a' && c <= 'z') ||
+  (c >= 'A' && c <= 'Z') ||
+  (c >= '0' && c <= '9') ||
+  c == '_'
+}
+
+///|
+fn quack_identifier(value : String) -> Result[String, DuckDBError] {
+  if value.length() == 0 {
+    Err(DuckDBError::Message("Quack alias must not be empty"))
+  } else {
+    for c in value {
+      if !quack_is_identifier_char(c) {
+        return Err(
+          DuckDBError::Message(
+            "Quack alias may only contain letters, digits, and underscores",
+          ),
+        )
+      }
+    }
+    Ok("\"" + value + "\"")
+  }
+}
+
+///|
+fn quack_query_sql(
+  uri : String,
+  sql : String,
+  token : String,
+  disable_ssl : Bool,
+) -> String {
+  let sb = StringBuilder::new()
+  ignore(
+    sb
+    ..write_view("FROM quack_query(")
+    ..write_view(quack_sql_string(uri))
+    ..write_view(", ")
+    .write_view(quack_sql_string(sql)),
+  )
+  if token != "" {
+    ignore(sb..write_view(", token => ").write_view(quack_sql_string(token)))
+  }
+  if disable_ssl {
+    ignore(sb.write_view(", disable_ssl => true"))
+  }
+  ignore(sb.write_char(')'))
+  sb.to_string()
+}
+
+///|
+fn quack_attach_sql(
+  uri : String,
+  db_alias : String,
+  token : String,
+  disable_ssl : Bool,
+) -> Result[String, DuckDBError] {
+  match quack_identifier(db_alias) {
+    Ok(alias_sql) => {
+      let sb = StringBuilder::new()
+      ignore(
+        sb
+        ..write_view("ATTACH ")
+        ..write_view(quack_sql_string(uri))
+        ..write_view(" AS ")
+        ..write_view(alias_sql)
+        .write_view(" (TYPE quack"),
+      )
+      if token != "" {
+        ignore(sb..write_view(", TOKEN ").write_view(quack_sql_string(token)))
+      }
+      if disable_ssl {
+        ignore(sb.write_view(", DISABLE_SSL true"))
+      }
+      ignore(sb.write_char(')'))
+      Ok(sb.to_string())
+    }
+    Err(err) => Err(err)
+  }
+}
+
+///|
+fn quack_secret_sql(token : String, scope : String) -> String {
+  let sb = StringBuilder::new()
+  ignore(
+    sb
+    ..write_view("CREATE SECRET (TYPE quack, TOKEN ")
+    .write_view(quack_sql_string(token)),
+  )
+  if scope != "" {
+    ignore(sb..write_view(", SCOPE ").write_view(quack_sql_string(scope)))
+  }
+  ignore(sb.write_char(')'))
+  sb.to_string()
+}
+
+///|
+fn quack_serve_sql(
+  uri : String,
+  token : String,
+  allow_other_hostname : Bool,
+) -> String {
+  let sb = StringBuilder::new()
+  ignore(sb..write_view("CALL quack_serve(").write_view(quack_sql_string(uri)))
+  if token != "" {
+    ignore(sb..write_view(", token => ").write_view(quack_sql_string(token)))
+  }
+  if allow_other_hostname {
+    ignore(sb.write_view(", allow_other_hostname => true"))
+  }
+  ignore(sb.write_char(')'))
+  sb.to_string()
+}
+
+///|
+fn quack_stop_sql(uri : String) -> String {
+  let sb = StringBuilder::new()
+  ignore(sb..write_view("CALL quack_stop(").write_view(quack_sql_string(uri)))
+  ignore(sb.write_char(')'))
+  sb.to_string()
+}
+
+///|
+fn quack_unit_done(
+  result : Result[QueryResult, DuckDBError],
+  on_done : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  match result {
+    Ok(_) => on_done(Ok(()))
+    Err(err) => on_done(Err(err))
+  }
+}
+
+///|
+/// Install the experimental Quack extension from DuckDB's `core_nightly` repository.
+pub fn Connection::install_quack(
+  self : Connection,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query("FORCE INSTALL quack FROM core_nightly", on_done=fn(result) {
+    quack_unit_done(result, on_done)
+  })
+}
+
+///|
+/// Load the Quack extension in the current DuckDB connection.
+pub fn Connection::load_quack(
+  self : Connection,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query("LOAD quack", on_done=fn(result) {
+    quack_unit_done(result, on_done)
+  })
+}
+
+///|
+/// Start a Quack server for this connection.
+pub fn Connection::start_quack_server(
+  self : Connection,
+  uri : String,
+  token? : String = "",
+  allow_other_hostname? : Bool = false,
+  on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query(quack_serve_sql(uri, token, allow_other_hostname), on_done~)
+}
+
+///|
+/// Stop a Quack server started for this connection.
+pub fn Connection::stop_quack_server(
+  self : Connection,
+  uri : String,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query(quack_stop_sql(uri), on_done=fn(result) {
+    quack_unit_done(result, on_done)
+  })
+}
+
+///|
+/// Run a stateless query against a Quack endpoint.
+pub fn Connection::quack_query(
+  self : Connection,
+  uri : String,
+  sql : String,
+  token? : String = "",
+  disable_ssl? : Bool = false,
+  on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query(quack_query_sql(uri, sql, token, disable_ssl), on_done~)
+}
+
+///|
+/// Create a scoped or unscoped Quack secret for client authentication.
+pub fn Connection::create_quack_secret(
+  self : Connection,
+  token : String,
+  scope? : String = "",
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  self.query(quack_secret_sql(token, scope), on_done=fn(result) {
+    quack_unit_done(result, on_done)
+  })
+}
+
+///|
+/// Attach a Quack endpoint as a remote DuckDB catalog.
+pub fn Connection::attach_quack(
+  self : Connection,
+  uri : String,
+  db_alias : String,
+  token? : String = "",
+  disable_ssl? : Bool = false,
+  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
+) -> Unit {
+  match quack_attach_sql(uri, db_alias, token, disable_ssl) {
+    Ok(sql) =>
+      self.query(sql, on_done=fn(result) { quack_unit_done(result, on_done) })
+    Err(err) => on_done(Err(err))
+  }
+}
+
+// ============================================================================
 // QueryResult Direct Typed Access
 // ============================================================================
 
