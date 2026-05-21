@@ -767,17 +767,7 @@ extern "js" fn js_bind_blob(
   #|    }
   #|  }
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
-  #|    try {
-  #|      const bytes = [];
-  #|      for (let i = 0; i < data.byteLength; i++) {
-  #|        bytes.push(data.readUint8(i));
-  #|      }
-  #|      if (!stmt.params) stmt.params = {};
-  #|      stmt.params[index] = { type: "blob", value: bytes };
-  #|      return { ok: true };
-  #|    } catch (e) {
-  #|      return { ok: false, error: e.message || String(e) };
-  #|    }
+  #|    return { ok: false, error: "WASM backend does not support direct BLOB prepared parameters" };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -848,9 +838,7 @@ extern "js" fn js_bind_list_varchar(
   #|    }
   #|  }
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
-  #|    if (!stmt.params) stmt.params = {};
-  #|    stmt.params[index] = { type: "list_varchar", value: values };
-  #|    return { ok: true };
+  #|    return { ok: false, error: "WASM backend does not support direct LIST prepared parameters" };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -873,9 +861,7 @@ extern "js" fn js_bind_struct(
   #|    }
   #|  }
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
-  #|    if (!stmt.params) stmt.params = {};
-  #|    stmt.params[index] = { type: "struct", fields, values };
-  #|    return { ok: true };
+  #|    return { ok: false, error: "WASM backend does not support direct STRUCT prepared parameters" };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -898,9 +884,7 @@ extern "js" fn js_bind_map(
   #|    }
   #|  }
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "wasm") {
-  #|    if (!stmt.params) stmt.params = {};
-  #|    stmt.params[index] = { type: "map", keys, values };
-  #|    return { ok: true };
+  #|    return { ok: false, error: "WASM backend does not support direct MAP prepared parameters" };
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
@@ -1233,61 +1217,6 @@ extern "js" fn js_execute_prepared(
   #|    const split = raw.length - scale;
   #|    return sign + raw.slice(0, split) + "." + raw.slice(split);
   #|  };
-  #|  const advancedParamTypes = new Set(["blob", "decimal", "interval", "list_varchar", "struct", "map"]);
-  #|  const hasAdvancedWasmParams = (stmt) =>
-  #|    !!stmt.params && Object.values(stmt.params).some((param) => advancedParamTypes.has(param.type));
-  #|  const escapeSqlString = (value) => String(value).replace(/'/g, "''");
-  #|  const sqlString = (value) => "'" + escapeSqlString(value) + "'";
-  #|  const sqlIdentifier = (value) => "\"" + String(value).replace(/"/g, "\"\"") + "\"";
-  #|  const bytesToHex = (bytes) => bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
-  #|  const wasmParamLiteral = (param) => {
-  #|    if (param.type === "null") return "NULL";
-  #|    if (param.type === "int" || param.type === "bigint" || param.type === "double") return String(param.value);
-  #|    if (param.type === "bool") return param.value ? "TRUE" : "FALSE";
-  #|    if (param.type === "varchar" || param.type === "date" || param.type === "timestamp") return sqlString(param.value);
-  #|    if (param.type === "blob") return "from_hex(" + sqlString(bytesToHex(param.value)) + ")";
-  #|    if (param.type === "decimal") return decimalToString(param.value, param.scale);
-  #|    if (param.type === "interval") return "INTERVAL " + sqlString(`${param.months} months ${param.days} days ${param.micros} microseconds`);
-  #|    if (param.type === "list_varchar") return "[" + param.value.map(sqlString).join(", ") + "]";
-  #|    if (param.type === "struct") {
-  #|      const entries = [];
-  #|      for (let i = 0; i < param.fields.length; i++) {
-  #|        entries.push(sqlIdentifier(param.fields[i]) + " := " + sqlString(param.values[i]));
-  #|      }
-  #|      return "struct_pack(" + entries.join(", ") + ")";
-  #|    }
-  #|    if (param.type === "map") {
-  #|      return "map([" + param.keys.map(sqlString).join(", ") + "], [" + param.values.map(sqlString).join(", ") + "])";
-  #|    }
-  #|    return sqlString(param.value);
-  #|  };
-  #|  const materializeWasmSql = (stmt) => {
-  #|    const params = stmt.params || {};
-  #|    let index = 1;
-  #|    let out = "";
-  #|    let inString = false;
-  #|    const sql = stmt.sql || "";
-  #|    for (let i = 0; i < sql.length; i++) {
-  #|      const ch = sql[i];
-  #|      if (ch === "'") {
-  #|        out += ch;
-  #|        if (inString && sql[i + 1] === "'") {
-  #|          out += sql[i + 1];
-  #|          i += 1;
-  #|        } else {
-  #|          inString = !inString;
-  #|        }
-  #|      } else if (ch === "?" && !inString) {
-  #|        const param = params[index];
-  #|        if (!param) throw new Error("missing WASM bind parameter " + index);
-  #|        out += wasmParamLiteral(param);
-  #|        index += 1;
-  #|      } else {
-  #|        out += ch;
-  #|      }
-  #|    }
-  #|    return out;
-  #|  };
   #|  const materializeWasmParams = (stmt) => {
   #|    const params = [];
   #|    if (!stmt.params) return params;
@@ -1350,9 +1279,7 @@ extern "js" fn js_execute_prepared(
   #|    }
   #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
-  #|        const arrowResult = hasAdvancedWasmParams(stmt)
-  #|          ? await stmt.connection.conn.query(materializeWasmSql(stmt))
-  #|          : await stmt.statement.query(...materializeWasmParams(stmt));
+  #|        const arrowResult = await stmt.statement.query(...materializeWasmParams(stmt));
   #|        let columns = [];
   #|        if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {
   #|          columns = arrowResult.schema.fields.map((field) => field.name);
@@ -1398,61 +1325,6 @@ extern "js" fn js_execute_prepared_stream(
   #|    while (raw.length <= scale) raw = "0" + raw;
   #|    const split = raw.length - scale;
   #|    return sign + raw.slice(0, split) + "." + raw.slice(split);
-  #|  };
-  #|  const advancedParamTypes = new Set(["blob", "decimal", "interval", "list_varchar", "struct", "map"]);
-  #|  const hasAdvancedWasmParams = (stmt) =>
-  #|    !!stmt.params && Object.values(stmt.params).some((param) => advancedParamTypes.has(param.type));
-  #|  const escapeSqlString = (value) => String(value).replace(/'/g, "''");
-  #|  const sqlString = (value) => "'" + escapeSqlString(value) + "'";
-  #|  const sqlIdentifier = (value) => "\"" + String(value).replace(/"/g, "\"\"") + "\"";
-  #|  const bytesToHex = (bytes) => bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
-  #|  const wasmParamLiteral = (param) => {
-  #|    if (param.type === "null") return "NULL";
-  #|    if (param.type === "int" || param.type === "bigint" || param.type === "double") return String(param.value);
-  #|    if (param.type === "bool") return param.value ? "TRUE" : "FALSE";
-  #|    if (param.type === "varchar" || param.type === "date" || param.type === "timestamp") return sqlString(param.value);
-  #|    if (param.type === "blob") return "from_hex(" + sqlString(bytesToHex(param.value)) + ")";
-  #|    if (param.type === "decimal") return decimalToString(param.value, param.scale);
-  #|    if (param.type === "interval") return "INTERVAL " + sqlString(`${param.months} months ${param.days} days ${param.micros} microseconds`);
-  #|    if (param.type === "list_varchar") return "[" + param.value.map(sqlString).join(", ") + "]";
-  #|    if (param.type === "struct") {
-  #|      const entries = [];
-  #|      for (let i = 0; i < param.fields.length; i++) {
-  #|        entries.push(sqlIdentifier(param.fields[i]) + " := " + sqlString(param.values[i]));
-  #|      }
-  #|      return "struct_pack(" + entries.join(", ") + ")";
-  #|    }
-  #|    if (param.type === "map") {
-  #|      return "map([" + param.keys.map(sqlString).join(", ") + "], [" + param.values.map(sqlString).join(", ") + "])";
-  #|    }
-  #|    return sqlString(param.value);
-  #|  };
-  #|  const materializeWasmSql = (stmt) => {
-  #|    const params = stmt.params || {};
-  #|    let index = 1;
-  #|    let out = "";
-  #|    let inString = false;
-  #|    const sql = stmt.sql || "";
-  #|    for (let i = 0; i < sql.length; i++) {
-  #|      const ch = sql[i];
-  #|      if (ch === "'") {
-  #|        out += ch;
-  #|        if (inString && sql[i + 1] === "'") {
-  #|          out += sql[i + 1];
-  #|          i += 1;
-  #|        } else {
-  #|          inString = !inString;
-  #|        }
-  #|      } else if (ch === "?" && !inString) {
-  #|        const param = params[index];
-  #|        if (!param) throw new Error("missing WASM bind parameter " + index);
-  #|        out += wasmParamLiteral(param);
-  #|        index += 1;
-  #|      } else {
-  #|        out += ch;
-  #|      }
-  #|    }
-  #|    return out;
   #|  };
   #|  const materializeWasmParams = (stmt) => {
   #|    const params = [];
@@ -1514,9 +1386,7 @@ extern "js" fn js_execute_prepared_stream(
   #|    }
   #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
-  #|        const reader = hasAdvancedWasmParams(stmt)
-  #|          ? await stmt.connection.conn.send(materializeWasmSql(stmt), true)
-  #|          : await stmt.statement.send(...materializeWasmParams(stmt));
+  #|        const reader = await stmt.statement.send(...materializeWasmParams(stmt));
   #|        let columns = [];
   #|        if (reader && reader.schema && reader.schema.fields) {
   #|          columns = reader.schema.fields.map((field) => field.name);

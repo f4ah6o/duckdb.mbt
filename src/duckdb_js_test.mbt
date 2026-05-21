@@ -851,6 +851,16 @@ fn is_wasm_bind_skip(message : String) -> Bool {
 }
 
 ///|
+fn is_wasm_direct_param_unsupported(
+  message : String,
+  type_name : String,
+) -> Bool {
+  message.contains(
+    "WASM backend does not support direct \{type_name} prepared parameters",
+  )
+}
+
+///|
 test "js node prepare bind int" {
   let result = run_js_prepare_query(JsBackend::Node, "SELECT ? * 2 AS x", [
     ("21", "int"),
@@ -1306,7 +1316,8 @@ test "js wrapper wasm prepare bind blob" {
         ()
       }
     Err(message) =>
-      if is_wasm_bind_skip(message) {
+      if is_wasm_bind_skip(message) ||
+        is_wasm_direct_param_unsupported(message, "BLOB") {
         ()
       } else {
         fail("wasm wrapper bind blob failed: \{message}")
@@ -1387,7 +1398,8 @@ test "js wrapper wasm prepare bind list varchar" {
         ()
       }
     Err(message) =>
-      if is_wasm_bind_skip(message) {
+      if is_wasm_bind_skip(message) ||
+        is_wasm_direct_param_unsupported(message, "LIST") {
         ()
       } else {
         fail("wasm wrapper bind list failed: \{message}")
@@ -1414,7 +1426,8 @@ test "js wrapper wasm prepare bind struct" {
         ()
       }
     Err(message) =>
-      if is_wasm_bind_skip(message) {
+      if is_wasm_bind_skip(message) ||
+        is_wasm_direct_param_unsupported(message, "STRUCT") {
         ()
       } else {
         fail("wasm wrapper bind struct failed: \{message}")
@@ -1441,7 +1454,8 @@ test "js wrapper wasm prepare bind map" {
         ()
       }
     Err(message) =>
-      if is_wasm_bind_skip(message) {
+      if is_wasm_bind_skip(message) ||
+        is_wasm_direct_param_unsupported(message, "MAP") {
         ()
       } else {
         fail("wasm wrapper bind map failed: \{message}")

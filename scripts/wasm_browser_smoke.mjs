@@ -34,9 +34,9 @@ function smokeHtml() {
 <script type="importmap">
 {
   "imports": {
-    "apache-arrow": "/node_modules/apache-arrow/Arrow.dom.mjs",
-    "tslib": "/node_modules/tslib/tslib.es6.mjs",
-    "flatbuffers": "/node_modules/flatbuffers/mjs/flatbuffers.js"
+    "apache-arrow": "/node_modules/.pnpm/apache-arrow@17.0.0/node_modules/apache-arrow/Arrow.dom.mjs",
+    "tslib": "/node_modules/.pnpm/tslib@2.8.1/node_modules/tslib/tslib.es6.mjs",
+    "flatbuffers": "/node_modules/.pnpm/flatbuffers@24.12.23/node_modules/flatbuffers/mjs/flatbuffers.js"
   }
 }
 </script>
@@ -57,9 +57,10 @@ globalThis.runDuckDBWasmSmoke = async () => {
   await db.instantiate(bundle.mainModule);
   const conn = await db.connect();
 
-  const scalar = async (name, sql) => {
+  const scalar = async (name, sql, params) => {
     try {
-      const result = await conn.query(sql);
+      const stmt = await conn.prepare(sql);
+      const result = await stmt.query(...params);
       const rows = result.toArray().map((row) => row.toJSON());
       if (rows.length !== 1 || !("x" in rows[0])) {
         throw new Error(name + ": unexpected result shape for " + sql);
@@ -71,14 +72,32 @@ globalThis.runDuckDBWasmSmoke = async () => {
     }
   };
 
-  const checks = [
-    ["decimal", "123.45", await scalar("decimal", "SELECT (123.45::DECIMAL(10,2))::VARCHAR AS x")],
-    ["interval", 1, await scalar("interval", "SELECT date_part('month', INTERVAL '1 months 2 days 3000000 microseconds')::INTEGER AS x")],
-    ["blob", "DEADBEEF", await scalar("blob", "SELECT hex(from_hex('DEADBEEF')::BLOB) AS x")],
-    ["list", "a,b,c", await scalar("list", "SELECT array_to_string(['a', 'b', 'c']::VARCHAR[], ',') AS x")],
-    ["struct", "left", await scalar("struct", "SELECT (struct_pack(a := 'left', b := 'right')::STRUCT(a VARCHAR, b VARCHAR)).a AS x")],
-    ["map", "v2", await scalar("map", "SELECT map_extract_value(map(['k1', 'k2'], ['v1', 'v2'])::MAP(VARCHAR, VARCHAR), 'k2') AS x")],
+  const cases = [
+    ["decimal", "123.45", "SELECT (?::DECIMAL(10,2))::VARCHAR AS x", ["123.45"]],
+    ["interval", 1, "SELECT date_part('month', ?::INTERVAL)::INTEGER AS x", ["1 months 2 days 3000000 microseconds"]],
+    ["blob", "DEADBEEF", "SELECT hex(?::BLOB) AS x", [new Uint8Array([0xde, 0xad, 0xbe, 0xef])]],
+    ["list", "a,b,c", "SELECT array_to_string(?::VARCHAR[], ',') AS x", [["a", "b", "c"]]],
+    ["struct", "left", "SELECT (?::STRUCT(a VARCHAR, b VARCHAR)).a AS x", [{ a: "left", b: "right" }]],
+    ["map", "v2", "SELECT map_extract_value(?::MAP(VARCHAR, VARCHAR), 'k2') AS x", [[{ key: "k1", value: "v1" }, { key: "k2", value: "v2" }]]],
   ];
+
+  const checks = [];
+  const unsupported = new Set(["blob", "list", "struct", "map"]);
+  const failures = [];
+  for (const [name, expected, sql, params] of cases) {
+    try {
+      const actual = await scalar(name, sql, params);
+      if (unsupported.has(name)) {
+        failures.push(name + ": expected direct prepared params to be unsupported");
+      } else {
+        checks.push([name, expected, actual]);
+      }
+    } catch (error) {
+      if (!unsupported.has(name)) {
+        failures.push(name + ": " + (error instanceof Error ? error.message : String(error)));
+      }
+    }
+  }
 
   await conn.close();
   await db.terminate();
@@ -89,7 +108,10 @@ globalThis.runDuckDBWasmSmoke = async () => {
       throw new Error(name + " expected " + expected + ", got " + actual);
     }
   }
-  return checks.map(([name]) => name);
+  if (failures.length > 0) {
+    throw new Error("unsupported direct params: " + failures.join("; "));
+  }
+  return checks.map(([name]) => name).concat(Array.from(unsupported).map((name) => name + "-unsupported"));
 };
 </script>`;
 }

@@ -27,16 +27,17 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 
 | Type | Native Bind | Native Append | Node Bind | Node Append | WASM Bind |
 |------|-------------|---------------|-----------|-------------|------|
-| Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ⚠️ Cast required |
-| Interval | ✅ | ✅ | ✅ | ✅ | ⚠️ Cast required |
-| Blob | ✅ | ✅ | ✅ | ✅ | ⚠️ Cast required |
-| List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR[] only, cast required |
-| Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR fields only, cast required |
-| Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR keys/values only, cast required |
+| Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ direct string param + SQL cast |
+| Interval | ✅ | ✅ | ✅ | ✅ | ✅ direct string param + SQL cast |
+| Blob | ✅ | ✅ | ✅ | ✅ | ❌ unsupported |
+| List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
+| Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
+| Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
 
 **Notes:**
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
-- JS (WASM) supports advanced prepared-statement binds only when SQL casts the placeholder to the target type, for example `?::DECIMAL(10,2)`, `?::INTERVAL`, `?::BLOB`, `?::VARCHAR[]`, `?::STRUCT(a VARCHAR)`, or `?::MAP(VARCHAR, VARCHAR)`.
+- JS (WASM) uses direct duckdb-wasm prepared parameters only. Verified advanced prepared-statement bind support is limited to Decimal and Interval string parameters with an explicit SQL cast, for example `?::DECIMAL(10,2)` or `?::INTERVAL`.
+- JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported because the browser smoke test fails against `@duckdb/duckdb-wasm` 1.33.1-dev18.0.
 - Appender date/timestamp helpers are only implemented for native targets.
 
 ### Arrow Integration
@@ -143,15 +144,16 @@ pnpm test:wasm-browser:install
 ```
 
 The smoke check serves the local `@duckdb/duckdb-wasm` bundle over HTTP, verifies
-`Worker` support, and exercises the WASM advanced type SQL forms used by the
-prepared-statement fallback for Decimal, Blob, Interval, List, Struct, and Map.
+`Worker` support, and exercises direct duckdb-wasm prepared parameters for
+Decimal, Blob, Interval, List, Struct, and Map. Decimal and Interval are
+expected to pass; Blob, List, Struct, and Map are expected to remain unsupported.
 Cross-origin isolation may be required for future pthread/SharedArrayBuffer
 paths, but the current smoke check uses the MVP worker bundle.
 
 ### JavaScript Limitations
 
 - **WASM Appender** - Not supported for WASM backend (use INSERT statements instead)
-- **WASM Advanced Types** - Blob, Decimal, Interval, List, Struct, Map prepared-statement binds are partial and require explicit SQL casts on the placeholder
+- **WASM Advanced Types** - Decimal and Interval prepared-statement binds are supported as direct string parameters with explicit SQL casts; Blob, List, Struct, and Map direct prepared parameters are unsupported
 - **Node.js Advanced Types** - Decimal, Interval, Blob are supported for bind/append; List/Struct/Map are VARCHAR-only
 - **JS Appender Date/Timestamp** - Not implemented (native only)
 
