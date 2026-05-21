@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "description": "MoonBit bindings for DuckDB on native and JavaScript targets.",
   "main": "index.js",
+  "packageManager": "pnpm@10.29.3",
   "scripts": {
     "gen:fixtures": "node scripts/generate_duckdb_fixtures.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "pnpm test:js",
+    "test:js": "moon test --target js",
+    "test:wasm-browser": "node scripts/wasm_browser_smoke.mjs",
+    "test:wasm-browser:install": "playwright install chromium"
   },
   "repository": {
     "type": "git",
@@ -20,7 +24,10 @@
   },
   "homepage": "https://github.com/f4ah6o/duckdb.mbt#readme",
   "dependencies": {
-    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
-    "@duckdb/node-api": "^1.4.3-r.3"
+    "@duckdb/duckdb-wasm": "1.33.1-dev18.0",
+    "@duckdb/node-api": "1.4.3-r.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

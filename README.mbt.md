@@ -19,7 +19,7 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 | Streaming Results | ✅ | ✅ | ✅ |
 | Appender | ✅ | ✅ (Node only) | ❌ |
 | Arrow Integration | ✅ | ✅ | ✅ |
-| Advanced Types | ⚠️ | ⚠️ | ❌ |
+| Advanced Types | ⚠️ | ⚠️ | ⚠️ |
 
 **Legend:** ✅ Full support | ⚠️ Partial support | ❌ Not supported
 
@@ -27,16 +27,16 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 
 | Type | Native Bind | Native Append | Node Bind | Node Append | WASM Bind |
 |------|-------------|---------------|-----------|-------------|------|
-| Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ❌ |
-| Interval | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Blob | ✅ | ✅ | ✅ | ✅ | ❌ |
-| List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ |
-| Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ |
-| Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ |
+| Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ⚠️ Cast required |
+| Interval | ✅ | ✅ | ✅ | ✅ | ⚠️ Cast required |
+| Blob | ✅ | ✅ | ✅ | ✅ | ⚠️ Cast required |
+| List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR[] only, cast required |
+| Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR fields only, cast required |
+| Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ⚠️ VARCHAR keys/values only, cast required |
 
 **Notes:**
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
-- JS (WASM) does not support advanced type bindings; use INSERT statements with type literals instead.
+- JS (WASM) supports advanced prepared-statement binds only when SQL casts the placeholder to the target type, for example `?::DECIMAL(10,2)`, `?::INTERVAL`, `?::BLOB`, `?::VARCHAR[]`, `?::STRUCT(a VARCHAR)`, or `?::MAP(VARCHAR, VARCHAR)`.
 - Appender date/timestamp helpers are only implemented for native targets.
 
 ### Arrow Integration
@@ -114,26 +114,44 @@ If you hit errors like `Undefined symbols ... _duckdb_*`, check:
 
 #### Node.js
 
-The Node.js backend uses `@duckdb/node-api`. Install dependencies:
+The Node.js backend uses `@duckdb/node-api`. Install JavaScript dependencies
+with pnpm:
 
 ```bash
-npm install @duckdb/node-api@^1.4.3-r.3
+pnpm install
 ```
 
 #### Browser (WASM)
 
-The browser backend uses `@duckdb/duckdb-wasm`. Install dependencies:
+The browser backend uses `@duckdb/duckdb-wasm` and requires browser Worker
+support. The package is installed by the same pnpm setup:
 
 ```bash
-npm install @duckdb/duckdb-wasm@^1.33.1-dev18.0
+pnpm install
 ```
 
-**Note:** WASM requires browser Worker support. Cross-origin isolation may be required for optimal performance.
+Run the browser smoke check to verify the local setup:
+
+```bash
+pnpm test:wasm-browser
+```
+
+If Chromium is not installed for Playwright yet, install it once:
+
+```bash
+pnpm test:wasm-browser:install
+```
+
+The smoke check serves the local `@duckdb/duckdb-wasm` bundle over HTTP, verifies
+`Worker` support, and exercises the WASM advanced type SQL forms used by the
+prepared-statement fallback for Decimal, Blob, Interval, List, Struct, and Map.
+Cross-origin isolation may be required for future pthread/SharedArrayBuffer
+paths, but the current smoke check uses the MVP worker bundle.
 
 ### JavaScript Limitations
 
 - **WASM Appender** - Not supported for WASM backend (use INSERT statements instead)
-- **WASM Advanced Types** - Blob, Decimal, Interval, List, Struct, Map are not supported for WASM backend
+- **WASM Advanced Types** - Blob, Decimal, Interval, List, Struct, Map prepared-statement binds are partial and require explicit SQL casts on the placeholder
 - **Node.js Advanced Types** - Decimal, Interval, Blob are supported for bind/append; List/Struct/Map are VARCHAR-only
 - **JS Appender Date/Timestamp** - Not implemented (native only)
 

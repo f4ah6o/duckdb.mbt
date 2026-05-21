@@ -704,6 +704,12 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    "const js_bind_varchar = eval(extract('js_bind_varchar'));",
   #|    "const js_bind_bool = eval(extract('js_bind_bool'));",
   #|    "const js_bind_null = eval(extract('js_bind_null'));",
+  #|    "const js_bind_blob = eval(extract('js_bind_blob'));",
+  #|    "const js_bind_decimal = eval(extract('js_bind_decimal'));",
+  #|    "const js_bind_interval = eval(extract('js_bind_interval'));",
+  #|    "const js_bind_list_varchar = eval(extract('js_bind_list_varchar'));",
+  #|    "const js_bind_struct = eval(extract('js_bind_struct'));",
+  #|    "const js_bind_map = eval(extract('js_bind_map'));",
   #|    "const run = async () => {",
   #|    "  const connect = () => new Promise((resolve, reject) => js_connect(':memory:', backend, resolve, reject));",
   #|    "  const prepare = (conn) => new Promise((resolve, reject) => js_prepare(conn, sql, resolve, reject));",
@@ -723,6 +729,27 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    "    else if (type === 'varchar') result = js_bind_varchar(stmt, idx, value);",
   #|    "    else if (type === 'bool') result = js_bind_bool(stmt, idx, value === 'true');",
   #|    "    else if (type === 'null') result = js_bind_null(stmt, idx);",
+  #|    "    else if (type === 'blob') {",
+  #|    "      const bytes = JSON.parse(value);",
+  #|    "      result = js_bind_blob(stmt, idx, { byteLength: bytes.length, readUint8: (i) => bytes[i] });",
+  #|    "    }",
+  #|    "    else if (type === 'decimal') {",
+  #|    "      const decimal = JSON.parse(value);",
+  #|    "      result = js_bind_decimal(stmt, idx, decimal.width, decimal.scale, decimal.value);",
+  #|    "    }",
+  #|    "    else if (type === 'interval') {",
+  #|    "      const interval = JSON.parse(value);",
+  #|    "      result = js_bind_interval(stmt, idx, interval.months, interval.days, BigInt(interval.micros));",
+  #|    "    }",
+  #|    "    else if (type === 'list') result = js_bind_list_varchar(stmt, idx, JSON.parse(value));",
+  #|    "    else if (type === 'struct') {",
+  #|    "      const struct = JSON.parse(value);",
+  #|    "      result = js_bind_struct(stmt, idx, struct.fields, struct.values);",
+  #|    "    }",
+  #|    "    else if (type === 'map') {",
+  #|    "      const map = JSON.parse(value);",
+  #|    "      result = js_bind_map(stmt, idx, map.keys, map.values);",
+  #|    "    }",
   #|    "    else throw new Error('unsupported bind type: ' + type);",
   #|    "    if (!result || !result.ok) {",
   #|    "      throw new Error(result && result.error ? result.error : 'bind failed');",
@@ -808,6 +835,19 @@ fn run_js_wrapper_prepare_query(
   } else {
     decode_query_result(payload)
   }
+}
+
+///|
+fn is_wasm_bind_skip(message : String) -> Bool {
+  (
+    message.contains("Cannot find package") &&
+    message.contains("@duckdb/duckdb-wasm")
+  ) ||
+  (
+    message.contains("ERR_MODULE_NOT_FOUND") &&
+    message.contains("@duckdb/duckdb-wasm")
+  ) ||
+  message.contains("duckdb-wasm requires Worker support")
 }
 
 ///|
@@ -1243,6 +1283,168 @@ test "js wrapper wasm prepare multiple params" {
         ()
       } else {
         fail("wasm wrapper multiple params failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind blob" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT hex(?::BLOB) AS x",
+    [("[222,173,190,239]", "blob")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "DEADBEEF" {
+        fail("expected 'DEADBEEF', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind blob failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind decimal" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT (?::DECIMAL(10,2))::VARCHAR AS x",
+    [("{\"width\":10,\"scale\":2,\"value\":12345}", "decimal")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "123.45" {
+        fail("expected '123.45', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind decimal failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind interval" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT date_part('month', ?::INTERVAL)::INTEGER AS x",
+    [("{\"months\":1,\"days\":2,\"micros\":3000000}", "interval")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "1" {
+        fail("expected '1', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind interval failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind list varchar" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT array_to_string(?::VARCHAR[], ',') AS x",
+    [("[\"a\",\"b\",\"c\"]", "list")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "a,b,c" {
+        fail("expected 'a,b,c', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind list failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind struct" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT (?::STRUCT(a VARCHAR, b VARCHAR)).a AS x",
+    [("{\"fields\":[\"a\",\"b\"],\"values\":[\"left\",\"right\"]}", "struct")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "left" {
+        fail("expected 'left', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind struct failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind map" {
+  let result = run_js_wrapper_prepare_query(
+    JsBackend::Wasm,
+    "SELECT map_extract_value(?::MAP(VARCHAR, VARCHAR), 'k2') AS x",
+    [("{\"keys\":[\"k1\",\"k2\"],\"values\":[\"v1\",\"v2\"]}", "map")],
+  )
+  match result {
+    Ok((_, rows, nulls)) =>
+      if rows.length() != 1 || rows[0].length() != 1 {
+        fail("expected 1 row, 1 column")
+      } else if nulls[0][0] {
+        fail("expected non-null value")
+      } else if rows[0][0] != "v2" {
+        fail("expected 'v2', got '\{rows[0][0]}'")
+      } else {
+        ()
+      }
+    Err(message) =>
+      if is_wasm_bind_skip(message) {
+        ()
+      } else {
+        fail("wasm wrapper bind map failed: \{message}")
       }
   }
 }
