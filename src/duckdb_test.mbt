@@ -1400,6 +1400,23 @@ test "native decimal negative roundtrip" {
       "expected -0.50 round-trip, got lower=\{d3_rt.lower} upper=\{d3_rt.upper}",
     )
   }
+
+  // Int64::MIN_VALUE boundary: |MIN_VALUE| is not representable as Int64, so
+  // abs() must be taken in BigInt space
+  let d4 = decimal_from_parts(-9223372036854775808L, 0L, 0)
+  let (w4, f4) = decimal_to_parts(d4)
+  if w4.to_string() != "-9223372036854775808" || f4.compare_int(0) != 0 {
+    fail("expected -9223372036854775808, got \{w4}.\{f4}")
+  }
+  // MIN_VALUE as fractional at scale 19 -> -9.223372036854775808
+  let d5 = decimal_from_parts(0L, -9223372036854775808L, 19)
+  if d5.lower != 0x8000000000000000UL || d5.upper != -1L {
+    fail("expected -2^63 payload, got lower=\{d5.lower} upper=\{d5.upper}")
+  }
+  let (w5, f5) = decimal_to_parts(d5)
+  if w5.compare_int(0) != 0 || f5.to_string() != "-9223372036854775808" {
+    fail("expected parts (0, -9223372036854775808), got (\{w5}, \{f5})")
+  }
 }
 
 ///|

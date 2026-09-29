@@ -153,6 +153,17 @@ fn decimal_scaled_bigint(decimal : Decimal) -> BigInt {
 }
 
 ///|
+/// Absolute value of a BigInt (safe for Int64::MIN_VALUE inputs, unlike
+/// `Int64::abs()` which overflows).
+fn bigint_abs(value : BigInt) -> BigInt {
+  if value.compare_int(0) < 0 {
+    -value
+  } else {
+    value
+  }
+}
+
+///|
 /// 10^n as a BigInt (n <= 0 yields 1).
 fn pow10_bigint(n : Int) -> BigInt {
   if n <= 0 {

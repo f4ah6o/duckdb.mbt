@@ -1395,13 +1395,13 @@ pub fn decimal_from_parts(
   scale : Int,
 ) -> Decimal {
   let negative = whole < 0L || fractional < 0L
-  let magnitude = BigInt::from_int64(whole.abs()) * pow10_bigint(scale) +
-    BigInt::from_int64(fractional.abs())
+  let magnitude = bigint_abs(BigInt::from_int64(whole)) * pow10_bigint(scale) +
+    bigint_abs(BigInt::from_int64(fractional))
   let value = if negative { -magnitude } else { magnitude }
   let width = if whole == 0L {
-    String::length(fractional.abs().to_string())
+    String::length(bigint_abs(BigInt::from_int64(fractional)).to_string())
   } else {
-    String::length(whole.abs().to_string()) + scale
+    String::length(bigint_abs(BigInt::from_int64(whole)).to_string()) + scale
   }
   decimal_from_scaled_bigint(value, width.max(1), scale)
 }
