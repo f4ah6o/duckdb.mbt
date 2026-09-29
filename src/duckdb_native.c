@@ -1419,16 +1419,16 @@ int32_t duckdb_mb_append_blob(duckdb_mb_appender *mb_append,
 // ----------------------------------------------------------------------------
 
 int32_t duckdb_mb_bind_decimal(duckdb_mb_statement *mb_stmt, int32_t index,
-                                uint8_t width, uint8_t scale,
-                                int64_t lower, int64_t upper) {
+                                int32_t width, int32_t scale,
+                                uint64_t lower, int64_t upper) {
   if (!mb_stmt || !mb_stmt->stmt) {
     return 0;
   }
 
   duckdb_decimal decimal;
-  decimal.width = width;
-  decimal.scale = scale;
-  decimal.value.lower = (uint64_t)lower;
+  decimal.width = (uint8_t)width;
+  decimal.scale = (uint8_t)scale;
+  decimal.value.lower = lower;
   decimal.value.upper = upper;
 
   duckdb_state state = duckdb_bind_decimal(mb_stmt->stmt, (idx_t)index, decimal);
@@ -1445,16 +1445,16 @@ int32_t duckdb_mb_bind_decimal(duckdb_mb_statement *mb_stmt, int32_t index,
 }
 
 int32_t duckdb_mb_append_decimal(duckdb_mb_appender *mb_append,
-                                  uint8_t width, uint8_t scale,
-                                  int64_t lower, int64_t upper) {
+                                  int32_t width, int32_t scale,
+                                  uint64_t lower, int64_t upper) {
   if (!mb_append || !mb_append->appender) {
     return 0;
   }
 
   duckdb_decimal decimal;
-  decimal.width = width;
-  decimal.scale = scale;
-  decimal.value.lower = (uint64_t)lower;
+  decimal.width = (uint8_t)width;
+  decimal.scale = (uint8_t)scale;
+  decimal.value.lower = lower;
   decimal.value.upper = upper;
 
   // Create value from decimal

@@ -135,12 +135,63 @@ fn touch_public_types(backend : JsBackend) -> Unit {
 
 ///|
 /// Fixed-point decimal type for financial calculations.
-/// Uses 128-bit integer representation (lower/upper parts).
+/// Carries the full DuckDB 128-bit decimal payload as two 64-bit halves:
+/// `upper` is the signed high 64 bits, `lower` the unsigned low 64 bits of the
+/// scaled two's-complement integer (value * 10^scale).
 pub struct Decimal {
   width : Int // Total number of digits
   scale : Int // Digits after decimal point
-  lower : Int // Lower 64 bits of the 128-bit value
-  upper : Int // Upper 64 bits (sign extension for negative values)
+  lower : UInt64 // Lower 64 bits of the 128-bit value
+  upper : Int64 // Upper 64 bits (sign extension for negative values)
+}
+
+///|
+/// The full signed 128-bit scaled payload of a Decimal as a BigInt:
+/// `upper << 64 | lower`, i.e. value * 10^scale.
+fn decimal_scaled_bigint(decimal : Decimal) -> BigInt {
+  (BigInt::from_int64(decimal.upper) << 64) | BigInt::from_uint64(decimal.lower)
+}
+
+///|
+/// 10^n as a BigInt (n <= 0 yields 1).
+fn pow10_bigint(n : Int) -> BigInt {
+  if n <= 0 {
+    BigInt::from_int(1)
+  } else {
+    BigInt::from_int(10).pow(BigInt::from_int(n))
+  }
+}
+
+///|
+/// Build a Decimal's halves from a signed scaled BigInt value, keeping the
+/// low 128 bits in two's-complement form.
+fn decimal_from_scaled_bigint(
+  value : BigInt,
+  width : Int,
+  scale : Int,
+) -> Decimal {
+  let mask = (BigInt::from_int(1) << 64) - BigInt::from_int(1)
+  {
+    width,
+    scale,
+    lower: (value & mask).to_uint64(),
+    upper: (value >> 64).to_int64(),
+  }
+}
+
+///|
+/// Render a decimal as `whole.fraction` using the full 128-bit payload.
+fn decimal_render(decimal : Decimal) -> String {
+  let value = decimal_scaled_bigint(decimal)
+  let negative = value.compare_int(0) < 0
+  let magnitude = if negative { -value } else { value }
+  let divisor = pow10_bigint(decimal.scale)
+  let sign = if negative { "-" } else { "" }
+  if decimal.scale == 0 {
+    return sign + (magnitude / divisor).to_string()
+  }
+  let frac = pad_int((magnitude % divisor).to_string(), decimal.scale)
+  sign + (magnitude / divisor).to_string() + "." + frac
 }
 
 ///|

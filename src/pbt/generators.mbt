@@ -189,7 +189,13 @@ pub fn gen_decimal_safe() -> @gen.Gen[Decimal] {
     @gen.int_range(0, width).bind(fn(scale) {
       let max_val = int_pow10(scale).to_int()
       @gen.int_range(-max_val * 100, max_val * 100).map(fn(value) {
-        Decimal::{ width, scale, lower: value, upper: 0 }
+        let scaled = value.to_int64()
+        Decimal::{
+          width,
+          scale,
+          lower: scaled.reinterpret_as_uint64(),
+          upper: scaled >> 63,
+        }
       })
     })
   })
@@ -200,7 +206,13 @@ pub fn gen_decimal_safe() -> @gen.Gen[Decimal] {
 pub fn gen_decimal_with(width : Int, scale : Int) -> @gen.Gen[Decimal] {
   let max_val = int_pow10(scale).to_int()
   @gen.int_range(-max_val * 100, max_val * 100).map(fn(value) {
-    Decimal::{ width, scale, lower: value, upper: 0 }
+    let scaled = value.to_int64()
+    Decimal::{
+      width,
+      scale,
+      lower: scaled.reinterpret_as_uint64(),
+      upper: scaled >> 63,
+    }
   })
 }
 
@@ -213,19 +225,42 @@ pub fn gen_decimal_edge() -> @gen.Gen[Decimal] {
     @gen.pure(Decimal::{ width: 38, scale: 0, lower: 0, upper: 0 }),
     @gen.pure(Decimal::{ width: 38, scale: 38, lower: 0, upper: 0 }),
     @gen.pure(Decimal::{ width: 10, scale: 2, lower: 0, upper: 0 }),
-    // Negative values
-    @gen.pure(Decimal::{ width: 10, scale: 2, lower: -1, upper: -1 }),
-    @gen.pure(Decimal::{ width: 10, scale: 2, lower: -100, upper: -1 }),
+    // Negative values (-1 and -100 in two's-complement halves)
+    @gen.pure(
+      Decimal::{ width: 10, scale: 2, lower: 0xFFFFFFFFFFFFFFFFUL, upper: -1 },
+    ),
+    @gen.pure(
+      Decimal::{ width: 10, scale: 2, lower: 0xFFFFFFFFFFFFFF9CUL, upper: -1 },
+    ),
     // Zero
     @gen.pure(Decimal::{ width: 5, scale: 2, lower: 0, upper: 0 }),
     // Large positive values
     @gen.Gen::fmap(@gen.int_range(100000, 1000000), fn(n) {
-      Decimal::{ width: 20, scale: 4, lower: n, upper: 0 }
+      Decimal::{ width: 20, scale: 4, lower: n.to_int64().reinterpret_as_uint64(), upper: 0 }
     }),
     // Scale = width (all decimal places)
     @gen.Gen::fmap(@gen.int_range(1, 10), fn(scale) {
       Decimal::{ width: scale, scale: scale, lower: 123, upper: 0 }
     }),
+    // Full-width 128-bit payloads (DECIMAL(38,0) range)
+    @gen.pure(
+      // 10^38 - 1
+      Decimal::{
+        width: 38,
+        scale: 0,
+        lower: 0x098A223FFFFFFFFFUL,
+        upper: 0x4B3B4CA85A86C47AL,
+      },
+    ),
+    @gen.pure(
+      // -(10^38 - 1)
+      Decimal::{
+        width: 38,
+        scale: 0,
+        lower: 0xF675DDC000000001UL,
+        upper: -5421010862427522171L,
+      },
+    ),
   ])
 }
 

@@ -541,17 +541,6 @@ pub fn Appender::append_blob(
 // ----------------------------------------------------------------------------
 
 ///|
-fn _int_pow10(exp : Int) -> Int {
-  let mut result = 1
-  let mut i = 0
-  while i < exp {
-    result = result * 10
-    i = i + 1
-  }
-  result
-}
-
-///|
 pub fn PreparedStatement::bind_decimal(
   self : PreparedStatement,
   index : Int,
@@ -575,50 +564,61 @@ pub fn Appender::append_decimal(
 
 ///|
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = _int_pow10(scale)
-  let scaled = (value * Double::from_int(multiplier)).to_int()
-  let upper = if scaled >= 0 { 0 } else { -1 }
-  { width, scale, lower: scaled, upper, }
+  let scaled = (value * Double::pow(10.0, scale.to_double())).to_int64()
+  { width, scale, lower: scaled.reinterpret_as_uint64(), upper: scaled >> 63, }
 }
 
 ///|
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(_int_pow10(decimal.scale))
-  Double::from_int(decimal.lower) / divisor
+  let two64 = 18446744073709551616.0
+  let value = decimal.upper.to_double() * two64 + decimal.lower.to_double()
+  value / Double::pow(10.0, decimal.scale.to_double())
 }
 
 ///|
 pub fn decimal_from_parts(
-  whole : Int,
-  fractional : Int,
+  whole : Int64,
+  fractional : Int64,
   scale : Int,
 ) -> Decimal {
-  let divisor = _int_pow10(scale)
-  let value = if whole < 0 {
-    whole * divisor - fractional
+  let magnitude = BigInt::from_int64(whole) * pow10_bigint(scale)
+  let value = if whole < 0L {
+    magnitude - BigInt::from_int64(fractional)
   } else {
-    whole * divisor + fractional
+    magnitude + BigInt::from_int64(fractional)
   }
-  let width = if whole == 0 {
+  let width = if whole == 0L {
     String::length(fractional.to_string())
   } else {
-    String::length(whole.to_string()) + scale
+    String::length(whole.abs().to_string()) + scale
   }
-  let upper = if value >= 0 { 0 } else { -1 }
-  { width: width.max(1), scale, lower: value, upper, }
+  decimal_from_scaled_bigint(value, width.max(1), scale)
 }
 
 ///|
-pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = _int_pow10(decimal.scale)
-  let whole = decimal.lower / divisor
-  let remainder = decimal.lower % divisor
-  let fractional = if remainder < 0 {
-    divisor - Int::abs(remainder)
+pub fn decimal_to_parts(decimal : Decimal) -> (BigInt, BigInt) {
+  let divisor = pow10_bigint(decimal.scale)
+  let value = decimal_scaled_bigint(decimal)
+  let remainder = value % divisor
+  let fractional = if remainder.compare_int(0) < 0 {
+    -remainder
   } else {
     remainder
   }
-  (whole, fractional)
+  (value / divisor, fractional)
+}
+
+///|
+/// Create a decimal from 128-bit parts.
+/// `lower` is the unsigned low 64 bits and `upper` the signed high 64 bits of
+/// the scaled 128-bit value, matching `duckdb_hugeint` exactly.
+pub fn decimal_from_hugeint(
+  lower : UInt64,
+  upper : Int64,
+  width : Int,
+  scale : Int,
+) -> Decimal {
+  { width, scale, lower, upper, }
 }
 
 // ----------------------------------------------------------------------------

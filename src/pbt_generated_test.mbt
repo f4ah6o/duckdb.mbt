@@ -265,9 +265,9 @@ test "prop_decimal_parts_roundtrip" {
     gen,
     fn(input) {
       let (whole, frac, scale) = input
-      let dec = decimal_from_parts(whole, frac, scale)
+      let dec = decimal_from_parts(whole.to_int64(), frac.to_int64(), scale)
       let (whole2, frac2) = decimal_to_parts(dec)
-      if whole == whole2 && frac == frac2 {
+      if whole2.compare_int(whole) == 0 && frac2.compare_int(frac) == 0 {
         Ok(())
       } else {
         Err(
