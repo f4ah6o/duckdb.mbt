@@ -32,7 +32,7 @@ pub struct ConnectionModel {
 ///|
 /// Initial connection model
 pub fn connection_model_initial() -> ConnectionModel {
-  ConnectionModel::{ state: ConnectionState::NotConnected, query_count: 0 }
+  ConnectionModel::{ state: ConnectionState::NotConnected, query_count: 0, }
 }
 
 ///|
@@ -44,7 +44,7 @@ pub fn execute_command_on_model(
   match (model.state, cmd) {
     // NotConnected can only Connect
     (ConnectionState::NotConnected, ConnectionCommand::Connect) =>
-      ConnectionModel::{ state: ConnectionState::Connected, query_count: 0 }
+      ConnectionModel::{ state: ConnectionState::Connected, query_count: 0, }
     // Connected can Query, Close, or Prepare
     (ConnectionState::Connected, ConnectionCommand::Query(_)) =>
       ConnectionModel::{
@@ -134,7 +134,7 @@ pub fn is_valid_connection_transition(
 ///|
 /// Property: cannot query when not connected
 test "prop_connection_cannot_query_when_not_connected" {
-  let gen = @pbt.pure(
+  let gen = @gen.pure(
     (ConnectionState::NotConnected, ConnectionCommand::Query("SELECT 1")),
   )
   let config = CheckConfig::new(10, 10, 740001, 5)
@@ -144,7 +144,7 @@ test "prop_connection_cannot_query_when_not_connected" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       // Query from NotConnected should result in Error or stay NotConnected
@@ -163,7 +163,7 @@ test "prop_connection_cannot_query_when_not_connected" {
 ///|
 /// Property: cannot close when not connected
 test "prop_connection_cannot_close_when_not_connected" {
-  let gen = @pbt.pure((ConnectionState::NotConnected, ConnectionCommand::Close))
+  let gen = @gen.pure((ConnectionState::NotConnected, ConnectionCommand::Close))
   let config = CheckConfig::new(10, 10, 740002, 5)
   assert_check(
     "cannot close when not connected",
@@ -171,7 +171,7 @@ test "prop_connection_cannot_close_when_not_connected" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       // Close from NotConnected should result in Error or stay NotConnected
@@ -188,7 +188,7 @@ test "prop_connection_cannot_close_when_not_connected" {
 ///|
 /// Property: query count increases after successful query
 test "prop_connection_query_count_increases" {
-  let gen = @pbt.int_range(0, 100).map(fn(initial_count) {
+  let gen = @gen.int_range(0, 100).map(fn(initial_count) {
     (
       ConnectionState::Connected,
       initial_count,
@@ -201,7 +201,7 @@ test "prop_connection_query_count_increases" {
     gen,
     fn(input) {
       let (state, initial_count, cmd) = input
-      let model = ConnectionModel::{ state, query_count: initial_count }
+      let model = ConnectionModel::{ state, query_count: initial_count, }
       let new_model = execute_command_on_model(model, cmd)
       if new_model.query_count == initial_count + 1 {
         Ok(())
@@ -218,7 +218,7 @@ test "prop_connection_query_count_increases" {
 ///|
 /// Property: closed connection cannot query
 test "prop_connection_closed_cannot_query" {
-  let gen = @pbt.pure(
+  let gen = @gen.pure(
     (ConnectionState::Closed, ConnectionCommand::Query("SELECT 1")),
   )
   let config = CheckConfig::new(10, 10, 740004, 5)
@@ -228,7 +228,7 @@ test "prop_connection_closed_cannot_query" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       // Query from Closed should stay Closed
@@ -244,7 +244,7 @@ test "prop_connection_closed_cannot_query" {
 ///|
 /// Property: connect transitions to connected
 test "prop_connection_connect_transitions" {
-  let gen = @pbt.pure(
+  let gen = @gen.pure(
     (ConnectionState::NotConnected, ConnectionCommand::Connect),
   )
   let config = CheckConfig::new(10, 10, 740005, 5)
@@ -254,7 +254,7 @@ test "prop_connection_connect_transitions" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       match new_state {
@@ -269,7 +269,7 @@ test "prop_connection_connect_transitions" {
 ///|
 /// Property: close transitions to closed
 test "prop_connection_close_transitions" {
-  let gen = @pbt.pure((ConnectionState::Connected, ConnectionCommand::Close))
+  let gen = @gen.pure((ConnectionState::Connected, ConnectionCommand::Close))
   let config = CheckConfig::new(10, 10, 740006, 5)
   assert_check(
     "close transitions to closed",
@@ -277,7 +277,7 @@ test "prop_connection_close_transitions" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       match new_state {
@@ -292,7 +292,7 @@ test "prop_connection_close_transitions" {
 ///|
 /// Property: query transitions to query in progress
 test "prop_connection_query_transitions" {
-  let gen = @pbt.pure(
+  let gen = @gen.pure(
     (ConnectionState::Connected, ConnectionCommand::Query("SELECT 1")),
   )
   let config = CheckConfig::new(10, 10, 740007, 5)
@@ -302,7 +302,7 @@ test "prop_connection_query_transitions" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 0 },
+          ConnectionModel::{ state, query_count: 0, },
           cmd,
         ).state
       match new_state {
@@ -317,7 +317,7 @@ test "prop_connection_query_transitions" {
 ///|
 /// Property: execute returns to connected
 test "prop_connection_execute_returns_to_connected" {
-  let gen = @pbt.pure(
+  let gen = @gen.pure(
     (ConnectionState::QueryInProgress, ConnectionCommand::Execute),
   )
   let config = CheckConfig::new(10, 10, 740008, 5)
@@ -327,7 +327,7 @@ test "prop_connection_execute_returns_to_connected" {
     fn(input) {
       let (state, cmd) = input
       let new_state = execute_command_on_model(
-          ConnectionModel::{ state, query_count: 1 },
+          ConnectionModel::{ state, query_count: 1, },
           cmd,
         ).state
       match new_state {
@@ -342,18 +342,18 @@ test "prop_connection_execute_returns_to_connected" {
 ///|
 /// Property: valid transition sequences
 test "prop_connection_valid_sequences" {
-  let gen = @pbt.one_of([
-    @pbt.pure([
+  let gen = @gen.one_of([
+    @gen.pure([
       (ConnectionState::NotConnected, ConnectionCommand::Connect),
       (ConnectionState::Connected, ConnectionCommand::Query("SELECT 1")),
       (ConnectionState::QueryInProgress, ConnectionCommand::Execute),
       (ConnectionState::Connected, ConnectionCommand::Close),
     ]),
-    @pbt.pure([
+    @gen.pure([
       (ConnectionState::NotConnected, ConnectionCommand::Connect),
       (ConnectionState::Connected, ConnectionCommand::Close),
     ]),
-    @pbt.pure([
+    @gen.pure([
       (ConnectionState::NotConnected, ConnectionCommand::Connect),
       (ConnectionState::Connected, ConnectionCommand::Prepare("SELECT 1")),
       (ConnectionState::Connected, ConnectionCommand::Query("SELECT 1")),
@@ -386,19 +386,19 @@ test "prop_connection_valid_sequences" {
 ///|
 /// Property: invalid transition detection
 test "prop_connection_invalid_transitions" {
-  let gen = @pbt.one_of([
+  let gen = @gen.one_of([
     // Query from NotConnected
-    @pbt.pure(
+    @gen.pure(
       (ConnectionState::NotConnected, ConnectionCommand::Query("SELECT 1")),
     ),
     // Close from NotConnected
-    @pbt.pure((ConnectionState::NotConnected, ConnectionCommand::Close)),
+    @gen.pure((ConnectionState::NotConnected, ConnectionCommand::Close)),
     // Query from Closed
-    @pbt.pure((ConnectionState::Closed, ConnectionCommand::Query("SELECT 1"))),
+    @gen.pure((ConnectionState::Closed, ConnectionCommand::Query("SELECT 1"))),
     // Connect from Connected
-    @pbt.pure((ConnectionState::Connected, ConnectionCommand::Connect)),
+    @gen.pure((ConnectionState::Connected, ConnectionCommand::Connect)),
     // Prepare from QueryInProgress
-    @pbt.pure(
+    @gen.pure(
       (ConnectionState::QueryInProgress, ConnectionCommand::Prepare("SELECT 1")),
     ),
   ])
@@ -408,7 +408,7 @@ test "prop_connection_invalid_transitions" {
     gen,
     fn(input) {
       let (state, cmd) = input
-      let model = ConnectionModel::{ state, query_count: 0 }
+      let model = ConnectionModel::{ state, query_count: 0, }
       let new_model = execute_command_on_model(model, cmd)
       let new_state = new_model.state
       // Invalid transitions should result in Error or keep same state
@@ -432,16 +432,16 @@ test "prop_connection_invalid_transitions" {
 ///|
 /// Property: state machine invariants
 test "prop_connection_state_invariants" {
-  let gen = @pbt.int_range(0, 20).bind(fn(len) {
+  let gen = @gen.int_range(0, 20).bind(fn(len) {
     array_of(
-      @pbt.one_of([
-        @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
+      @gen.one_of([
+        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
-        @pbt.pure(ConnectionCommand::Connect),
-        @pbt.pure(ConnectionCommand::Close),
-        @pbt.pure(ConnectionCommand::Execute),
-        @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
+        @gen.pure(ConnectionCommand::Connect),
+        @gen.pure(ConnectionCommand::Close),
+        @gen.pure(ConnectionCommand::Execute),
+        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Prepare("SELECT " + n.to_string())
         }),
       ]),
@@ -485,15 +485,15 @@ test "prop_connection_state_invariants" {
 ///|
 /// Property: connection state is always valid
 test "prop_connection_state_always_valid" {
-  let gen = @pbt.int_range(0, 30).bind(fn(len) {
+  let gen = @gen.int_range(0, 30).bind(fn(len) {
     array_of(
-      @pbt.one_of([
-        @pbt.pure(ConnectionCommand::Connect),
-        @pbt.pure(ConnectionCommand::Close),
-        @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
+      @gen.one_of([
+        @gen.pure(ConnectionCommand::Connect),
+        @gen.pure(ConnectionCommand::Close),
+        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
-        @pbt.pure(ConnectionCommand::Execute),
+        @gen.pure(ConnectionCommand::Execute),
       ]),
     )
   })
@@ -524,15 +524,15 @@ test "prop_connection_state_always_valid" {
 ///|
 /// Property: query count never decreases
 test "prop_connection_query_count_never_decreases" {
-  let gen = @pbt.int_range(0, 20).bind(fn(len) {
+  let gen = @gen.int_range(0, 20).bind(fn(len) {
     array_of(
-      @pbt.one_of([
-        @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
+      @gen.one_of([
+        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
-        @pbt.pure(ConnectionCommand::Connect),
-        @pbt.pure(ConnectionCommand::Close),
-        @pbt.pure(ConnectionCommand::Execute),
+        @gen.pure(ConnectionCommand::Connect),
+        @gen.pure(ConnectionCommand::Close),
+        @gen.pure(ConnectionCommand::Execute),
       ]),
     )
   })
@@ -561,15 +561,15 @@ test "prop_connection_query_count_never_decreases" {
 ///|
 /// Property: connection command sequence
 test "prop_connection_command_sequence" {
-  let gen = @pbt.one_of([
-    @pbt.pure([
+  let gen = @gen.one_of([
+    @gen.pure([
       ConnectionCommand::Connect,
       ConnectionCommand::Query("SELECT 1"),
       ConnectionCommand::Execute,
       ConnectionCommand::Close,
     ]),
-    @pbt.pure([ConnectionCommand::Connect, ConnectionCommand::Close]),
-    @pbt.pure([
+    @gen.pure([ConnectionCommand::Connect, ConnectionCommand::Close]),
+    @gen.pure([
       ConnectionCommand::Connect,
       ConnectionCommand::Query("SELECT 1"),
       ConnectionCommand::Execute,

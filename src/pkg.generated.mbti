@@ -2,15 +2,16 @@
 package "f4ah6o/duckdb"
 
 import {
-  "moonbitlang/quickcheck",
+  "moonbitlang/core/debug",
+  "moonbitlang/quickcheck/gen",
 }
 
 // Values
-pub fn[T] array_of(@quickcheck.Gen[T]) -> @quickcheck.Gen[Array[T]]
+pub fn[T] array_of(@gen.Gen[T]) -> @gen.Gen[Array[T]]
 
-pub fn[A : Show] assert_check(String, @quickcheck.Gen[A], (A) -> Result[Unit, String], config? : CheckConfig, shrink? : (A) -> Iter[A]) -> Unit
+pub fn[A : @debug.Debug] assert_check(String, @gen.Gen[A], (A) -> Result[Unit, String], config? : CheckConfig, shrink? : (A) -> Iter[A]) -> Unit
 
-pub fn[A : Show] check_with_stats(@quickcheck.Gen[A], (A) -> (Result[Unit, String], String?), config? : CheckConfig) -> CheckResult
+pub fn[A : @debug.Debug] check_with_stats(@gen.Gen[A], (A) -> (Result[Unit, String], String?), config? : CheckConfig) -> CheckResult
 
 pub fn column_type_from_id(Int) -> ColumnType
 

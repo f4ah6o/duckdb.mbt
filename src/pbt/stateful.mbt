@@ -35,7 +35,7 @@ pub struct StatefulState[S, R] {
 /// Stateful test configuration
 pub struct StatefulTest[S, C, R] {
   initial_state: S
-  commands: @pbt.Gen[Array[C]]
+  commands: @gen.Gen[Array[C]]
   init_real: () -> R
   execute_command: (S, R, C) -> (S, CommandResult[R])
   check_postcondition: (S, C, CommandResult[R]) -> Bool
@@ -47,7 +47,7 @@ pub struct StatefulTest[S, C, R] {
 /// Create a new stateful test configuration
 pub fn stateful_test[S, C, R](
   initial_state: S,
-  commands: @pbt.Gen[Array[C]],
+  commands: @gen.Gen[Array[C]],
   init_real: () -> R,
   execute_command: (S, R, C) -> (S, CommandResult[R]),
   check_postcondition: (S, C, CommandResult[R]) -> Bool,
@@ -274,14 +274,14 @@ pub fn is_valid_appender_transition(
 
 ///|
 /// Generate random command sequence for connection state machine
-pub fn gen_connection_commands() -> @pbt.Gen[Array[String]] {
-  @pbt.int_range(0, 20).bind(fn(len) {
-    array_of(@pbt.one_of([
-      @pbt.pure("connect"),
-      @pbt.pure("query"),
-      @pbt.pure("close"),
-      @pbt.pure("prepare"),
-      @pbt.Gen::fmap(@pbt.int_range(0, 100), fn(n) {
+pub fn gen_connection_commands() -> @gen.Gen[Array[String]] {
+  @gen.int_range(0, 20).bind(fn(len) {
+    array_of(@gen.one_of([
+      @gen.pure("connect"),
+      @gen.pure("query"),
+      @gen.pure("close"),
+      @gen.pure("prepare"),
+      @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
         "query_" + n.to_string()
       }),
     ]))
@@ -290,15 +290,15 @@ pub fn gen_connection_commands() -> @pbt.Gen[Array[String]] {
 
 ///|
 /// Generate random command sequence for appender state machine
-pub fn gen_appender_commands() -> @pbt.Gen[Array[String]] {
-  @pbt.int_range(0, 30).bind(fn(len) {
-    array_of(@pbt.one_of([
-      @pbt.pure("create"),
-      @pbt.pure("begin_row"),
-      @pbt.pure("append"),
-      @pbt.pure("end_row"),
-      @pbt.pure("flush"),
-      @pbt.pure("close"),
+pub fn gen_appender_commands() -> @gen.Gen[Array[String]] {
+  @gen.int_range(0, 30).bind(fn(len) {
+    array_of(@gen.one_of([
+      @gen.pure("create"),
+      @gen.pure("begin_row"),
+      @gen.pure("append"),
+      @gen.pure("end_row"),
+      @gen.pure("flush"),
+      @gen.pure("close"),
     ]))
   })
 }

@@ -12,14 +12,14 @@ fn _is_leap_year_internal(year : Int) -> Bool {
 /// Property: date_from_ymd/date_to_ymd round-trip
 /// Converting a date to days and back should yield the original date
 test "prop_date_roundtrip" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
         _ => 31
       }
-      @pbt.int_range(1, max_day).map(fn(day) { (year, month, day) })
+      @gen.int_range(1, max_day).map(fn(day) { (year, month, day) })
     })
   })
   let config = CheckConfig::new(1000, 100, 12345, 50)
@@ -44,22 +44,22 @@ test "prop_date_roundtrip" {
 /// Property: timestamp_from_ymd_hms/timestamp_to_ymd_hms round-trip
 /// Converting a timestamp to microseconds and back should yield the original timestamp
 test "prop_timestamp_roundtrip" {
-  let gen = @pbt.int_range(1970, 2100)
+  let gen = @gen.int_range(1970, 2100)
     .bind(fn(year) {
-      @pbt.int_range(1, 12).bind(fn(month) {
+      @gen.int_range(1, 12).bind(fn(month) {
         let max_day = match month {
           2 => if _is_leap_year_internal(year) { 29 } else { 28 }
           4 | 6 | 9 | 11 => 30
           _ => 31
         }
-        @pbt.int_range(1, max_day).map(fn(day) { (year, month, day) })
+        @gen.int_range(1, max_day).map(fn(day) { (year, month, day) })
       })
     })
     .bind(fn(date) {
       let (year, month, day) = date
-      @pbt.int_range(0, 23).bind(fn(hour) {
-        @pbt.int_range(0, 59).bind(fn(minute) {
-          @pbt.int_range(0, 59).map(fn(second) {
+      @gen.int_range(0, 23).bind(fn(hour) {
+        @gen.int_range(0, 59).bind(fn(minute) {
+          @gen.int_range(0, 59).map(fn(second) {
             (year, month, day, hour, minute, second)
           })
         })
@@ -97,7 +97,7 @@ test "prop_timestamp_roundtrip" {
 /// Converting an integer to string and parsing should yield the original integer
 test "prop_parse_int_roundtrip" {
   let config = CheckConfig::new(500, 100, 11111, 20)
-  let gen = @pbt.int_range(-1000000, 1000000)
+  let gen = @gen.int_range(-1000000, 1000000)
   assert_check(
     "Int -> String -> Int",
     gen,
@@ -123,7 +123,7 @@ test "prop_parse_int_roundtrip" {
 /// Property: is_integer should return true for integer string representations
 test "prop_is_integer_for_ints" {
   let config = CheckConfig::new(500, 100, 22222, 20)
-  let gen = @pbt.int_range(-1000000, 1000000)
+  let gen = @gen.int_range(-1000000, 1000000)
   assert_check(
     "is_integer(n.to_string()) == true",
     gen,
@@ -148,10 +148,10 @@ test "prop_is_integer_for_ints" {
 /// Property: ColumnType ID round-trip
 /// Converting an ID to ColumnType should preserve the ID for Unknown type
 test "prop_column_type_id_roundtrip" {
-  let gen = @pbt.one_of([
-    @pbt.int_range(0, 39),
-    @pbt.int_range(-100, -1),
-    @pbt.int_range(40, 1000),
+  let gen = @gen.one_of([
+    @gen.int_range(0, 39),
+    @gen.int_range(-100, -1),
+    @gen.int_range(40, 1000),
   ])
   let config = CheckConfig::new(500, 100, 33333, 30)
   assert_check(
@@ -177,7 +177,7 @@ test "prop_column_type_id_roundtrip" {
 /// Property: Value::Int round-trip
 /// Converting an integer to string and parsing should yield the original integer
 test "prop_value_int_roundtrip" {
-  let gen = @pbt.int_range(-1000000000, 1000000000)
+  let gen = @gen.int_range(-1000000000, 1000000000)
   let config = CheckConfig::new(800, 100, 44444, 30)
   assert_check(
     "Value::Int round-trip",
@@ -204,8 +204,8 @@ test "prop_value_int_roundtrip" {
 /// Property: Value::Double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_value_double_roundtrip" {
-  let gen = @pbt.int_range(-1000000, 1000000).bind(fn(whole) {
-    @pbt.int_range(1, 999).map(fn(frac) {
+  let gen = @gen.int_range(-1000000, 1000000).bind(fn(whole) {
+    @gen.int_range(1, 999).map(fn(frac) {
       whole.to_double() + frac.to_double() / 1000.0
     })
   })
@@ -236,7 +236,7 @@ test "prop_value_double_roundtrip" {
 /// Property: Value::Bool round-trip
 /// Converting a boolean to string and parsing should yield the original boolean
 test "prop_value_bool_roundtrip" {
-  let gen = @pbt.one_of([@pbt.pure(true), @pbt.pure(false)])
+  let gen = @gen.one_of([@gen.pure(true), @gen.pure(false)])
   let config = CheckConfig::new(10, 10, 66666, 5)
   assert_check(
     "Value::Bool round-trip",
@@ -262,7 +262,7 @@ test "prop_value_bool_roundtrip" {
 /// Property: Value::String round-trip
 /// Converting a string to value and parsing should yield the original string
 test "prop_value_string_roundtrip" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, 255), fn(code) {
+  let gen = @gen.Gen::fmap(@gen.int_range(0, 255), fn(code) {
     "x" + code.to_string()
   })
   let config = CheckConfig::new(500, 100, 77777, 30)
@@ -293,7 +293,7 @@ test "prop_value_string_roundtrip" {
 /// Property: parse_int boundary values
 /// Parsing integers should correctly handle various integer formats
 test "prop_parse_int_boundary_values" {
-  let gen = @pbt.int_range(-1000000, 1000000)
+  let gen = @gen.int_range(-1000000, 1000000)
   let config = CheckConfig::new(300, 100, 88888, 30)
   assert_check(
     "parse_int boundary values",
@@ -315,16 +315,16 @@ test "prop_parse_int_boundary_values" {
 /// Property: is_integer edge cases
 /// is_integer should correctly identify valid and invalid integer strings
 test "prop_is_integer_edge_cases" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-10000, 10000), fn(n) { n.to_string() }),
-    @pbt.pure(""),
-    @pbt.pure("+"),
-    @pbt.pure("-"),
-    @pbt.pure("0"),
-    @pbt.pure("00"),
-    @pbt.pure("-0"),
-    @pbt.pure(" 123"),
-    @pbt.pure("+-123"),
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
+    @gen.pure(""),
+    @gen.pure("+"),
+    @gen.pure("-"),
+    @gen.pure("0"),
+    @gen.pure("00"),
+    @gen.pure("-0"),
+    @gen.pure(" 123"),
+    @gen.pure("+-123"),
   ])
   let config = CheckConfig::new(300, 100, 121212, 30)
   assert_check(
@@ -364,13 +364,13 @@ test "prop_is_integer_edge_cases" {
 /// Property: is_double edge cases
 /// is_double should correctly identify valid and invalid double strings
 test "prop_is_double_edge_cases" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-10000, 10000), fn(n) { n.to_string() + ".5" }),
-    @pbt.Gen::fmap(@pbt.int_range(-10000, 10000), fn(n) { n.to_string() }),
-    @pbt.pure("."),
-    @pbt.pure("1.2.3"),
-    @pbt.pure(".123"),
-    @pbt.pure("123."),
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() + ".5" }),
+    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
+    @gen.pure("."),
+    @gen.pure("1.2.3"),
+    @gen.pure(".123"),
+    @gen.pure("123."),
   ])
   let config = CheckConfig::new(400, 100, 131313, 30)
   assert_check(
@@ -417,7 +417,7 @@ test "prop_is_double_edge_cases" {
 /// Property: parse_double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_parse_double_roundtrip" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(-1000000, 1000000), fn(n) {
+  let gen = @gen.Gen::fmap(@gen.int_range(-1000000, 1000000), fn(n) {
     n.to_double() / 1000.0
   })
   let config = CheckConfig::new(1000, 100, 141414, 50)
@@ -442,13 +442,13 @@ test "prop_parse_double_roundtrip" {
 /// Property: parse_double special floats
 /// Special float strings should be detected by is_special_float_string
 test "prop_parse_double_special" {
-  let gen = @pbt.one_of([
-    @pbt.pure("nan"),
-    @pbt.pure("NaN"),
-    @pbt.pure("inf"),
-    @pbt.pure("Infinity"),
-    @pbt.pure("-inf"),
-    @pbt.pure("-Infinity"),
+  let gen = @gen.one_of([
+    @gen.pure("nan"),
+    @gen.pure("NaN"),
+    @gen.pure("inf"),
+    @gen.pure("Infinity"),
+    @gen.pure("-inf"),
+    @gen.pure("-Infinity"),
   ])
   let config = CheckConfig::new(100, 10, 151515, 10)
   assert_check(
@@ -469,12 +469,12 @@ test "prop_parse_double_special" {
 /// Property: parse_double boundary values
 /// Parsing doubles should handle large and small values correctly
 test "prop_parse_double_boundary" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-100000, 100000), fn(n) { n.to_double() }),
-    @pbt.Gen::fmap(@pbt.int_range(-100000, 100000), fn(n) {
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) { n.to_double() }),
+    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
       n.to_double() / 1000.0
     }),
-    @pbt.Gen::fmap(@pbt.int_range(-100000, 100000), fn(n) {
+    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
       n.to_double() / 1000000.0
     }),
   ])
@@ -514,14 +514,14 @@ test "prop_parse_double_boundary" {
 /// Property: parse_date format validation
 /// parse_date should correctly handle valid date formats
 test "prop_parse_date_format" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
         _ => 31
       }
-      @pbt.int_range(1, max_day).map(fn(day) { (year, month, day) })
+      @gen.int_range(1, max_day).map(fn(day) { (year, month, day) })
     })
   })
   let config = CheckConfig::new(1000, 100, 171717, 50)
@@ -547,14 +547,14 @@ test "prop_parse_date_format" {
 /// Property: parse_date round-trip
 /// Converting date to days and back should yield the original date
 test "prop_parse_date_roundtrip" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
         _ => 31
       }
-      @pbt.int_range(1, max_day).map(fn(day) {
+      @gen.int_range(1, max_day).map(fn(day) {
         let y_str = year.to_string()
         let m_str = if month < 10 { "0\{month}" } else { month.to_string() }
         let d_str = if day < 10 { "0\{day}" } else { day.to_string() }
@@ -590,12 +590,12 @@ test "prop_parse_date_roundtrip" {
 /// Property: parse_timestamp format validation
 /// parse_timestamp should correctly handle valid timestamp formats
 test "prop_parse_timestamp_format" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
-      @pbt.int_range(1, 28).bind(fn(day) {
-        @pbt.int_range(0, 23).bind(fn(hour) {
-          @pbt.int_range(0, 59).bind(fn(minute) {
-            @pbt.int_range(0, 59).map(fn(second) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
+      @gen.int_range(1, 28).bind(fn(day) {
+        @gen.int_range(0, 23).bind(fn(hour) {
+          @gen.int_range(0, 59).bind(fn(minute) {
+            @gen.int_range(0, 59).map(fn(second) {
               let y_str = year.to_string()
               let m_str = if month < 10 {
                 "0\{month}"
@@ -640,9 +640,9 @@ test "prop_parse_timestamp_format" {
 /// Converting timestamp to microseconds and back should yield the original timestamp
 /// NOTE: Simplified test - only validates parsing, not full round-trip due to date_to_days issues
 test "prop_parse_timestamp_roundtrip" {
-  let gen = @pbt.int_range(0, 23).bind(fn(hour) {
-    @pbt.int_range(0, 59).bind(fn(minute) {
-      @pbt.int_range(0, 59).map(fn(second) {
+  let gen = @gen.int_range(0, 23).bind(fn(hour) {
+    @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
         let s_str = if second < 10 { "0\{second}" } else { second.to_string() }
@@ -673,7 +673,7 @@ test "prop_parse_timestamp_roundtrip" {
 /// Property: is_leap_year divisible by 400
 /// Years divisible by 400 are always leap years
 test "prop_is_leap_year_divisible_by_400" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, 10), fn(n) { n * 400 + 1600 })
+  let gen = @gen.Gen::fmap(@gen.int_range(0, 10), fn(n) { n * 400 + 1600 })
   let config = CheckConfig::new(100, 10, 212121, 10)
   assert_check(
     "years divisible by 400 are leap",
@@ -693,13 +693,13 @@ test "prop_is_leap_year_divisible_by_400" {
 /// Property: is_leap_year not divisible by 100 only
 /// Years divisible by 100 but not by 400 are not leap years
 test "prop_is_leap_year_not_100_only" {
-  let gen = @pbt.one_of([
-    @pbt.pure(1700),
-    @pbt.pure(1800),
-    @pbt.pure(1900),
-    @pbt.pure(2100),
-    @pbt.pure(2200),
-    @pbt.pure(2300),
+  let gen = @gen.one_of([
+    @gen.pure(1700),
+    @gen.pure(1800),
+    @gen.pure(1900),
+    @gen.pure(2100),
+    @gen.pure(2200),
+    @gen.pure(2300),
   ])
   let config = CheckConfig::new(100, 10, 222222, 10)
   assert_check(
@@ -720,8 +720,8 @@ test "prop_is_leap_year_not_100_only" {
 /// Property: is_leap_year divisible by 4
 /// Years divisible by 4 are leap years, except centuries not divisible by 400
 test "prop_is_leap_year_divisible_by_4" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(1, 24), fn(n) { n * 4 + 2000 }),
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(1, 24), fn(n) { n * 4 + 2000 }),
   ])
   let config = CheckConfig::new(100, 10, 232323, 10)
   assert_check(
@@ -745,12 +745,12 @@ test "prop_is_leap_year_divisible_by_4" {
 /// Property: days_in_month February in leap year
 /// February has 29 days in leap years
 test "prop_days_in_month_february_leap" {
-  let gen = @pbt.one_of([
-    @pbt.pure(2000),
-    @pbt.pure(2004),
-    @pbt.pure(2020),
-    @pbt.pure(2024),
-    @pbt.pure(2400),
+  let gen = @gen.one_of([
+    @gen.pure(2000),
+    @gen.pure(2004),
+    @gen.pure(2020),
+    @gen.pure(2024),
+    @gen.pure(2400),
   ])
   let config = CheckConfig::new(100, 10, 242424, 10)
   assert_check(
@@ -772,12 +772,12 @@ test "prop_days_in_month_february_leap" {
 /// Property: days_in_month February normal
 /// February has 28 days in non-leap years
 test "prop_days_in_month_february_normal" {
-  let gen = @pbt.one_of([
-    @pbt.pure(1900),
-    @pbt.pure(2001),
-    @pbt.pure(2002),
-    @pbt.pure(2003),
-    @pbt.pure(2100),
+  let gen = @gen.one_of([
+    @gen.pure(1900),
+    @gen.pure(2001),
+    @gen.pure(2002),
+    @gen.pure(2003),
+    @gen.pure(2100),
   ])
   let config = CheckConfig::new(100, 10, 252525, 10)
   assert_check(
@@ -799,11 +799,11 @@ test "prop_days_in_month_february_normal" {
 /// Property: days_in_month 30-day months
 /// April, June, September, November have 30 days
 test "prop_days_in_month_30_day" {
-  let gen = @pbt.one_of([
-    @pbt.pure(4),
-    @pbt.pure(6),
-    @pbt.pure(9),
-    @pbt.pure(11),
+  let gen = @gen.one_of([
+    @gen.pure(4),
+    @gen.pure(6),
+    @gen.pure(9),
+    @gen.pure(11),
   ])
   let config = CheckConfig::new(100, 10, 262626, 10)
   assert_check(
@@ -829,7 +829,7 @@ test "prop_days_in_month_30_day" {
 /// Property: int_pow10 base case
 /// int_pow10(0) should return 1
 test "prop_int_pow10_base_case" {
-  let gen = @pbt.pure(0)
+  let gen = @gen.pure(0)
   let config = CheckConfig::new(10, 10, 272727, 5)
   assert_check(
     "int_pow10(0) == 1",
@@ -851,7 +851,7 @@ test "prop_int_pow10_base_case" {
 /// int_pow10 should return correct powers of 10
 /// NOTE: This test discovers bugs in int_pow10(8) and int_pow10(9)
 test "prop_int_pow10_known_values" {
-  let gen = @pbt.int_range(0, 10)
+  let gen = @gen.int_range(0, 10)
   let config = CheckConfig::new(200, 20, 282828, 20)
   assert_check(
     "int_pow10 returns correct powers",
@@ -886,8 +886,8 @@ test "prop_int_pow10_known_values" {
 /// Property: int_pow10 multiplicative
 /// int_pow10(a+b) == int_pow10(a) * int_pow10(b) for valid ranges
 test "prop_int_pow10_multiplicative" {
-  let gen = @pbt.int_range(0, 5).bind(fn(a) {
-    @pbt.int_range(0, 5).map(fn(b) { (a, b, a + b) })
+  let gen = @gen.int_range(0, 5).bind(fn(a) {
+    @gen.int_range(0, 5).map(fn(b) { (a, b, a + b) })
   })
   let config = CheckConfig::new(200, 20, 292929, 20)
   assert_check(
@@ -913,7 +913,7 @@ test "prop_int_pow10_multiplicative" {
 /// Property: int_pow10 monotonic
 /// int_pow10(n) < int_pow10(n+1) for n in valid range
 test "prop_int_pow10_monotonic" {
-  let gen = @pbt.int_range(0, 9)
+  let gen = @gen.int_range(0, 9)
   let config = CheckConfig::new(100, 10, 303030, 10)
   assert_check(
     "int_pow10 is monotonic",
@@ -941,9 +941,9 @@ test "prop_int_pow10_monotonic" {
 /// Property: parse_value date detection
 /// parse_value should detect and parse date strings (YYYY-MM-DD)
 test "prop_parse_value_date_detection" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
-      @pbt.int_range(1, 28).map(fn(day) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
+      @gen.int_range(1, 28).map(fn(day) {
         let m_str = if month < 10 { "0\{month}" } else { month.to_string() }
         let d_str = if day < 10 { "0\{day}" } else { day.to_string() }
         "\{year}-\{m_str}-\{d_str}"
@@ -969,9 +969,9 @@ test "prop_parse_value_date_detection" {
 /// Property: parse_value timestamp detection
 /// parse_value should detect and parse timestamp strings
 test "prop_parse_value_timestamp_detection" {
-  let gen = @pbt.int_range(0, 23).bind(fn(hour) {
-    @pbt.int_range(0, 59).bind(fn(minute) {
-      @pbt.int_range(0, 59).map(fn(second) {
+  let gen = @gen.int_range(0, 23).bind(fn(hour) {
+    @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
         let s_str = if second < 10 { "0\{second}" } else { second.to_string() }
@@ -1001,14 +1001,14 @@ test "prop_parse_value_timestamp_detection" {
 /// Property: parse_value type precedence
 /// parse_value should correctly prioritize type detection
 test "prop_parse_value_type_precedence" {
-  let gen = @pbt.one_of([
-    @pbt.pure("true"),
-    @pbt.pure("false"),
-    @pbt.Gen::fmap(@pbt.int_range(-1000, 1000), fn(n) { n.to_string() }),
-    @pbt.Gen::fmap(@pbt.int_range(-1000, 1000), fn(n) { n.to_string() + ".5" }),
-    @pbt.pure("2024-01-01"),
-    @pbt.pure("2024-01-01 12:30:45"),
-    @pbt.pure("random_string"),
+  let gen = @gen.one_of([
+    @gen.pure("true"),
+    @gen.pure("false"),
+    @gen.Gen::fmap(@gen.int_range(-1000, 1000), fn(n) { n.to_string() }),
+    @gen.Gen::fmap(@gen.int_range(-1000, 1000), fn(n) { n.to_string() + ".5" }),
+    @gen.pure("2024-01-01"),
+    @gen.pure("2024-01-01 12:30:45"),
+    @gen.pure("random_string"),
   ])
   let config = CheckConfig::new(500, 50, 333333, 30)
   assert_check(
@@ -1040,14 +1040,14 @@ test "prop_parse_value_type_precedence" {
 /// Property: date_to_days round-trip
 /// Converting date to days and back should preserve the date
 test "prop_date_to_days_roundtrip" {
-  let gen = @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
         _ => 31
       }
-      @pbt.int_range(1, max_day).map(fn(day) { (year, month, day) })
+      @gen.int_range(1, max_day).map(fn(day) { (year, month, day) })
     })
   })
   let config = CheckConfig::new(1000, 100, 343434, 50)
@@ -1073,9 +1073,9 @@ test "prop_date_to_days_roundtrip" {
 /// parse_time_to_micros should correctly parse HH:MM:SS format
 /// NOTE: Simplified test - only validates parsing, not round-trip
 test "prop_parse_time_to_micros_format" {
-  let gen = @pbt.int_range(0, 23).bind(fn(hour) {
-    @pbt.int_range(0, 59).bind(fn(minute) {
-      @pbt.int_range(0, 59).map(fn(second) {
+  let gen = @gen.int_range(0, 23).bind(fn(hour) {
+    @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
         let s_str = if second < 10 { "0\{second}" } else { second.to_string() }
@@ -1101,10 +1101,10 @@ test "prop_parse_time_to_micros_format" {
 /// Property: parse_time_to_micros fractional seconds
 /// parse_time_to_micros should correctly handle fractional seconds
 test "prop_parse_time_to_micros_fractional" {
-  let gen = @pbt.int_range(0, 23).bind(fn(hour) {
-    @pbt.int_range(0, 59).bind(fn(minute) {
-      @pbt.int_range(0, 59).bind(fn(second) {
-        @pbt.int_range(0, 999999).map(fn(micros) {
+  let gen = @gen.int_range(0, 23).bind(fn(hour) {
+    @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 59).bind(fn(second) {
+        @gen.int_range(0, 999999).map(fn(micros) {
           let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
           let m_str = if minute < 10 {
             "0\{minute}"
@@ -1167,7 +1167,7 @@ test "prop_parse_time_to_micros_fractional" {
 /// Property: parse_fraction_to_micros precision
 /// parse_fraction_to_micros should correctly convert fractional seconds to microseconds
 test "prop_parse_fraction_to_micros" {
-  let gen = @pbt.int_range(0, 999999).map(fn(n) {
+  let gen = @gen.int_range(0, 999999).map(fn(n) {
     let s = n.to_string()
     let padded = if s.length() < 6 {
       let mut zeros = ""
@@ -1213,8 +1213,8 @@ test "prop_parse_fraction_to_micros" {
 /// Property: parse_double preserves negative sign
 /// Converting a negative double to string and parsing should preserve the sign
 test "prop_parse_double_negative_sign" {
-  let gen = @pbt.Gen::fmap(
-    @pbt.int_range(-1000000, -1), // Only negative values
+  let gen = @gen.Gen::fmap(
+    @gen.int_range(-1000000, -1), // Only negative values
     fn(n) { n.to_double() / 1000.0 },
   )
   let config = CheckConfig::new(500, 100, 404040, 50)
@@ -1241,7 +1241,7 @@ test "prop_parse_double_negative_sign" {
 /// Property: int_pow10 exact values regression
 /// int_pow10 should return exact powers of 10 for all valid inputs
 test "prop_int_pow10_exact_values_regression" {
-  let gen = @pbt.int_range(0, 12)
+  let gen = @gen.int_range(0, 12)
   let config = CheckConfig::new(200, 20, 414141, 20)
   assert_check(
     "int_pow10 exact values",
@@ -1273,7 +1273,7 @@ test "prop_int_pow10_exact_values_regression" {
 /// Property: Value::Int to_string and back round-trip
 /// Converting Int to string and parsing should recover the original value
 test "prop_value_int_to_string_roundtrip" {
-  let gen = @pbt.int_range(-1000000, 1000000)
+  let gen = @gen.int_range(-1000000, 1000000)
   let config = CheckConfig::new(500, 100, 424242, 50)
   assert_check(
     "Value::Int to_string round-trip",
@@ -1299,7 +1299,7 @@ test "prop_value_int_to_string_roundtrip" {
 /// Property: Value::Double to_string and back round-trip
 /// Converting Double to string and parsing should recover approximately the same value
 test "prop_value_double_to_string_roundtrip" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, 1000000), fn(n) {
+  let gen = @gen.Gen::fmap(@gen.int_range(0, 1000000), fn(n) {
     n.to_double() / 1000.0
   })
   let config = CheckConfig::new(500, 100, 434343, 50)
@@ -1331,7 +1331,7 @@ test "prop_value_double_to_string_roundtrip" {
 /// Property: Value::Bool to_string and back round-trip
 /// Converting Bool to string and parsing should recover the original value
 test "prop_value_bool_to_string_roundtrip" {
-  let gen = @pbt.one_of([@pbt.pure(true), @pbt.pure(false)])
+  let gen = @gen.one_of([@gen.pure(true), @gen.pure(false)])
   let config = CheckConfig::new(10, 10, 444444, 10)
   assert_check(
     "Value::Bool to_string round-trip",
@@ -1357,7 +1357,7 @@ test "prop_value_bool_to_string_roundtrip" {
 /// Property: Value::String to_string and back round-trip
 /// String values should round-trip correctly
 test "prop_value_string_to_string_roundtrip" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, 1000), fn(n) { "test_\{n}" })
+  let gen = @gen.Gen::fmap(@gen.int_range(0, 1000), fn(n) { "test_\{n}" })
   let config = CheckConfig::new(300, 50, 454545, 30)
   assert_check(
     "Value::String to_string round-trip",
@@ -1386,7 +1386,7 @@ test "prop_value_string_to_string_roundtrip" {
 /// Property: Value::Timestamp to_string produces valid format
 /// The output should match ISO timestamp format
 test "prop_timestamp_to_string_format" {
-  let gen = @pbt.int_range(0, 86400 * 365 * 50)
+  let gen = @gen.int_range(0, 86400 * 365 * 50)
   let config = CheckConfig::new(1000, 100, 464646, 50)
   assert_check(
     "Timestamp to_string produces valid ISO format",
@@ -1428,9 +1428,9 @@ test "prop_timestamp_to_string_format" {
 ///|
 /// Property: Timestamp round-trip via parse_timestamp
 test "prop_timestamp_roundtrip_via_parse" {
-  let gen = @pbt.int_range(0, 23).bind(fn(hour) {
-    @pbt.int_range(0, 59).bind(fn(minute) {
-      @pbt.int_range(0, 59).map(fn(second) {
+  let gen = @gen.int_range(0, 23).bind(fn(hour) {
+    @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let min_str = if minute < 10 {
           "0\{minute}"
@@ -1464,7 +1464,7 @@ test "prop_timestamp_roundtrip_via_parse" {
 /// Property: days_to_ymd month range
 /// Month values should always be in [1, 12]
 test "prop_days_to_ymd_month_range" {
-  let gen = @pbt.int_range(0, 365 * 100)
+  let gen = @gen.int_range(0, 365 * 100)
   let config = CheckConfig::new(1000, 100, 484848, 50)
   assert_check(
     "days_to_ymd month is always in [1, 12]",
@@ -1485,7 +1485,7 @@ test "prop_days_to_ymd_month_range" {
 /// Property: days_to_ymd day range
 /// Day values should be in valid range for the month
 test "prop_days_to_ymd_day_range" {
-  let gen = @pbt.int_range(0, 365 * 100)
+  let gen = @gen.int_range(0, 365 * 100)
   let config = CheckConfig::new(1000, 100, 494949, 50)
   assert_check(
     "days_to_ymd day is valid for month",
@@ -1509,7 +1509,7 @@ test "prop_days_to_ymd_day_range" {
 /// Property: days_to_ymd leap day only in leap year
 /// February 29 should only appear in leap years
 test "prop_days_to_ymd_leap_day_only_in_leap_year" {
-  let gen = @pbt.int_range(0, 365 * 100)
+  let gen = @gen.int_range(0, 365 * 100)
   let config = CheckConfig::new(1000, 100, 505050, 50)
   assert_check(
     "Feb 29 only in leap years",
@@ -1534,7 +1534,7 @@ test "prop_days_to_ymd_leap_day_only_in_leap_year" {
 /// Property: days_to_ymd monotonicity
 /// Adding days should produce a non-decreasing date
 test "prop_days_to_ymd_monotonicity" {
-  let gen = @pbt.int_range(0, 365 * 100 - 1)
+  let gen = @gen.int_range(0, 365 * 100 - 1)
   let config = CheckConfig::new(1000, 100, 515151, 50)
   assert_check(
     "days_to_ymd is monotonic",
@@ -1565,14 +1565,14 @@ test "prop_days_to_ymd_monotonicity" {
 /// Property: Value::as_int type safety
 /// as_int should return Some only for Int values
 test "prop_value_as_int_type_safety" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) { n.to_string() }),
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) {
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
-    @pbt.pure("true"),
-    @pbt.pure("false"),
-    @pbt.Gen::fmap(@pbt.int_range(1, 100), fn(n) { "test\{n}" }),
+    @gen.pure("true"),
+    @gen.pure("false"),
+    @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
   ])
   let config = CheckConfig::new(300, 50, 525252, 30)
   assert_check(
@@ -1607,12 +1607,12 @@ test "prop_value_as_int_type_safety" {
 /// Property: Value::as_double type safety
 /// as_double should return Some only for Double values
 test "prop_value_as_double_type_safety" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) { n.to_string() }),
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) {
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
-    @pbt.pure("true"),
+    @gen.pure("true"),
   ])
   let config = CheckConfig::new(300, 50, 535353, 30)
   assert_check(
@@ -1642,13 +1642,13 @@ test "prop_value_as_double_type_safety" {
 /// Property: Value::is_null consistency
 /// is_null should return true only for Value::Null
 test "prop_value_is_null_consistency" {
-  let gen = @pbt.one_of([
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) { n.to_string() }),
-    @pbt.Gen::fmap(@pbt.int_range(-100, 100), fn(n) {
+  let gen = @gen.one_of([
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
-    @pbt.pure("true"),
-    @pbt.Gen::fmap(@pbt.int_range(1, 100), fn(n) { "test\{n}" }),
+    @gen.pure("true"),
+    @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
   ])
   let config = CheckConfig::new(300, 50, 545454, 30)
   assert_check(
@@ -1684,7 +1684,7 @@ test "prop_value_is_null_consistency" {
 /// Property: parse_fraction_to_micros leading zeros
 /// Leading zeros should be handled correctly
 test "prop_parse_fraction_to_micros_leading_zeros" {
-  let gen = @pbt.int_range(0, 999999).map(fn(n) {
+  let gen = @gen.int_range(0, 999999).map(fn(n) {
     let s = n.to_string()
     // Add leading zeros
     let mut result = s
@@ -1733,7 +1733,7 @@ test "prop_parse_fraction_to_micros_leading_zeros" {
 /// Property: parse_fraction_to_micros trailing zeros
 /// Trailing zeros should not affect the result significantly
 test "prop_parse_fraction_to_micros_trailing_zeros" {
-  let gen = @pbt.int_range(0, 999).map(fn(n) {
+  let gen = @gen.int_range(0, 999).map(fn(n) {
     let s = n.to_string() + "000"
     (n, s)
   })
@@ -1763,10 +1763,10 @@ test "prop_parse_fraction_to_micros_trailing_zeros" {
 /// Property: parse_int max value boundary
 /// Parsing should handle max integer correctly
 test "prop_parse_int_max_boundary" {
-  let gen = @pbt.one_of([
-    @pbt.pure(@int.MAX_VALUE.to_string()),
-    @pbt.pure((@int.MAX_VALUE - 1).to_string()),
-    @pbt.pure(@int.MAX_VALUE.to_string() + "0"),
+  let gen = @gen.one_of([
+    @gen.pure(@int.MAX_VALUE.to_string()),
+    @gen.pure((@int.MAX_VALUE - 1).to_string()),
+    @gen.pure(@int.MAX_VALUE.to_string() + "0"),
   ])
   let config = CheckConfig::new(50, 10, 616161, 10)
   assert_check(
@@ -1789,9 +1789,9 @@ test "prop_parse_int_max_boundary" {
 /// Property: parse_int min value boundary
 /// Parsing should handle min integer correctly
 test "prop_parse_int_min_boundary" {
-  let gen = @pbt.one_of([
-    @pbt.pure(@int.MIN_VALUE.to_string()),
-    @pbt.pure((@int.MIN_VALUE + 1).to_string()),
+  let gen = @gen.one_of([
+    @gen.pure(@int.MIN_VALUE.to_string()),
+    @gen.pure((@int.MIN_VALUE + 1).to_string()),
   ])
   let config = CheckConfig::new(50, 10, 626262, 10)
   assert_check(
@@ -1814,12 +1814,12 @@ test "prop_parse_int_min_boundary" {
 /// Property: parse_double edge cases
 /// Special double formats should be handled
 test "prop_parse_double_special_formats" {
-  let gen = @pbt.one_of([
-    @pbt.pure("0.0"),
-    @pbt.pure(".0"),
-    @pbt.pure("1."),
-    @pbt.pure("0.123"),
-    @pbt.pure("123.0"),
+  let gen = @gen.one_of([
+    @gen.pure("0.0"),
+    @gen.pure(".0"),
+    @gen.pure("1."),
+    @gen.pure("0.123"),
+    @gen.pure("123.0"),
   ])
   let config = CheckConfig::new(100, 10, 636363, 20)
   assert_check(
@@ -1838,10 +1838,10 @@ test "prop_parse_double_special_formats" {
 /// Property: parse_date epoch boundary
 /// Parsing should handle epoch date correctly
 test "prop_parse_date_epoch_boundary" {
-  let gen = @pbt.one_of([
-    @pbt.pure("1970-01-01"), // Epoch
-    @pbt.pure("1969-12-31"), // Day before epoch
-    @pbt.pure("1970-01-02"), // Day after epoch
+  let gen = @gen.one_of([
+    @gen.pure("1970-01-01"), // Epoch
+    @gen.pure("1969-12-31"), // Day before epoch
+    @gen.pure("1970-01-02"), // Day after epoch
   ])
   let config = CheckConfig::new(50, 10, 646464, 10)
   assert_check(
@@ -1871,11 +1871,11 @@ test "prop_parse_date_epoch_boundary" {
 /// Property: parse_date leap day boundaries
 /// Leap day should only parse in leap years
 test "prop_parse_date_leap_day_boundaries" {
-  let gen = @pbt.one_of([
-    @pbt.pure("2000-02-29"), // Valid leap day (divisible by 400)
-    @pbt.pure("1900-02-29"), // Invalid (century not divisible by 400)
-    @pbt.pure("2024-02-29"), // Valid leap day
-    @pbt.pure("2023-02-29"), // Invalid
+  let gen = @gen.one_of([
+    @gen.pure("2000-02-29"), // Valid leap day (divisible by 400)
+    @gen.pure("1900-02-29"), // Invalid (century not divisible by 400)
+    @gen.pure("2024-02-29"), // Valid leap day
+    @gen.pure("2023-02-29"), // Invalid
   ])
   let config = CheckConfig::new(50, 10, 656565, 10)
   assert_check(
@@ -1929,7 +1929,7 @@ fn shrink_string(s : String) -> Iter[String] {
 /// Property: shrink_string produces shorter strings
 /// Shrunk strings should be shorter or empty
 test "prop_shrink_string_produces_shorter_strings" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(1, 100), fn(n) {
+  let gen = @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) {
     let mut s = ""
     let mut i = 0
     while i < n {

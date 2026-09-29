@@ -5,7 +5,7 @@
 ///|
 /// Round-trip property: encode -> decode should preserve the original value
 pub fn prop_roundtrip[A : Show, B : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   encode: (A) -> B,
   decode: (B) -> A,
   name: String,
@@ -35,7 +35,7 @@ pub fn prop_roundtrip[A : Show, B : Show](
 ///|
 /// Idempotent property: operation(x) == operation(operation(x))
 pub fn prop_idempotent[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A) -> A,
   name: String,
   equal: (A, A) -> Bool,
@@ -64,7 +64,7 @@ pub fn prop_idempotent[A : Show](
 ///|
 /// Invariant property: invariant(x) == invariant(operation(x))
 pub fn prop_invariant[A : Show, B : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A) -> A,
   invariant: (A) -> B,
   name: String,
@@ -94,7 +94,7 @@ pub fn prop_invariant[A : Show, B : Show](
 ///|
 /// Associative property: op(op(a, b), c) == op(a, op(b, c))
 pub fn prop_associative[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A, A) -> A,
   name: String,
   equal: (A, A) -> Bool,
@@ -139,7 +139,7 @@ pub fn prop_associative[A : Show](
 ///|
 /// Commutative property: op(a, b) == op(b, a)
 pub fn prop_commutative[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A, A) -> A,
   name: String,
   equal: (A, A) -> Bool,
@@ -170,7 +170,7 @@ pub fn prop_commutative[A : Show](
 ///|
 /// Identity property: op(x, identity) == x
 pub fn prop_identity[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A, A) -> A,
   identity: A,
   name: String,
@@ -199,7 +199,7 @@ pub fn prop_identity[A : Show](
 ///|
 /// Reflexive property: equal(x, x) should always be true
 pub fn prop_reflexive[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
   config? : CheckConfig = CheckConfig::default(),
@@ -223,7 +223,7 @@ pub fn prop_reflexive[A : Show](
 ///|
 /// Symmetric property: equal(a, b) implies equal(b, a)
 pub fn prop_symmetric[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
   config? : CheckConfig = CheckConfig::default(),
@@ -253,7 +253,7 @@ pub fn prop_symmetric[A : Show](
 ///|
 /// Transitive property: equal(a, b) and equal(b, c) implies equal(a, c)
 pub fn prop_transitive[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   equal: (A, A) -> Bool,
   name: String,
   config? : CheckConfig = CheckConfig::default(),
@@ -294,7 +294,7 @@ pub fn prop_transitive[A : Show](
 ///|
 /// Consistency property: f1(x) == f2(x) for equivalent implementations
 pub fn prop_consistency[A : Show, B : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   f1: (A) -> B,
   f2: (A) -> B,
   name: String,
@@ -324,7 +324,7 @@ pub fn prop_consistency[A : Show, B : Show](
 ///|
 /// Monotonic property: a <= b implies f(a) <= f(b)
 pub fn prop_monotonic[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   f: (A) -> Int,
   leq: (A, A) -> Bool,
   name: String,
@@ -359,7 +359,7 @@ pub fn prop_monotonic[A : Show](
 ///|
 /// Preservation property: predicate(f(x)) should equal predicate(x)
 pub fn prop_preservation[A : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A) -> A,
   predicate: (A) -> Bool,
   name: String,
@@ -388,7 +388,7 @@ pub fn prop_preservation[A : Show](
 ///|
 /// Error preservation property: error cases should remain error cases
 pub fn prop_error_preservation[A : Show, B : Show](
-  gen: @pbt.Gen[A],
+  gen: @gen.Gen[A],
   operation: (A) -> Result[B, String],
   name: String,
   config? : CheckConfig = CheckConfig::default(),

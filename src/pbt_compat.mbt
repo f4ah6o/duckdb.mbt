@@ -23,7 +23,7 @@ pub fn CheckConfig::new(
   max_shrinks : Int,
   discard_ratio? : Int = 10,
 ) -> CheckConfig {
-  { cases, max_size, seed, max_shrinks, discard_ratio }
+  { cases, max_size, seed, max_shrinks, discard_ratio, }
 }
 
 ///|
@@ -61,9 +61,9 @@ fn[A] property_from_result(
 }
 
 ///|
-pub fn[A : Show] assert_check(
+pub fn[A : @debug.Debug] assert_check(
   name : String,
-  gen : @pbt.Gen[A],
+  gen : @gen.Gen[A],
   check : (A) -> Result[Unit, String],
   config? : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
@@ -79,8 +79,8 @@ pub fn[A : Show] assert_check(
 }
 
 ///|
-pub fn[A : Show] check_with_stats(
-  gen : @pbt.Gen[A],
+pub fn[A : @debug.Debug] check_with_stats(
+  gen : @gen.Gen[A],
   check : (A) -> (Result[Unit, String], String?),
   config? : CheckConfig = CheckConfig::default(),
 ) -> CheckResult {
@@ -97,17 +97,18 @@ pub fn[A : Show] check_with_stats(
       None => base
     }
   })
-  let result : Result[Unit, Error] = try? @pbt.quick_check(prop)
-  match result {
-    Ok(_) => CheckResult::{ passed: true, stats: None }
-    Err(err) => CheckResult::{ passed: false, stats: Some("\{err}") }
+  try {
+    @pbt.quick_check(prop)
+    CheckResult::{ passed: true, stats: None, }
+  } catch {
+    err => CheckResult::{ passed: false, stats: Some("\{err}"), }
   }
 }
 
 ///|
 /// Size-driven array generator compatible with previous Gen::array_of.
-pub fn[T] array_of(gen : @pbt.Gen[T]) -> @pbt.Gen[Array[T]] {
-  @pbt.sized(fn(size) { @pbt.Gen::array_with_size(gen, size) })
+pub fn[T] array_of(gen : @gen.Gen[T]) -> @gen.Gen[Array[T]] {
+  @gen.sized(fn(size) { @gen.Gen::array_with_size(gen, size) })
 }
 
 ///|

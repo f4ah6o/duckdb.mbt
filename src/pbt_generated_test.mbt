@@ -1,8 +1,8 @@
 ///|
 /// Generate array of strings for map keys/values.
-fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
-  @pbt.int_range(0, 20).bind(fn(len) {
-    @pbt.Gen::fmap(array_of(@pbt.int_range(0, 100)), fn(arr) {
+fn gen_string_array_local() -> @gen.Gen[Array[String]] {
+  @gen.int_range(0, 20).bind(fn(len) {
+    @gen.Gen::fmap(array_of(@gen.int_range(0, 100)), fn(arr) {
       let strs = arr.map(fn(n) { "key_" + n.to_string() })
       take_string_array(strs, len)
     })
@@ -11,10 +11,10 @@ fn gen_string_array_local() -> @pbt.Gen[Array[String]] {
 
 ///|
 /// Generate pair of arrays for map_from_arrays.
-fn gen_map_arrays_local() -> @pbt.Gen[(Array[String], Array[String])] {
-  @pbt.int_range(0, 10).bind(fn(len) {
-    array_of(@pbt.int_range(0, 100)).bind(fn(keys_arr) {
-      @pbt.Gen::fmap(array_of(@pbt.int_range(0, 100)), fn(vals_arr) {
+fn gen_map_arrays_local() -> @gen.Gen[(Array[String], Array[String])] {
+  @gen.int_range(0, 10).bind(fn(len) {
+    array_of(@gen.int_range(0, 100)).bind(fn(keys_arr) {
+      @gen.Gen::fmap(array_of(@gen.int_range(0, 100)), fn(vals_arr) {
         let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
         let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
         let min_len = Int::min(
@@ -165,11 +165,11 @@ fn pow10_int(exp : Int) -> Int {
 }
 
 ///|
-fn gen_valid_date() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.int_range(1970, 2100).bind(fn(year) {
-    @pbt.int_range(1, 12).bind(fn(month) {
+fn gen_valid_date() -> @gen.Gen[(Int, Int, Int)] {
+  @gen.int_range(1970, 2100).bind(fn(year) {
+    @gen.int_range(1, 12).bind(fn(month) {
       let max_day = days_in_month(year, month)
-      @pbt.Gen::fmap(@pbt.int_range(1, max_day), fn(day) { (year, month, day) })
+      @gen.Gen::fmap(@gen.int_range(1, max_day), fn(day) { (year, month, day) })
     })
   })
 }
@@ -198,12 +198,12 @@ test "prop_date_roundtrip_valid_ymd" {
 }
 
 ///|
-fn gen_valid_timestamp_parts() -> @pbt.Gen[(Int, Int, Int, Int, Int, Int)] {
+fn gen_valid_timestamp_parts() -> @gen.Gen[(Int, Int, Int, Int, Int, Int)] {
   gen_valid_date().bind(fn(date) {
     let (year, month, day) = date
-    @pbt.int_range(0, 23).bind(fn(hour) {
-      @pbt.int_range(0, 59).bind(fn(minute) {
-        @pbt.Gen::fmap(@pbt.int_range(0, 59), fn(second) {
+    @gen.int_range(0, 23).bind(fn(hour) {
+      @gen.int_range(0, 59).bind(fn(minute) {
+        @gen.Gen::fmap(@gen.int_range(0, 59), fn(second) {
           (year, month, day, hour, minute, second)
         })
       })
@@ -242,16 +242,16 @@ test "prop_timestamp_roundtrip_valid_ymd_hms" {
 }
 
 ///|
-fn gen_decimal_parts() -> @pbt.Gen[(Int, Int, Int)] {
-  @pbt.int_range(0, 6).bind(fn(scale) {
+fn gen_decimal_parts() -> @gen.Gen[(Int, Int, Int)] {
+  @gen.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
-    @pbt.int_range(0, 1000).bind(fn(whole) {
+    @gen.int_range(0, 1000).bind(fn(whole) {
       let frac_gen = if max_frac == 0 {
-        @pbt.pure(0)
+        @gen.pure(0)
       } else {
-        @pbt.int_range(0, max_frac)
+        @gen.int_range(0, max_frac)
       }
-      @pbt.Gen::fmap(frac_gen, fn(frac) { (whole, frac, scale) })
+      @gen.Gen::fmap(frac_gen, fn(frac) { (whole, frac, scale) })
     })
   })
 }
@@ -282,7 +282,7 @@ test "prop_decimal_parts_roundtrip" {
 ///|
 /// Unit-scale property: interval_from_seconds(n) yields n * 1_000_000 micros.
 test "prop_interval_from_seconds_scales_to_micros" {
-  let gen = @pbt.int_range(-1000000, 1000000)
+  let gen = @gen.int_range(-1000000, 1000000)
   let config = CheckConfig::new(200, 20, 810001, 20)
   assert_check(
     "interval_from_seconds * 1_000_000 == interval_to_micros",
@@ -304,7 +304,7 @@ test "prop_interval_from_seconds_scales_to_micros" {
 ///|
 /// Unit-scale property: interval_from_minutes(n) yields n * 60 * 1_000_000 micros.
 test "prop_interval_from_minutes_scales_to_micros" {
-  let gen = @pbt.int_range(-100000, 100000)
+  let gen = @gen.int_range(-100000, 100000)
   let config = CheckConfig::new(200, 20, 810002, 20)
   assert_check(
     "interval_from_minutes * 60_000_000 == interval_to_micros",
@@ -326,7 +326,7 @@ test "prop_interval_from_minutes_scales_to_micros" {
 ///|
 /// Unit-scale property: interval_from_hours(n) yields n * 3600 * 1_000_000 micros.
 test "prop_interval_from_hours_scales_to_micros" {
-  let gen = @pbt.int_range(-10000, 10000)
+  let gen = @gen.int_range(-10000, 10000)
   let config = CheckConfig::new(200, 20, 810003, 20)
   assert_check(
     "interval_from_hours * 3_600_000_000 == interval_to_micros",
@@ -348,7 +348,7 @@ test "prop_interval_from_hours_scales_to_micros" {
 ///|
 /// Unit-scale property: interval_from_days(n) yields n * 86400 * 1_000_000 micros.
 test "prop_interval_from_days_scales_to_micros" {
-  let gen = @pbt.int_range(-10000, 10000)
+  let gen = @gen.int_range(-10000, 10000)
   let config = CheckConfig::new(200, 20, 810004, 20)
   assert_check(
     "interval_from_days * 86_400_000_000 == interval_to_micros",
@@ -370,7 +370,7 @@ test "prop_interval_from_days_scales_to_micros" {
 ///|
 /// Invariant: months do not contribute to interval_to_micros.
 test "prop_interval_from_months_micros_zero" {
-  let gen = @pbt.int_range(-100000, 100000)
+  let gen = @gen.int_range(-100000, 100000)
   let config = CheckConfig::new(200, 20, 810005, 20)
   assert_check(
     "interval_from_months carries no micros",
@@ -389,10 +389,10 @@ test "prop_interval_from_months_micros_zero" {
 }
 
 ///|
-fn gen_interval_parts() -> @pbt.Gen[(Int, Int, Int64)] {
-  @pbt.int_range(-100000, 100000).bind(fn(months) {
-    @pbt.int_range(-10000, 10000).bind(fn(days) {
-      @pbt.Gen::fmap(@pbt.int_range(-1000000, 1000000), fn(micros_int) {
+fn gen_interval_parts() -> @gen.Gen[(Int, Int, Int64)] {
+  @gen.int_range(-100000, 100000).bind(fn(months) {
+    @gen.int_range(-10000, 10000).bind(fn(days) {
+      @gen.Gen::fmap(@gen.int_range(-1000000, 1000000), fn(micros_int) {
         (months, days, micros_int.to_int64())
       })
     })
@@ -595,7 +595,7 @@ test "prop_struct_from_arrays_matches_from_pairs" {
 /// is_special_float_string returns true for each known special marker.
 test "prop_is_special_float_string_accepts_known" {
   let specials = ["nan", "NaN", "inf", "Infinity", "-inf", "-Infinity"]
-  let gen = @pbt.Gen::fmap(@pbt.int_range(0, specials.length()), fn(i) {
+  let gen = @gen.Gen::fmap(@gen.int_range(0, specials.length()), fn(i) {
     specials[i]
   })
   let config = CheckConfig::new(200, 20, 810012, 20)
@@ -616,7 +616,7 @@ test "prop_is_special_float_string_accepts_known" {
 ///|
 /// is_special_float_string rejects ordinary integer-looking strings.
 test "prop_is_special_float_string_rejects_integers" {
-  let gen = @pbt.Gen::fmap(@pbt.int_range(-100000, 100000), fn(n) {
+  let gen = @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
     n.to_string()
   })
   let config = CheckConfig::new(200, 20, 810013, 20)
