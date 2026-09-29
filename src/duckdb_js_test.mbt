@@ -499,11 +499,11 @@ test "js wasm stream count" {
 // ============================================================================
 
 ///|
-extern "js" fn js_run_prepare_query(
+extern "js" fn js_run_prepare_query_ffi(
   backend : JsBackend,
   sql : String,
-  binds : Array[String],
-  bind_types : Array[String],
+  binds : FixedArray[String],
+  bind_types : FixedArray[String],
 ) -> String =
   #|(backend, sql, binds, bind_types) => {
   #|  const { execFileSync } = require("child_process");
@@ -667,12 +667,21 @@ extern "js" fn js_run_prepare_query(
   #|  }
   #|}
 
-///|
-extern "js" fn js_run_wrapper_prepare_query(
+fn js_run_prepare_query(
   backend : JsBackend,
   sql : String,
   binds : Array[String],
   bind_types : Array[String],
+) -> String {
+  js_run_prepare_query_ffi(backend, sql, FixedArray::from_array(binds), FixedArray::from_array(bind_types))
+}
+
+///|
+extern "js" fn js_run_wrapper_prepare_query_ffi(
+  backend : JsBackend,
+  sql : String,
+  binds : FixedArray[String],
+  bind_types : FixedArray[String],
 ) -> String =
   #|(backend, sql, binds, bind_types) => {
   #|  const { execFileSync } = require("child_process");
@@ -782,6 +791,15 @@ extern "js" fn js_run_wrapper_prepare_query(
   #|    return JSON.stringify({ ok: false, error: message });
   #|  }
   #|}
+
+fn js_run_wrapper_prepare_query(
+  backend : JsBackend,
+  sql : String,
+  binds : Array[String],
+  bind_types : Array[String],
+) -> String {
+  js_run_wrapper_prepare_query_ffi(backend, sql, FixedArray::from_array(binds), FixedArray::from_array(bind_types))
+}
 
 ///|
 fn run_js_prepare_query(
