@@ -39,8 +39,9 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
   `upper : Int64` halves (two's complement). `decimal_from_hugeint` builds a
   `Decimal` from halves, `decimal_from_parts`/`decimal_to_parts` convert
   to/from whole+fractional parts (`decimal_to_parts` returns `BigInt` values so
-  whole parts beyond 64 bits are preserved), and `decimal_to_double` may lose
-  precision above 2^53, matching DuckDB semantics.
+  whole parts beyond 64 bits are preserved, with a signed fractional remainder
+  so negative sub-unit values like `-0.50` round-trip), and
+  `decimal_to_double` may lose precision above 2^53, matching DuckDB semantics.
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
 - JS (WASM) uses direct duckdb-wasm prepared parameters only. Verified advanced prepared-statement bind support is limited to Decimal and Interval string parameters with an explicit SQL cast, for example `?::DECIMAL(10,2)` or `?::INTERVAL`.
 - JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported: the browser smoke test fails for them against `@duckdb/duckdb-wasm` 1.33.1-dev18.0 through 1.33.1-dev65.0.

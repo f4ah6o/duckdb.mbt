@@ -1365,13 +1365,13 @@ test "native decimal to parts" {
 
 ///|
 test "native decimal negative roundtrip" {
-  // Test negative decimal round-trip
+  // Test negative decimal round-trip (signed remainder keeps the value's sign)
   let d1 = decimal_from_parts(-100L, 50L, 2)
   let (w1, f1) = decimal_to_parts(d1)
   if w1.compare_int(-100) != 0 {
     fail("expected whole -100, got \{w1}")
-  } else if f1.compare_int(50) != 0 {
-    fail("expected frac 50, got \{f1}")
+  } else if f1.compare_int(-50) != 0 {
+    fail("expected frac -50, got \{f1}")
   } else {
     ()
   }
@@ -1381,10 +1381,24 @@ test "native decimal negative roundtrip" {
   let (w2, f2) = decimal_to_parts(d2)
   if w2.compare_int(-1) != 0 {
     fail("expected whole -1, got \{w2}")
-  } else if f2.compare_int(99) != 0 {
-    fail("expected frac 99, got \{f2}")
+  } else if f2.compare_int(-99) != 0 {
+    fail("expected frac -99, got \{f2}")
   } else {
     ()
+  }
+
+  // Negative sub-unit value: -0.50 -> (0, -50), and the sign survives a
+  // parts round-trip (previously reconstructed as +0.50)
+  let d3 = decimal_from_hugeint((-50L).reinterpret_as_uint64(), -1L, 10, 2)
+  let (w3, f3) = decimal_to_parts(d3)
+  if w3.compare_int(0) != 0 || f3.compare_int(-50) != 0 {
+    fail("expected parts (0, -50), got (\{w3}, \{f3})")
+  }
+  let d3_rt = decimal_from_parts(0L, -50L, 2)
+  if d3_rt.lower != d3.lower || d3_rt.upper != d3.upper {
+    fail(
+      "expected -0.50 round-trip, got lower=\{d3_rt.lower} upper=\{d3_rt.upper}",
+    )
   }
 }
 

@@ -2223,22 +2223,22 @@ pub fn decimal_to_double(decimal : Decimal) -> Double {
 
 ///|
 /// Create a decimal from integer parts.
-/// The combined scaled value (`whole * 10^scale +/- fractional`) may use the
-/// full signed 128-bit payload; excess bits are truncated. `fractional` is
-/// expected to be non-negative and less than 10^scale.
+/// The scaled value is `whole * 10^scale +/- |fractional|`; the result is
+/// negative when `whole` or `fractional` is negative, so a negative
+/// `fractional` encodes negative sub-unit values like -0.50 and the parts
+/// contract round-trips through `decimal_to_parts`. Excess bits beyond 128
+/// are truncated. `|fractional|` is expected to be less than 10^scale.
 pub fn decimal_from_parts(
   whole : Int64,
   fractional : Int64,
   scale : Int,
 ) -> Decimal {
-  let magnitude = BigInt::from_int64(whole) * pow10_bigint(scale)
-  let value = if whole < 0L {
-    magnitude - BigInt::from_int64(fractional)
-  } else {
-    magnitude + BigInt::from_int64(fractional)
-  }
+  let negative = whole < 0L || fractional < 0L
+  let magnitude = BigInt::from_int64(whole.abs()) * pow10_bigint(scale) +
+    BigInt::from_int64(fractional.abs())
+  let value = if negative { -magnitude } else { magnitude }
   let width = if whole == 0L {
-    String::length(fractional.to_string())
+    String::length(fractional.abs().to_string())
   } else {
     String::length(whole.abs().to_string()) + scale
   }
@@ -2248,18 +2248,14 @@ pub fn decimal_from_parts(
 ///|
 /// Get the whole and fractional parts of a decimal.
 /// Returns the signed whole part (`value / 10^scale`, truncated toward zero)
-/// and the non-negative fractional part (`|value| mod 10^scale`) as BigInt so
-/// the full 128-bit payload is preserved.
+/// and the signed fractional remainder (`value mod 10^scale`), both as BigInt
+/// so the full 128-bit payload is preserved. The remainder keeps the sign of
+/// the value, so `decimal_from_parts` reconstructs the original decimal —
+/// including negative sub-unit values like -0.50 -> (0, -50).
 pub fn decimal_to_parts(decimal : Decimal) -> (BigInt, BigInt) {
   let divisor = pow10_bigint(decimal.scale)
   let value = decimal_scaled_bigint(decimal)
-  let remainder = value % divisor
-  let fractional = if remainder.compare_int(0) < 0 {
-    -remainder
-  } else {
-    remainder
-  }
-  (value / divisor, fractional)
+  (value / divisor, value % divisor)
 }
 
 ///|
