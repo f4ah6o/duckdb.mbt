@@ -47,10 +47,10 @@ extern "js" fn js_connect(
   #|}
 
 ///|
-extern "js" fn js_query(
+extern "js" fn js_query_ffi(
   conn : Connection,
   sql : String,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
+  on_ok : (FixedArray[String], FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]], FixedArray[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(conn, sql, on_ok, on_err) => {
@@ -152,6 +152,15 @@ extern "js" fn js_query(
   #|  run().catch((err) => on_err(toError(err)));
   #|}
 
+fn js_query(
+  conn : Connection,
+  sql : String,
+  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit {
+  js_query_ffi(conn, sql, fn(__a1, __a2, __a3, __a4) { on_ok(Array::from_fixed_array(__a1), Array::from_fixed_array(__a2.map(fn(__a5) { Array::from_fixed_array(__a5) })), Array::from_fixed_array(__a3.map(fn(__a6) { Array::from_fixed_array(__a6) })), Array::from_fixed_array(__a4)) }, on_err)
+}
+
 ///|
 fn column_types_from_ids(
   columns : Array[String],
@@ -217,13 +226,17 @@ extern "js" fn js_query_stream(
   #|}
 
 ///|
-extern "js" fn js_stream_columns(stream : ResultStream) -> Array[String] =
+extern "js" fn js_stream_columns_ffi(stream : ResultStream) -> FixedArray[String] =
   #|(stream) => {
   #|  if (stream && Array.isArray(stream.columns)) {
   #|    return stream.columns;
   #|  }
   #|  return [];
   #|}
+
+fn js_stream_columns(stream : ResultStream) -> Array[String] {
+  Array::from_fixed_array(js_stream_columns_ffi(stream))
+}
 
 ///|
 extern "js" fn js_stream_column_count(stream : ResultStream) -> Int =
@@ -235,9 +248,9 @@ extern "js" fn js_stream_column_count(stream : ResultStream) -> Int =
   #|}
 
 ///|
-extern "js" fn js_stream_next(
+extern "js" fn js_stream_next_ffi(
   stream : ResultStream,
-  on_ok : (Array[Array[String]], Array[Array[Bool]]) -> Unit,
+  on_ok : (FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(stream, on_ok, on_err) => {
@@ -347,6 +360,14 @@ extern "js" fn js_stream_next(
   #|  };
   #|  run().catch((err) => on_err(toError(err)));
   #|}
+
+fn js_stream_next(
+  stream : ResultStream,
+  on_ok : (Array[Array[String]], Array[Array[Bool]]) -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit {
+  js_stream_next_ffi(stream, fn(__a1, __a2) { on_ok(Array::from_fixed_array(__a1.map(fn(__a3) { Array::from_fixed_array(__a3) })), Array::from_fixed_array(__a2.map(fn(__a4) { Array::from_fixed_array(__a4) }))) }, on_err)
+}
 
 ///|
 extern "js" fn js_stream_close(
@@ -823,10 +844,10 @@ extern "js" fn js_bind_interval(
   #|}
 
 ///|
-extern "js" fn js_bind_list_varchar(
+extern "js" fn js_bind_list_varchar_ffi(
   stmt : PreparedStatement,
   index : Int,
-  values : Array[String],
+  values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, values) => {
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
@@ -843,12 +864,20 @@ extern "js" fn js_bind_list_varchar(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
-///|
-extern "js" fn js_bind_struct(
+fn js_bind_list_varchar(
   stmt : PreparedStatement,
   index : Int,
-  fields : Array[String],
   values : Array[String],
+) -> Result[Unit, String] {
+  js_bind_list_varchar_ffi(stmt, index, FixedArray::from_array(values))
+}
+
+///|
+extern "js" fn js_bind_struct_ffi(
+  stmt : PreparedStatement,
+  index : Int,
+  fields : FixedArray[String],
+  values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, fields, values) => {
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
@@ -866,12 +895,21 @@ extern "js" fn js_bind_struct(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
-///|
-extern "js" fn js_bind_map(
+fn js_bind_struct(
   stmt : PreparedStatement,
   index : Int,
-  keys : Array[String],
+  fields : Array[String],
   values : Array[String],
+) -> Result[Unit, String] {
+  js_bind_struct_ffi(stmt, index, FixedArray::from_array(fields), FixedArray::from_array(values))
+}
+
+///|
+extern "js" fn js_bind_map_ffi(
+  stmt : PreparedStatement,
+  index : Int,
+  keys : FixedArray[String],
+  values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, keys, values) => {
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
@@ -888,6 +926,15 @@ extern "js" fn js_bind_map(
   #|  }
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
+
+fn js_bind_map(
+  stmt : PreparedStatement,
+  index : Int,
+  keys : Array[String],
+  values : Array[String],
+) -> Result[Unit, String] {
+  js_bind_map_ffi(stmt, index, FixedArray::from_array(keys), FixedArray::from_array(values))
+}
 
 // ============================================================================
 // Appender API (Node API only)
@@ -1151,9 +1198,9 @@ extern "js" fn js_appender_close(
   #|}
 
 ///|
-extern "js" fn js_execute_prepared(
+extern "js" fn js_execute_prepared_ffi(
   stmt : PreparedStatement,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
+  on_ok : (FixedArray[String], FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]], FixedArray[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
@@ -1306,6 +1353,14 @@ extern "js" fn js_execute_prepared(
   #|  };
   #|  run().catch((err) => on_err(err.message || String(err)));
   #|}
+
+fn js_execute_prepared(
+  stmt : PreparedStatement,
+  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit {
+  js_execute_prepared_ffi(stmt, fn(__a1, __a2, __a3, __a4) { on_ok(Array::from_fixed_array(__a1), Array::from_fixed_array(__a2.map(fn(__a5) { Array::from_fixed_array(__a5) })), Array::from_fixed_array(__a3.map(fn(__a6) { Array::from_fixed_array(__a6) })), Array::from_fixed_array(__a4)) }, on_err)
+}
 
 ///|
 extern "js" fn js_execute_prepared_stream(
