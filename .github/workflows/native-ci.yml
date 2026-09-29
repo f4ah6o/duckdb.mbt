@@ -48,5 +48,8 @@ jobs:
       - name: Check native
         run: moon check --target native
 
+      - name: Generate documentation
+        run: moon doc
+
       - name: Test native
         run: moon test --target native

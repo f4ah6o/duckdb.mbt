@@ -113,20 +113,20 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ = backend
   let _ = JsBackend::Node
   let _ = JsBackend::Wasm
-  let _ : QueryResult = { columns: [], column_types: [], rows: [], nulls: [] }
-  let _ : DataChunk = { columns: [], rows: [], nulls: [] }
-  let _ : Decimal = { width: 0, scale: 0, lower: 0, upper: 0 }
-  let _ : Interval = { months: 0, days: 0, micros: 0 }
-  let _ : List = { elements: [] }
-  let _ : Struct = { fields: [], values: [] }
-  let _ : Map = { keys: [], values: [] }
+  let _ : QueryResult = { columns: [], column_types: [], rows: [], nulls: [], }
+  let _ : DataChunk = { columns: [], rows: [], nulls: [], }
+  let _ : Decimal = { width: 0, scale: 0, lower: 0, upper: 0, }
+  let _ : Interval = { months: 0, days: 0, micros: 0, }
+  let _ : List = { elements: [], }
+  let _ : Struct = { fields: [], values: [], }
+  let _ : Map = { keys: [], values: [], }
   let _ : ColumnType = ColumnType::Unknown(-1)
   let _ = column_type_from_id(0)
   // Typed result API types
-  let _ : Value = Value::Decimal({ width: 0, scale: 0, lower: 0, upper: 0 })
+  let _ : Value = Value::Decimal({ width: 0, scale: 0, lower: 0, upper: 0, })
   let _ : Value = Value::Blob(Bytes::default())
   let _ : Value = Value::Null
-  let _ : TypedQueryResult = { columns: [], data: [] }
+  let _ : TypedQueryResult = { columns: [], data: [], }
 }
 
 // ============================================================================
