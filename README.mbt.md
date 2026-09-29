@@ -50,6 +50,22 @@ Basic support is available on all targets:
 
 **Note:** Complex types (List, Struct, Map) are not yet supported.
 
+## CI Coverage
+
+[GitHub Actions](.github/workflows/ci.yml) exercises the full public support
+matrix on every PR. DuckDB versions under test are pinned and printed in the
+job logs so failures can be attributed to a backend/version combination.
+
+| Backend | Command | Runner | DuckDB under test |
+|---------|---------|--------|-------------------|
+| Native | `moon check --target native` + `moon test --target native` | `macos-latest`, `ubuntu-latest` | libduckdb `1.4.5`, `1.5.6` |
+| JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3`, `1.5.6-r.1` |
+| JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0`, `1.33.1-dev65.0` |
+
+Bump the pinned versions in `ci.yml` deliberately — CI never tests `latest`. A
+DuckDB 2.0 lane will be added once a 2.0 libduckdb build is published on the
+[DuckDB releases page](https://github.com/duckdb/duckdb/releases).
+
 ## Installation
 
 ### Native Target
