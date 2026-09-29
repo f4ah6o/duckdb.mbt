@@ -10,6 +10,7 @@
     "test": "pnpm test:js",
     "test:js": "moon test --target js",
     "test:wasm-browser": "node scripts/wasm_browser_smoke.mjs",
+    "check:dep-pins": "node scripts/check_duckdb_pins.mjs",
     "test:wasm-browser:install": "playwright install chromium"
   },
   "repository": {
@@ -32,8 +33,8 @@
   },
   "homepage": "https://github.com/f4ah6o/duckdb.mbt#readme",
   "dependencies": {
-    "@duckdb/duckdb-wasm": "1.33.1-dev18.0",
-    "@duckdb/node-api": "1.4.3-r.3"
+    "@duckdb/duckdb-wasm": "1.33.1-dev65.0",
+    "@duckdb/node-api": "1.5.6-r.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"
