@@ -173,3 +173,22 @@ jobs:
 
       - name: Browser WASM smoke
         run: pnpm test:wasm-browser
+
+  duckdb-pins:
+    # Guards the update policy: the matrix `pnpm add` step overrides whatever
+    # package.json pins, so a dependency bump that forgets the matrix update
+    # would look green without ever testing the pinned version. This job
+    # fails unless each @duckdb pin equals the newest matrix entry.
+    name: duckdb-pins/package.json-vs-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check @duckdb pins match newest matrix entries
+        run: node scripts/check_duckdb_pins.mjs

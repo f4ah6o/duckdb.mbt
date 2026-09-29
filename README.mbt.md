@@ -73,12 +73,17 @@ All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
   CI matrix — the matrix install step is what actually exercises a version.
   The oldest matrix entry stays as the minimum supported version until
   intentionally dropped; the newest entry matches the `package.json` pin.
+  The `duckdb-pins` CI job
+  (`scripts/check_duckdb_pins.mjs`, runnable locally via
+  `pnpm check:dep-pins`) enforces this: it fails when a `package.json` pin
+  does not equal the newest matrix entry, so a bump that forgets the matrix
+  update cannot look green while the pinned version goes untested.
 - **Automated bumps.** [Dependabot](.github/dependabot.yml) opens grouped
   weekly PRs for `@duckdb/*` npm packages and GitHub Actions. A Dependabot PR
-  is merged only after the new version is added to the `ci.yml` matrix and
-  the full backend suite is green: `moon test --target js` +
-  `pnpm test:wasm-browser` for JS bumps, `moon test --target native` for
-  native bumps.
+  is merged only after the new version is added to the `ci.yml` matrix (the
+  `duckdb-pins` job fails otherwise) and the full backend suite is green:
+  `moon test --target js` + `pnpm test:wasm-browser` for JS bumps,
+  `moon test --target native` for native bumps.
 - **Advanced-type re-check.** The browser smoke check exercises direct
   prepared parameters for Decimal, Interval, Blob, List, Struct, and Map. If a
   bump flips any of them between supported and unsupported, update the
