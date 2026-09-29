@@ -12,8 +12,15 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 
 ## Feature Support Matrix
 
+The tables below are generated from the runtime `BackendCapabilities` table
+(`src/duckdb_capabilities.mbt`) — the same data `conn.capabilities()` exposes
+and capability-gated operations consult. Run `scripts/support_matrix.sh` after
+changing capabilities; CI regenerates the section and fails on drift.
+
+<!-- support-matrix:begin -->
+<!-- Generated from BackendCapabilities (src/duckdb_capabilities.mbt) by scripts/support_matrix.sh -- do not edit by hand. -->
 | Feature | Native | JS (Node) | JS (WASM) |
-|---------|--------|--------|--------------|
+|---------|--------|-----------|-----------|
 | Connection & Query | ✅ | ✅ | ✅ |
 | Prepared Statements | ✅ | ✅ | ✅ |
 | Streaming Results | ✅ | ✅ | ✅ |
@@ -26,13 +33,14 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 ### Advanced Types Detailed Support
 
 | Type | Native Bind | Native Append | Node Bind | Node Append | WASM Bind |
-|------|-------------|---------------|-----------|-------------|------|
+|------|-------------|---------------|-----------|-------------|-----------|
 | Decimal | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ 128-bit | ✅ direct string param + SQL cast |
 | Interval | ✅ | ✅ | ✅ | ✅ | ✅ direct string param + SQL cast |
 | Blob | ✅ | ✅ | ✅ | ✅ | ❌ unsupported |
 | List | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
 | Struct | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
 | Map | ✅ VARCHAR | ✅ VARCHAR | ✅ VARCHAR (Node only) | ❌ | ❌ unsupported |
+<!-- support-matrix:end -->
 
 **Notes:**
 - Decimal carries the full DuckDB 128-bit scaled integer as `lower : UInt64` and
@@ -88,8 +96,9 @@ All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
 - **Advanced-type re-check.** The browser smoke check exercises direct
   prepared parameters for Decimal, Interval, Blob, List, Struct, and Map. If a
   bump flips any of them between supported and unsupported, update the
-  Advanced Types table above and the expected-unsupported set in
-  `scripts/wasm_browser_smoke.mjs` in the same PR.
+  `BackendCapabilities` table in `src/duckdb_capabilities.mbt`, regenerate the
+  Advanced Types table with `scripts/support_matrix.sh`, and update the
+  expected-unsupported set in `scripts/wasm_browser_smoke.mjs` in the same PR.
 - A DuckDB 2.0 lane will be added once a 2.0 libduckdb build is published on
   the [DuckDB releases page](https://github.com/duckdb/duckdb/releases).
 
@@ -433,6 +442,37 @@ connect(
 - `Auto` - Detects environment (Node.js uses Node, browser uses WASM)
 - `Node` - Forces `@duckdb/node-api`
 - `Wasm` - Forces `@duckdb/duckdb-wasm`
+
+## Backend Capabilities
+
+Every handle reports which backend it runs on and what that backend supports.
+`conn.capabilities()` returns a `BackendCapabilities` struct (the same table
+that generates the Feature Support Matrix above); `conn.backend()` reports the
+resolved `Backend` (`Native`, `Node`, `Wasm`, or `Unsupported`).
+
+```mbt nocheck
+connect(on_ready=fn (result) {
+  match result {
+    Ok(conn) => {
+      let caps = conn.capabilities()
+      if caps.appender {
+        // safe to call conn.create_appender(...)
+      }
+      match caps.require(BackendFeature::BlobBind) {
+        Ok(_) => () // bind_blob is available
+        Err(err) => println("gated: \{err.message()}")
+      }
+    }
+    Err(err) => println("connect failed: \{err}")
+  }
+})
+```
+
+Operations that a backend cannot provide fail with the structured
+`DuckDBError::Unsupported(feature~, backend~)` error, so callers can match on
+`feature`/`backend` instead of parsing message text. Capability-gated checks
+run before the FFI layer, so e.g. `create_appender` on a WASM connection
+fails immediately with `Unsupported(feature="appender", backend="wasm")`.
 
 ## Configuration
 

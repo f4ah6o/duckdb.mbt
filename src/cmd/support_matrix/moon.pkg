@@ -1,0 +1,5 @@
+import {
+  "f4ah6o/duckdb" @lib,
+}
+
+pkgtype(kind: "executable")

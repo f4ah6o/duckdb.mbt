@@ -86,6 +86,33 @@ jobs:
       - name: Test native
         run: moon test --target native
 
+  support-matrix:
+    name: support-matrix-drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | MOONBIT_INSTALL_VERSION="latest" bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Update Moon registry
+        run: moon update
+
+      - name: Regenerate README support matrix
+        run: scripts/support_matrix.sh
+
+      - name: Fail when README.mbt.md drifted from BackendCapabilities
+        run: git diff --exit-code README.mbt.md
+
   js:
     name: js/node/@duckdb-node-api-${{ matrix.duckdb_node_api }}
     strategy:
