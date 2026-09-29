@@ -37,7 +37,7 @@ MoonBit bindings for DuckDB on native and JavaScript targets.
 **Notes:**
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
 - JS (WASM) uses direct duckdb-wasm prepared parameters only. Verified advanced prepared-statement bind support is limited to Decimal and Interval string parameters with an explicit SQL cast, for example `?::DECIMAL(10,2)` or `?::INTERVAL`.
-- JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported because the browser smoke test fails against `@duckdb/duckdb-wasm` 1.33.1-dev18.0.
+- JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported: the browser smoke test fails for them against `@duckdb/duckdb-wasm` 1.33.1-dev18.0 through 1.33.1-dev65.0.
 - Appender date/timestamp helpers are only implemented for native targets.
 
 ### Arrow Integration
@@ -59,12 +59,33 @@ job logs so failures can be attributed to a backend/version combination.
 | Backend | Command | Runner | DuckDB under test |
 |---------|---------|--------|-------------------|
 | Native | `moon check --target native` + `moon test --target native` | `macos-latest`, `ubuntu-latest` | libduckdb `1.4.5`, `1.5.6` |
-| JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3`, `1.5.6-r.1` |
-| JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0`, `1.33.1-dev65.0` |
+| JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3` (minimum), `1.5.6-r.1` (pinned) |
+| JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0` (minimum), `1.33.1-dev65.0` (pinned) |
 
-Bump the pinned versions in `ci.yml` deliberately — CI never tests `latest`. A
-DuckDB 2.0 lane will be added once a 2.0 libduckdb build is published on the
-[DuckDB releases page](https://github.com/duckdb/duckdb/releases).
+### Updating DuckDB dependencies
+
+All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
+`@duckdb/duckdb-wasm` — are pinned and bumped deliberately; CI never tests
+`latest`.
+
+- **Verification path.** A version bump lands as a PR that updates the pin in
+  `package.json` (JS) or `ci.yml` (native) *and* adds the new version to the
+  CI matrix — the matrix install step is what actually exercises a version.
+  The oldest matrix entry stays as the minimum supported version until
+  intentionally dropped; the newest entry matches the `package.json` pin.
+- **Automated bumps.** [Dependabot](.github/dependabot.yml) opens grouped
+  weekly PRs for `@duckdb/*` npm packages and GitHub Actions. A Dependabot PR
+  is merged only after the new version is added to the `ci.yml` matrix and
+  the full backend suite is green: `moon test --target js` +
+  `pnpm test:wasm-browser` for JS bumps, `moon test --target native` for
+  native bumps.
+- **Advanced-type re-check.** The browser smoke check exercises direct
+  prepared parameters for Decimal, Interval, Blob, List, Struct, and Map. If a
+  bump flips any of them between supported and unsupported, update the
+  Advanced Types table above and the expected-unsupported set in
+  `scripts/wasm_browser_smoke.mjs` in the same PR.
+- A DuckDB 2.0 lane will be added once a 2.0 libduckdb build is published on
+  the [DuckDB releases page](https://github.com/duckdb/duckdb/releases).
 
 ## Installation
 

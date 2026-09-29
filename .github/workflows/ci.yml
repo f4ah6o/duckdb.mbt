@@ -91,8 +91,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pinned @duckdb/node-api versions under test. "1.4.3-r.3" is the
-        # package.json baseline; newer entries probe forward compatibility.
+        # Pinned @duckdb/node-api versions under test: the minimum supported
+        # release and the package.json pin. Keep the newest entry aligned with
+        # the package.json dependency.
         duckdb_node_api: ["1.4.3-r.3", "1.5.6-r.1"]
 
     runs-on: ubuntu-latest
@@ -141,8 +142,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pinned @duckdb/duckdb-wasm versions under test. "1.33.1-dev18.0" is
-        # the package.json baseline; newer entries probe forward compatibility.
+        # Pinned @duckdb/duckdb-wasm versions under test: the minimum
+        # supported release and the package.json pin. Keep the newest entry
+        # aligned with the package.json dependency.
         duckdb_wasm: ["1.33.1-dev18.0", "1.33.1-dev65.0"]
 
     runs-on: ubuntu-latest

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Weekly grouped bumps for the DuckDB JS packages and everything else npm.
+  # A PR bumping @duckdb/* is only mergeable after the same version is added
+  # to the ci.yml matrix (the matrix `pnpm add` step is what actually
+  # exercises a version) and the backend suite is green — see the
+  # "Updating DuckDB dependencies" policy in README.mbt.md.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      duckdb:
+        patterns:
+          - "@duckdb/*"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
