@@ -1,10 +1,49 @@
 import { createServer } from "node:http";
-import { createReadStream, existsSync } from "node:fs";
-import { extname, normalize, resolve, sep } from "node:path";
+import { createReadStream, existsSync, readFileSync, realpathSync } from "node:fs";
+import { basename, dirname, extname, join, normalize, relative, resolve, sep } from "node:path";
 import { chromium } from "@playwright/test";
 
 const root = process.cwd();
 const duckdbDist = resolve(root, "node_modules/@duckdb/duckdb-wasm/dist");
+
+// pnpm keeps each package's dependencies next to it inside the .pnpm virtual
+// store; walking realpaths finds them regardless of the installed versions.
+function virtualStoreDir(packageJsonPath) {
+  let dir = dirname(realpathSync(packageJsonPath));
+  while (basename(dir) !== "node_modules") {
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(`cannot locate .pnpm store for ${packageJsonPath}`);
+    }
+    dir = parent;
+  }
+  return dir;
+}
+
+function repoUrl(absPath) {
+  return "/" + relative(root, absPath).split(sep).join("/");
+}
+
+function duckdbWasmPackageJson() {
+  return resolve(root, "node_modules/@duckdb/duckdb-wasm/package.json");
+}
+
+function browserImportMap() {
+  const wasmStore = virtualStoreDir(duckdbWasmPackageJson());
+  const arrowPkgJson = join(wasmStore, "apache-arrow/package.json");
+  const arrowDir = dirname(realpathSync(arrowPkgJson));
+  const arrowStore = virtualStoreDir(arrowPkgJson);
+  return {
+    "apache-arrow": repoUrl(join(arrowDir, "Arrow.dom.mjs")),
+    "tslib": repoUrl(join(arrowStore, "tslib/tslib.es6.mjs")),
+    "flatbuffers": repoUrl(join(arrowStore, "flatbuffers/mjs/flatbuffers.js")),
+  };
+}
+
+function duckdbWasmVersion() {
+  const pkg = JSON.parse(readFileSync(duckdbWasmPackageJson(), "utf8"));
+  return pkg.version;
+}
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -27,18 +66,12 @@ function resolveSafePath(urlPath) {
   return fullPath;
 }
 
-function smokeHtml() {
+function smokeHtml(importMap) {
   return String.raw`<!doctype html>
 <meta charset="utf-8">
 <title>duckdb-wasm smoke</title>
 <script type="importmap">
-{
-  "imports": {
-    "apache-arrow": "/node_modules/.pnpm/apache-arrow@17.0.0/node_modules/apache-arrow/Arrow.dom.mjs",
-    "tslib": "/node_modules/.pnpm/tslib@2.8.1/node_modules/tslib/tslib.es6.mjs",
-    "flatbuffers": "/node_modules/.pnpm/flatbuffers@24.12.23/node_modules/flatbuffers/mjs/flatbuffers.js"
-  }
-}
+${JSON.stringify({ imports: importMap }, null, 2)}
 </script>
 <script type="module">
 globalThis.runDuckDBWasmSmoke = async () => {
@@ -121,12 +154,15 @@ async function main() {
     throw new Error("missing node_modules/@duckdb/duckdb-wasm/dist; run `pnpm install` first");
   }
 
+  console.log(`@duckdb/duckdb-wasm under test: ${duckdbWasmVersion()}`);
+  const importMap = browserImportMap();
+
   const server = createServer((request, response) => {
     try {
       const path = resolveSafePath(request.url ?? "/");
       if (path === null) {
         response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        response.end(smokeHtml());
+        response.end(smokeHtml(importMap));
         return;
       }
       if (!existsSync(path)) {

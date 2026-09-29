@@ -1,0 +1,173 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: native/${{ matrix.os }}/duckdb-${{ matrix.duckdb }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        # Pinned libduckdb versions under test; bump deliberately, never latest.
+        duckdb: ["1.4.5", "1.5.6"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | MOONBIT_INSTALL_VERSION="latest" bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Install libduckdb ${{ matrix.duckdb }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            asset="libduckdb-osx-universal.zip"
+            libname="libduckdb.dylib"
+            prefix="${HOMEBREW_PREFIX:-/usr/local}"
+          else
+            asset="libduckdb-linux-amd64.zip"
+            libname="libduckdb.so"
+            prefix="/usr/local"
+          fi
+          curl -fsSL -o /tmp/libduckdb.zip \
+            "https://github.com/duckdb/duckdb/releases/download/v${{ matrix.duckdb }}/${asset}"
+          unzip -o /tmp/libduckdb.zip -d /tmp/libduckdb
+          sudo cp "/tmp/libduckdb/${libname}" "$prefix/lib/"
+          sudo cp /tmp/libduckdb/duckdb.h "$prefix/include/"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo ldconfig
+          fi
+
+      - name: Verify libduckdb version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            prefix="${HOMEBREW_PREFIX:-/usr/local}"
+          else
+            prefix="/usr/local"
+          fi
+          cat > /tmp/duckdb_version.c <<'EOF'
+          #include <stdio.h>
+          #include <duckdb.h>
+          int main(void) { printf("%s\n", duckdb_library_version()); return 0; }
+          EOF
+          cc /tmp/duckdb_version.c -I"$prefix/include" -L"$prefix/lib" -lduckdb -o /tmp/duckdb_version
+          actual="$(DYLD_LIBRARY_PATH="$prefix/lib" LD_LIBRARY_PATH="$prefix/lib" /tmp/duckdb_version)"
+          echo "libduckdb version under test: ${actual} (expected v${{ matrix.duckdb }})"
+          [ "$actual" = "v${{ matrix.duckdb }}" ]
+
+      - name: Moon version
+        run: moon version --all
+
+      - name: Update Moon registry
+        run: moon update
+
+      - name: Check native
+        run: moon check --target native
+
+      - name: Generate documentation
+        run: moon doc
+
+      - name: Test native
+        run: moon test --target native
+
+  js:
+    name: js/node/@duckdb-node-api-${{ matrix.duckdb_node_api }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned @duckdb/node-api versions under test. "1.4.3-r.3" is the
+        # package.json baseline; newer entries probe forward compatibility.
+        duckdb_node_api: ["1.4.3-r.3", "1.5.6-r.1"]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | MOONBIT_INSTALL_VERSION="latest" bash
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select @duckdb/node-api ${{ matrix.duckdb_node_api }}
+        run: pnpm add "@duckdb/node-api@${{ matrix.duckdb_node_api }}"
+
+      - name: Report versions under test
+        run: |
+          node --version
+          node -p "'@duckdb/node-api under test: ' + require('@duckdb/node-api/package.json').version"
+          moon version --all
+
+      - name: Update Moon registry
+        run: moon update
+
+      - name: Check js
+        run: moon check --target js
+
+      - name: Test js
+        run: moon test --target js
+
+  wasm-browser:
+    name: browser-wasm/chromium/duckdb-wasm-${{ matrix.duckdb_wasm }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned @duckdb/duckdb-wasm versions under test. "1.33.1-dev18.0" is
+        # the package.json baseline; newer entries probe forward compatibility.
+        duckdb_wasm: ["1.33.1-dev18.0", "1.33.1-dev65.0"]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select @duckdb/duckdb-wasm ${{ matrix.duckdb_wasm }}
+        run: pnpm add "@duckdb/duckdb-wasm@${{ matrix.duckdb_wasm }}"
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser WASM smoke
+        run: pnpm test:wasm-browser
