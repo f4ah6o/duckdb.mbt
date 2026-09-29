@@ -1,6 +1,10 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "f4ah6o/duckdb"
 
+import {
+  "moonbitlang/core/bigint",
+}
+
 // Values
 pub fn column_type_from_id(Int) -> ColumnType
 
@@ -18,11 +22,13 @@ pub fn days_to_ymd(Int) -> (Int, Int, Int)
 
 pub fn decimal_from_double(Double, Int, Int) -> Decimal
 
-pub fn decimal_from_parts(Int, Int, Int) -> Decimal
+pub fn decimal_from_hugeint(UInt64, Int64, Int, Int) -> Decimal
+
+pub fn decimal_from_parts(Int64, Int64, Int) -> Decimal
 
 pub fn decimal_to_double(Decimal) -> Double
 
-pub fn decimal_to_parts(Decimal) -> (Int, Int)
+pub fn decimal_to_parts(Decimal) -> (@bigint.BigInt, @bigint.BigInt)
 
 pub fn expect_fixture_case(FixtureCase, Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit raise
 
@@ -215,8 +221,8 @@ pub fn DataChunk::row_count(Self) -> Int
 pub struct Decimal {
   width : Int
   scale : Int
-  lower : Int
-  upper : Int
+  lower : UInt64
+  upper : Int64
 }
 
 pub struct FixtureCase {

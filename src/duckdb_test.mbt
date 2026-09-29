@@ -955,7 +955,7 @@ test "native appender append timestamp" {
 test "decimal helpers" {
   let d1 = decimal_from_double(123.456, 10, 3)
   let (whole, _frac) = decimal_to_parts(d1)
-  if whole != 123 {
+  if whole.compare_int(123) != 0 {
     fail("expected whole part 123, got \{whole}")
   }
   let d2 = decimal_to_double(d1)
@@ -1322,14 +1322,14 @@ test "typed result get_value" {
 ///|
 test "native decimal 128-bit helpers" {
   // Test decimal_from_hugeint creates correct 128-bit decimal
-  let dec = decimal_from_hugeint(12345, 0, 10, 2)
+  let dec = decimal_from_hugeint(12345UL, 0L, 10, 2)
   if dec.width != 10 {
     fail("expected width 10, got \{dec.width}")
   } else if dec.scale != 2 {
     fail("expected scale 2, got \{dec.scale}")
-  } else if dec.lower != 12345 {
+  } else if dec.lower != 12345UL {
     fail("expected lower 12345, got \{dec.lower}")
-  } else if dec.upper != 0 {
+  } else if dec.upper != 0L {
     fail("expected upper 0, got \{dec.upper}")
   } else {
     ()
@@ -1338,12 +1338,12 @@ test "native decimal 128-bit helpers" {
 
 ///|
 test "native decimal from parts" {
-  let dec = decimal_from_parts(123, 45, 2)
+  let dec = decimal_from_parts(123L, 45L, 2)
   if dec.width != 5 {
     fail("expected width 5, got \{dec.width}")
   } else if dec.scale != 2 {
     fail("expected scale 2, got \{dec.scale}")
-  } else if dec.lower != 12345 {
+  } else if dec.lower != 12345UL {
     fail("expected lower 12345, got \{dec.lower}")
   } else {
     ()
@@ -1352,11 +1352,11 @@ test "native decimal from parts" {
 
 ///|
 test "native decimal to parts" {
-  let dec = decimal_from_hugeint(12345, 0, 10, 2)
+  let dec = decimal_from_hugeint(12345UL, 0L, 10, 2)
   let (whole, frac) = decimal_to_parts(dec)
-  if whole != 123 {
+  if whole.compare_int(123) != 0 {
     fail("expected whole 123, got \{whole}")
-  } else if frac != 45 {
+  } else if frac.compare_int(45) != 0 {
     fail("expected frac 45, got \{frac}")
   } else {
     ()
@@ -1365,26 +1365,160 @@ test "native decimal to parts" {
 
 ///|
 test "native decimal negative roundtrip" {
-  // Test negative decimal round-trip
-  let d1 = decimal_from_parts(-100, 50, 2)
+  // Test negative decimal round-trip (signed remainder keeps the value's sign)
+  let d1 = decimal_from_parts(-100L, 50L, 2)
   let (w1, f1) = decimal_to_parts(d1)
-  if w1 != -100 {
+  if w1.compare_int(-100) != 0 {
     fail("expected whole -100, got \{w1}")
-  } else if f1 != 50 {
-    fail("expected frac 50, got \{f1}")
+  } else if f1.compare_int(-50) != 0 {
+    fail("expected frac -50, got \{f1}")
   } else {
     ()
   }
 
   // Test another negative value
-  let d2 = decimal_from_parts(-1, 99, 2)
+  let d2 = decimal_from_parts(-1L, 99L, 2)
   let (w2, f2) = decimal_to_parts(d2)
-  if w2 != -1 {
+  if w2.compare_int(-1) != 0 {
     fail("expected whole -1, got \{w2}")
-  } else if f2 != 99 {
-    fail("expected frac 99, got \{f2}")
+  } else if f2.compare_int(-99) != 0 {
+    fail("expected frac -99, got \{f2}")
   } else {
     ()
+  }
+
+  // Negative sub-unit value: -0.50 -> (0, -50), and the sign survives a
+  // parts round-trip (previously reconstructed as +0.50)
+  let d3 = decimal_from_hugeint((-50L).reinterpret_as_uint64(), -1L, 10, 2)
+  let (w3, f3) = decimal_to_parts(d3)
+  if w3.compare_int(0) != 0 || f3.compare_int(-50) != 0 {
+    fail("expected parts (0, -50), got (\{w3}, \{f3})")
+  }
+  let d3_rt = decimal_from_parts(0L, -50L, 2)
+  if d3_rt.lower != d3.lower || d3_rt.upper != d3.upper {
+    fail(
+      "expected -0.50 round-trip, got lower=\{d3_rt.lower} upper=\{d3_rt.upper}",
+    )
+  }
+
+  // Int64::MIN_VALUE boundary: |MIN_VALUE| is not representable as Int64, so
+  // abs() must be taken in BigInt space
+  let d4 = decimal_from_parts(-9223372036854775808L, 0L, 0)
+  let (w4, f4) = decimal_to_parts(d4)
+  if w4.to_string() != "-9223372036854775808" || f4.compare_int(0) != 0 {
+    fail("expected -9223372036854775808, got \{w4}.\{f4}")
+  }
+  // MIN_VALUE as fractional at scale 19 -> -9.223372036854775808
+  let d5 = decimal_from_parts(0L, -9223372036854775808L, 19)
+  if d5.lower != 0x8000000000000000UL || d5.upper != -1L {
+    fail("expected -2^63 payload, got lower=\{d5.lower} upper=\{d5.upper}")
+  }
+  let (w5, f5) = decimal_to_parts(d5)
+  if w5.compare_int(0) != 0 || f5.to_string() != "-9223372036854775808" {
+    fail("expected parts (0, -9223372036854775808), got (\{w5}, \{f5})")
+  }
+}
+
+///|
+test "native decimal halves beyond 64-bit" {
+  // 2^64 = 18446744073709551616: lower wraps to 0, upper carries 1
+  let d1 = decimal_from_hugeint(0UL, 1L, 20, 0)
+  let (w1, f1) = decimal_to_parts(d1)
+  if w1.to_string() != "18446744073709551616" || f1.compare_int(0) != 0 {
+    fail("expected 18446744073709551616, got \{w1}.\{f1}")
+  }
+  // Max positive DECIMAL(38,0): 10^38 - 1
+  let d2 = decimal_from_hugeint(
+    0x098A223FFFFFFFFFUL, 0x4B3B4CA85A86C47AL, 38, 0,
+  )
+  let (w2, f2) = decimal_to_parts(d2)
+  if w2.to_string() != "99999999999999999999999999999999999999" ||
+    f2.compare_int(0) != 0 {
+    fail("expected 10^38-1, got \{w2}.\{f2}")
+  }
+  // Min: -(10^38 - 1)
+  let d3 = decimal_from_hugeint(
+    0xF675DDC000000001UL, -5421010862427522171L, 38, 0,
+  )
+  let (w3, f3) = decimal_to_parts(d3)
+  if w3.to_string() != "-99999999999999999999999999999999999999" ||
+    f3.compare_int(0) != 0 {
+    fail("expected -(10^38-1), got \{w3}.\{f3}")
+  }
+}
+
+///|
+test "native prepare bind decimal 128-bit" {
+  let cases : Array[(Decimal, String)] = [
+    // > 64-bit positive scaled value -> 123456789012345678901234567890.12
+    (
+      decimal_from_hugeint(6432227781800638996UL, 669260594276L, 38, 2),
+      "123456789012345678901234567890.12",
+    ),
+    // > 64-bit negative scaled value -> -999999999999999999999.99
+    (
+      decimal_from_hugeint(18246367653188861953UL, -5422L, 38, 2),
+      "-999999999999999999999.99",
+    ),
+    // max-width DECIMAL(38,0): 10^38 - 1
+    (
+      decimal_from_hugeint(0x098A223FFFFFFFFFUL, 0x4B3B4CA85A86C47AL, 38, 0),
+      "99999999999999999999999999999999999999",
+    ),
+    // high-scale DECIMAL(38,38): .12345678901234567890123456789012345678
+    (
+      decimal_from_hugeint(14143994781733811022UL, 669260594276348691L, 38, 38),
+      ".12345678901234567890123456789012345678",
+    ),
+  ]
+  for case_ in cases {
+    let (dec, expected) = case_
+    let result = run_native_prepare_query("SELECT ?::VARCHAR AS x", fn(stmt) {
+      stmt.bind_decimal(1, dec)
+    })
+    match result {
+      Ok(value) =>
+        match value.cell(0, 0) {
+          Some(v) =>
+            if v != expected {
+              fail("expected '\{expected}', got '\{v}'")
+            }
+          None => fail("expected non-null value")
+        }
+      Err(message) => fail("bind decimal failed: \{message}")
+    }
+  }
+}
+
+///|
+test "native appender decimal 128-bit" {
+  fn append_dec_row(app : Appender) -> Result[Unit, DuckDBError] {
+    match app.begin_row() {
+      Ok(_) =>
+        match
+          app.append_decimal(
+            decimal_from_hugeint(6432227781800638996UL, 669260594276L, 38, 2),
+          ) {
+          Ok(_) => app.end_row()
+          Err(e) => Err(e)
+        }
+      Err(e) => Err(e)
+    }
+  }
+
+  let result = run_native_appender_test(
+    "CREATE TABLE test_table (value DECIMAL(38,2))", append_dec_row, "SELECT value::VARCHAR FROM test_table",
+  )
+  match result {
+    Ok(value) =>
+      match value.cell(0, 0) {
+        Some(v) =>
+          if v != "123456789012345678901234567890.12" {
+            fail("expected '123456789012345678901234567890.12', got '\{v}'")
+          }
+        None => fail("expected non-null value")
+      }
+    Err(message) => fail("append decimal failed: \{message}")
   }
 }
 

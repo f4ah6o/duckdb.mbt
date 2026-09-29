@@ -179,8 +179,8 @@ extern "C" fn native_bind_decimal(
   index : Int,
   width : Int,
   scale : Int,
-  lower : Int,
-  upper : Int,
+  lower : UInt64,
+  upper : Int64,
 ) -> Bool = "duckdb_mb_bind_decimal"
 
 ///|
@@ -189,8 +189,8 @@ extern "C" fn native_appender_append_decimal(
   append : Appender,
   width : Int,
   scale : Int,
-  lower : Int,
-  upper : Int,
+  lower : UInt64,
+  upper : Int64,
 ) -> Bool = "duckdb_mb_append_decimal"
 
 // ----------------------------------------------------------------------------
@@ -1324,26 +1324,12 @@ pub fn Appender::append_blob(
 // Decimal Type
 // ----------------------------------------------------------------------------
 
-// Helper function for power of 10
-
-///|
-fn _int_pow10(exp : Int) -> Int {
-  let mut result = 1
-  let mut i = 0
-  while i < exp {
-    result = result * 10
-    i = i + 1
-  }
-  result
-}
-
 ///|
 pub fn PreparedStatement::bind_decimal(
   self : PreparedStatement,
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  // Use 128-bit representation directly from lower/upper parts
   if native_bind_decimal(
       self,
       index,
@@ -1363,7 +1349,6 @@ pub fn Appender::append_decimal(
   self : Appender,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  // Use 128-bit representation directly from lower/upper parts
   if native_appender_append_decimal(
       self,
       value.width,
@@ -1379,63 +1364,68 @@ pub fn Appender::append_decimal(
 
 ///|
 /// Create a decimal from a floating-point value with specified precision.
-/// Note: This is approximate due to floating-point representation.
+/// Note: This is approximate due to floating-point representation, and is
+/// exact only when `value * 10^scale` fits in an Int64.
 /// For values exceeding 64-bit range, use decimal_from_hugeint instead.
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = _int_pow10(scale)
-  let scaled = (value * Double::from_int(multiplier)).to_int()
-  // For 64-bit range: upper=0 for positive, upper=-1 for negative
-  let upper = if scaled >= 0 { 0 } else { -1 }
-  { width, scale, lower: scaled, upper, }
+  let scaled = (value * Double::pow(10.0, scale.to_double())).to_int64()
+  { width, scale, lower: scaled.reinterpret_as_uint64(), upper: scaled >> 63, }
 }
 
 ///|
 /// Convert decimal to floating-point (approximate).
-/// For decimals with upper != 0, returns approximation based on lower part only.
+/// Uses the full 128-bit payload; the result is still limited by Double
+/// precision (53-bit mantissa).
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(_int_pow10(decimal.scale))
-  Double::from_int(decimal.lower) / divisor
+  let two64 = 18446744073709551616.0
+  let value = decimal.upper.to_double() * two64 + decimal.lower.to_double()
+  value / Double::pow(10.0, decimal.scale.to_double())
 }
 
 ///|
-/// Create a decimal from integer parts (64-bit range).
-/// For values exceeding 64-bit range, use decimal_from_hugeint instead.
+/// Create a decimal from integer parts.
+/// The scaled value is `whole * 10^scale +/- |fractional|`; the result is
+/// negative when `whole` or `fractional` is negative, so a negative
+/// `fractional` encodes negative sub-unit values like -0.50 and the parts
+/// contract round-trips through `decimal_to_parts`. Excess bits beyond 128
+/// are truncated. `|fractional|` is expected to be less than 10^scale.
 pub fn decimal_from_parts(
-  whole : Int,
-  fractional : Int,
+  whole : Int64,
+  fractional : Int64,
   scale : Int,
 ) -> Decimal {
-  let divisor = _int_pow10(scale)
-  let value = if whole < 0 {
-    whole * divisor - fractional
+  let negative = whole < 0L || fractional < 0L
+  let magnitude = bigint_abs(BigInt::from_int64(whole)) * pow10_bigint(scale) +
+    bigint_abs(BigInt::from_int64(fractional))
+  let value = if negative { -magnitude } else { magnitude }
+  let width = if whole == 0L {
+    String::length(bigint_abs(BigInt::from_int64(fractional)).to_string())
   } else {
-    whole * divisor + fractional
+    String::length(bigint_abs(BigInt::from_int64(whole)).to_string()) + scale
   }
-  let width = if whole == 0 {
-    String::length(fractional.to_string())
-  } else {
-    String::length(whole.to_string()) + scale
-  }
-  let upper = if value >= 0 { 0 } else { -1 }
-  { width: width.max(1), scale, lower: value, upper, }
+  decimal_from_scaled_bigint(value, width.max(1), scale)
 }
 
 ///|
-/// Get the whole and fractional parts of a decimal (64-bit range).
-pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = _int_pow10(decimal.scale)
-  let whole = decimal.lower / divisor
-  let remainder = decimal.lower % divisor
-  let fractional = if remainder < 0 { Int::abs(remainder) } else { remainder }
-  (whole, fractional)
+/// Get the whole and fractional parts of a decimal.
+/// Returns the signed whole part (`value / 10^scale`, truncated toward zero)
+/// and the signed fractional remainder (`value mod 10^scale`), both as BigInt
+/// so the full 128-bit payload is preserved. The remainder keeps the sign of
+/// the value, so `decimal_from_parts` reconstructs the original decimal —
+/// including negative sub-unit values like -0.50 -> (0, -50).
+pub fn decimal_to_parts(decimal : Decimal) -> (BigInt, BigInt) {
+  let divisor = pow10_bigint(decimal.scale)
+  let value = decimal_scaled_bigint(decimal)
+  (value / divisor, value % divisor)
 }
 
 ///|
 /// Create a decimal from 128-bit parts.
-/// Allows specifying the full 128-bit value for maximum precision.
+/// `lower` is the unsigned low 64 bits and `upper` the signed high 64 bits of
+/// the scaled 128-bit value, matching `duckdb_hugeint` exactly.
 pub fn decimal_from_hugeint(
-  lower : Int,
-  upper : Int,
+  lower : UInt64,
+  upper : Int64,
   width : Int,
   scale : Int,
 ) -> Decimal {

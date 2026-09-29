@@ -50,7 +50,12 @@ extern "js" fn js_connect(
 extern "js" fn js_query_ffi(
   conn : Connection,
   sql : String,
-  on_ok : (FixedArray[String], FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]], FixedArray[Int]) -> Unit,
+  on_ok : (
+    FixedArray[String],
+    FixedArray[FixedArray[String]],
+    FixedArray[FixedArray[Bool]],
+    FixedArray[Int],
+  ) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(conn, sql, on_ok, on_err) => {
@@ -152,13 +157,30 @@ extern "js" fn js_query_ffi(
   #|  run().catch((err) => on_err(toError(err)));
   #|}
 
+///|
 fn js_query(
   conn : Connection,
   sql : String,
   on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit {
-  js_query_ffi(conn, sql, fn(__a1, __a2, __a3, __a4) { on_ok(Array::from_fixed_array(__a1), Array::from_fixed_array(__a2.map(fn(__a5) { Array::from_fixed_array(__a5) })), Array::from_fixed_array(__a3.map(fn(__a6) { Array::from_fixed_array(__a6) })), Array::from_fixed_array(__a4)) }, on_err)
+  js_query_ffi(
+    conn,
+    sql,
+    fn(__a1, __a2, __a3, __a4) {
+      on_ok(
+        Array::from_fixed_array(__a1),
+        Array::from_fixed_array(
+          __a2.map(fn(__a5) { Array::from_fixed_array(__a5) }),
+        ),
+        Array::from_fixed_array(
+          __a3.map(fn(__a6) { Array::from_fixed_array(__a6) }),
+        ),
+        Array::from_fixed_array(__a4),
+      )
+    },
+    on_err,
+  )
 }
 
 ///|
@@ -226,7 +248,9 @@ extern "js" fn js_query_stream(
   #|}
 
 ///|
-extern "js" fn js_stream_columns_ffi(stream : ResultStream) -> FixedArray[String] =
+extern "js" fn js_stream_columns_ffi(
+  stream : ResultStream,
+) -> FixedArray[String] =
   #|(stream) => {
   #|  if (stream && Array.isArray(stream.columns)) {
   #|    return stream.columns;
@@ -234,6 +258,7 @@ extern "js" fn js_stream_columns_ffi(stream : ResultStream) -> FixedArray[String
   #|  return [];
   #|}
 
+///|
 fn js_stream_columns(stream : ResultStream) -> Array[String] {
   Array::from_fixed_array(js_stream_columns_ffi(stream))
 }
@@ -361,12 +386,26 @@ extern "js" fn js_stream_next_ffi(
   #|  run().catch((err) => on_err(toError(err)));
   #|}
 
+///|
 fn js_stream_next(
   stream : ResultStream,
   on_ok : (Array[Array[String]], Array[Array[Bool]]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit {
-  js_stream_next_ffi(stream, fn(__a1, __a2) { on_ok(Array::from_fixed_array(__a1.map(fn(__a3) { Array::from_fixed_array(__a3) })), Array::from_fixed_array(__a2.map(fn(__a4) { Array::from_fixed_array(__a4) }))) }, on_err)
+  js_stream_next_ffi(
+    stream,
+    fn(__a1, __a2) {
+      on_ok(
+        Array::from_fixed_array(
+          __a1.map(fn(__a3) { Array::from_fixed_array(__a3) }),
+        ),
+        Array::from_fixed_array(
+          __a2.map(fn(__a4) { Array::from_fixed_array(__a4) }),
+        ),
+      )
+    },
+    on_err,
+  )
 }
 
 ///|
@@ -799,12 +838,14 @@ extern "js" fn js_bind_decimal(
   index : Int,
   width : Int,
   scale : Int,
-  value : Int,
+  lower : UInt64,
+  upper : Int64,
 ) -> Result[Unit, String] =
-  #|(stmt, index, width, scale, value) => {
+  #|(stmt, index, width, scale, lower, upper) => {
+  #|  const value = BigInt.asIntN(128, (BigInt(upper) << 64n) | BigInt.asUintN(64, lower));
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
-  #|      stmt.statement.bindDecimal(index, { width, scale, value: BigInt(value) });
+  #|      stmt.statement.bindDecimal(index, { width, scale, value });
   #|      return { ok: true };
   #|    } catch (e) {
   #|      return { ok: false, error: e.message || String(e) };
@@ -864,6 +905,7 @@ extern "js" fn js_bind_list_varchar_ffi(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
+///|
 fn js_bind_list_varchar(
   stmt : PreparedStatement,
   index : Int,
@@ -895,13 +937,19 @@ extern "js" fn js_bind_struct_ffi(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
+///|
 fn js_bind_struct(
   stmt : PreparedStatement,
   index : Int,
   fields : Array[String],
   values : Array[String],
 ) -> Result[Unit, String] {
-  js_bind_struct_ffi(stmt, index, FixedArray::from_array(fields), FixedArray::from_array(values))
+  js_bind_struct_ffi(
+    stmt,
+    index,
+    FixedArray::from_array(fields),
+    FixedArray::from_array(values),
+  )
 }
 
 ///|
@@ -927,13 +975,19 @@ extern "js" fn js_bind_map_ffi(
   #|  return { ok: false, error: "unknown statement backend" };
   #|}
 
+///|
 fn js_bind_map(
   stmt : PreparedStatement,
   index : Int,
   keys : Array[String],
   values : Array[String],
 ) -> Result[Unit, String] {
-  js_bind_map_ffi(stmt, index, FixedArray::from_array(keys), FixedArray::from_array(values))
+  js_bind_map_ffi(
+    stmt,
+    index,
+    FixedArray::from_array(keys),
+    FixedArray::from_array(values),
+  )
 }
 
 // ============================================================================
@@ -1112,12 +1166,14 @@ extern "js" fn js_appender_append_decimal(
   appender : Appender,
   width : Int,
   scale : Int,
-  value : Int,
+  lower : UInt64,
+  upper : Int64,
 ) -> Result[Unit, String] =
-  #|(appender, width, scale, value) => {
+  #|(appender, width, scale, lower, upper) => {
+  #|  const value = BigInt.asIntN(128, (BigInt(upper) << 64n) | BigInt.asUintN(64, lower));
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
-  #|      appender.appender.appendDecimal({ width, scale, value: BigInt(value) });
+  #|      appender.appender.appendDecimal({ width, scale, value });
   #|      return { ok: true };
   #|    } catch (e) {
   #|      return { ok: false, error: e.message || String(e) };
@@ -1200,7 +1256,12 @@ extern "js" fn js_appender_close(
 ///|
 extern "js" fn js_execute_prepared_ffi(
   stmt : PreparedStatement,
-  on_ok : (FixedArray[String], FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]], FixedArray[Int]) -> Unit,
+  on_ok : (
+    FixedArray[String],
+    FixedArray[FixedArray[String]],
+    FixedArray[FixedArray[Bool]],
+    FixedArray[Int],
+  ) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
@@ -1354,12 +1415,28 @@ extern "js" fn js_execute_prepared_ffi(
   #|  run().catch((err) => on_err(err.message || String(err)));
   #|}
 
+///|
 fn js_execute_prepared(
   stmt : PreparedStatement,
   on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
   on_err : (String) -> Unit,
 ) -> Unit {
-  js_execute_prepared_ffi(stmt, fn(__a1, __a2, __a3, __a4) { on_ok(Array::from_fixed_array(__a1), Array::from_fixed_array(__a2.map(fn(__a5) { Array::from_fixed_array(__a5) })), Array::from_fixed_array(__a3.map(fn(__a6) { Array::from_fixed_array(__a6) })), Array::from_fixed_array(__a4)) }, on_err)
+  js_execute_prepared_ffi(
+    stmt,
+    fn(__a1, __a2, __a3, __a4) {
+      on_ok(
+        Array::from_fixed_array(__a1),
+        Array::from_fixed_array(
+          __a2.map(fn(__a5) { Array::from_fixed_array(__a5) }),
+        ),
+        Array::from_fixed_array(
+          __a3.map(fn(__a6) { Array::from_fixed_array(__a6) }),
+        ),
+        Array::from_fixed_array(__a4),
+      )
+    },
+    on_err,
+  )
 }
 
 ///|
@@ -2090,23 +2167,16 @@ pub fn PreparedStatement::bind_decimal(
   index : Int,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  // For JS Node backend, convert to BigInt from lower/upper
-  // Note: This loses true 128-bit precision, but provides best effort
-  let bigint_value = if value.upper < 0 {
-    // Negative: construct two's complement
-    BigInt::from_int(value.lower) - (BigInt::from_int(1) << 64)
-  } else {
-    // Positive or zero
-    BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
-  }
-  // Use bind_decimal with the BigInt value
+  // Pass the 128-bit halves to JS as BigInts; the FFI reconstructs the
+  // signed 128-bit scaled value without narrowing.
   match
     js_bind_decimal(
       self,
       index,
       value.width,
       value.scale,
-      bigint_value.to_int(),
+      value.lower,
+      value.upper,
     ) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
@@ -2118,20 +2188,13 @@ pub fn Appender::append_decimal(
   self : Appender,
   value : Decimal,
 ) -> Result[Unit, DuckDBError] {
-  // For JS Node backend, convert to BigInt from lower/upper
-  let bigint_value = if value.upper < 0 {
-    // Negative: construct two's complement
-    BigInt::from_int(value.lower) - (BigInt::from_int(1) << 64)
-  } else {
-    // Positive or zero
-    BigInt::from_int(value.lower) + (BigInt::from_int(value.upper) << 64)
-  }
   match
     js_appender_append_decimal(
       self,
       value.width,
       value.scale,
-      bigint_value.to_int(),
+      value.lower,
+      value.upper,
     ) {
     Ok(_) => Ok(())
     Err(e) => Err(DuckDBError::Message(e))
@@ -2139,58 +2202,69 @@ pub fn Appender::append_decimal(
 }
 
 ///|
+/// Create a decimal from a floating-point value with specified precision.
+/// Note: This is approximate due to floating-point representation, and is
+/// exact only when `value * 10^scale` fits in an Int64.
+/// For values exceeding 64-bit range, use decimal_from_hugeint instead.
 pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal {
-  let multiplier = int_pow10(scale).to_int()
-  let scaled = (value * Double::from_int(multiplier)).to_int()
-  let upper = if scaled >= 0 { 0 } else { -1 }
-  { width, scale, lower: scaled, upper, }
+  let scaled = (value * Double::pow(10.0, scale.to_double())).to_int64()
+  { width, scale, lower: scaled.reinterpret_as_uint64(), upper: scaled >> 63, }
 }
 
 ///|
+/// Convert decimal to floating-point (approximate).
+/// Uses the full 128-bit payload; the result is still limited by Double
+/// precision (53-bit mantissa).
 pub fn decimal_to_double(decimal : Decimal) -> Double {
-  let divisor = Double::from_int(int_pow10(decimal.scale).to_int())
-  Double::from_int(decimal.lower) / divisor
+  let two64 = 18446744073709551616.0
+  let value = decimal.upper.to_double() * two64 + decimal.lower.to_double()
+  value / Double::pow(10.0, decimal.scale.to_double())
 }
 
 ///|
+/// Create a decimal from integer parts.
+/// The scaled value is `whole * 10^scale +/- |fractional|`; the result is
+/// negative when `whole` or `fractional` is negative, so a negative
+/// `fractional` encodes negative sub-unit values like -0.50 and the parts
+/// contract round-trips through `decimal_to_parts`. Excess bits beyond 128
+/// are truncated. `|fractional|` is expected to be less than 10^scale.
 pub fn decimal_from_parts(
-  whole : Int,
-  fractional : Int,
+  whole : Int64,
+  fractional : Int64,
   scale : Int,
 ) -> Decimal {
-  let divisor = int_pow10(scale).to_int()
-  let value = if whole < 0 {
-    whole * divisor - fractional
+  let negative = whole < 0L || fractional < 0L
+  let magnitude = bigint_abs(BigInt::from_int64(whole)) * pow10_bigint(scale) +
+    bigint_abs(BigInt::from_int64(fractional))
+  let value = if negative { -magnitude } else { magnitude }
+  let width = if whole == 0L {
+    String::length(bigint_abs(BigInt::from_int64(fractional)).to_string())
   } else {
-    whole * divisor + fractional
+    String::length(bigint_abs(BigInt::from_int64(whole)).to_string()) + scale
   }
-  let width = if whole == 0 {
-    String::length(fractional.to_string())
-  } else {
-    String::length(whole.to_string()) + scale
-  }
-  let upper = if value >= 0 { 0 } else { -1 }
-  { width: width.max(1), scale, lower: value, upper, }
+  decimal_from_scaled_bigint(value, width.max(1), scale)
 }
 
 ///|
-pub fn decimal_to_parts(decimal : Decimal) -> (Int, Int) {
-  let divisor = int_pow10(decimal.scale).to_int()
-  let whole = decimal.lower / divisor
-  let remainder = decimal.lower % divisor
-  let fractional = if remainder < 0 {
-    divisor - Int::abs(remainder)
-  } else {
-    remainder
-  }
-  (whole, fractional)
+/// Get the whole and fractional parts of a decimal.
+/// Returns the signed whole part (`value / 10^scale`, truncated toward zero)
+/// and the signed fractional remainder (`value mod 10^scale`), both as BigInt
+/// so the full 128-bit payload is preserved. The remainder keeps the sign of
+/// the value, so `decimal_from_parts` reconstructs the original decimal —
+/// including negative sub-unit values like -0.50 -> (0, -50).
+pub fn decimal_to_parts(decimal : Decimal) -> (BigInt, BigInt) {
+  let divisor = pow10_bigint(decimal.scale)
+  let value = decimal_scaled_bigint(decimal)
+  (value / divisor, value % divisor)
 }
 
 ///|
 /// Create a decimal from 128-bit parts.
+/// `lower` is the unsigned low 64 bits and `upper` the signed high 64 bits of
+/// the scaled 128-bit value, matching `duckdb_hugeint` exactly.
 pub fn decimal_from_hugeint(
-  lower : Int,
-  upper : Int,
+  lower : UInt64,
+  upper : Int64,
   width : Int,
   scale : Int,
 ) -> Decimal {

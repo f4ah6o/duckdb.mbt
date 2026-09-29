@@ -667,13 +667,19 @@ extern "js" fn js_run_prepare_query_ffi(
   #|  }
   #|}
 
+///|
 fn js_run_prepare_query(
   backend : JsBackend,
   sql : String,
   binds : Array[String],
   bind_types : Array[String],
 ) -> String {
-  js_run_prepare_query_ffi(backend, sql, FixedArray::from_array(binds), FixedArray::from_array(bind_types))
+  js_run_prepare_query_ffi(
+    backend,
+    sql,
+    FixedArray::from_array(binds),
+    FixedArray::from_array(bind_types),
+  )
 }
 
 ///|
@@ -744,7 +750,7 @@ extern "js" fn js_run_wrapper_prepare_query_ffi(
   #|    "    }",
   #|    "    else if (type === 'decimal') {",
   #|    "      const decimal = JSON.parse(value);",
-  #|    "      result = js_bind_decimal(stmt, idx, decimal.width, decimal.scale, decimal.value);",
+  #|    "      result = js_bind_decimal(stmt, idx, decimal.width, decimal.scale, BigInt(decimal.lower), BigInt(decimal.upper));",
   #|    "    }",
   #|    "    else if (type === 'interval') {",
   #|    "      const interval = JSON.parse(value);",
@@ -792,13 +798,19 @@ extern "js" fn js_run_wrapper_prepare_query_ffi(
   #|  }
   #|}
 
+///|
 fn js_run_wrapper_prepare_query(
   backend : JsBackend,
   sql : String,
   binds : Array[String],
   bind_types : Array[String],
 ) -> String {
-  js_run_wrapper_prepare_query_ffi(backend, sql, FixedArray::from_array(binds), FixedArray::from_array(bind_types))
+  js_run_wrapper_prepare_query_ffi(
+    backend,
+    sql,
+    FixedArray::from_array(binds),
+    FixedArray::from_array(bind_types),
+  )
 }
 
 ///|
@@ -1348,7 +1360,11 @@ test "js wrapper wasm prepare bind decimal" {
   let result = run_js_wrapper_prepare_query(
     JsBackend::Wasm,
     "SELECT (?::DECIMAL(10,2))::VARCHAR AS x",
-    [("{\"width\":10,\"scale\":2,\"value\":12345}", "decimal")],
+    [
+      (
+        "{\"width\":10,\"scale\":2,\"lower\":\"12345\",\"upper\":\"0\"}", "decimal",
+      ),
+    ],
   )
   match result {
     Ok((_, rows, nulls)) =>
@@ -1367,6 +1383,100 @@ test "js wrapper wasm prepare bind decimal" {
       } else {
         fail("wasm wrapper bind decimal failed: \{message}")
       }
+  }
+}
+
+///|
+test "js wrapper wasm prepare bind decimal 128-bit" {
+  let cases : Array[(String, String, String)] = [
+    // scaled 12345678901234567890123456789012 -> '123456789012345678901234567890.12'
+    (
+      "{\"width\":38,\"scale\":2,\"lower\":\"6432227781800638996\",\"upper\":\"669260594276\"}",
+      "123456789012345678901234567890.12", "DECIMAL(38,2)",
+    ),
+    // scaled -99999999999999999999999 -> '-999999999999999999999.99'
+    (
+      "{\"width\":38,\"scale\":2,\"lower\":\"18246367653188861953\",\"upper\":\"-5422\"}",
+      "-999999999999999999999.99", "DECIMAL(38,2)",
+    ),
+    // max-width DECIMAL(38,0): 10^38 - 1
+    (
+      "{\"width\":38,\"scale\":0,\"lower\":\"687399551400673279\",\"upper\":\"5421010862427522170\"}",
+      "99999999999999999999999999999999999999", "DECIMAL(38,0)",
+    ),
+  ]
+  for case_ in cases {
+    let (payload, expected, ty) = case_
+    let result = run_js_wrapper_prepare_query(
+      JsBackend::Wasm,
+      "SELECT (?::\{ty})::VARCHAR AS x",
+      [(payload, "decimal")],
+    )
+    match result {
+      Ok((_, rows, nulls)) =>
+        if rows.length() != 1 || rows[0].length() != 1 {
+          fail("expected 1 row, 1 column")
+        } else if nulls[0][0] {
+          fail("expected non-null value")
+        } else if rows[0][0] != expected {
+          fail("expected '\{expected}', got '\{rows[0][0]}'")
+        } else {
+          ()
+        }
+      Err(message) =>
+        if is_wasm_bind_skip(message) {
+          ()
+        } else {
+          fail("wasm wrapper bind decimal 128-bit failed: \{message}")
+        }
+    }
+  }
+}
+
+///|
+test "js wrapper node prepare bind decimal 128-bit" {
+  let cases : Array[(String, String, String)] = [
+    // scaled 12345678901234567890123456789012 -> '123456789012345678901234567890.12'
+    (
+      "{\"width\":38,\"scale\":2,\"lower\":\"6432227781800638996\",\"upper\":\"669260594276\"}",
+      "123456789012345678901234567890.12", "DECIMAL(38,2)",
+    ),
+    // scaled -99999999999999999999999 -> '-999999999999999999999.99'
+    (
+      "{\"width\":38,\"scale\":2,\"lower\":\"18246367653188861953\",\"upper\":\"-5422\"}",
+      "-999999999999999999999.99", "DECIMAL(38,2)",
+    ),
+    // max-width DECIMAL(38,0): 10^38 - 1
+    (
+      "{\"width\":38,\"scale\":0,\"lower\":\"687399551400673279\",\"upper\":\"5421010862427522170\"}",
+      "99999999999999999999999999999999999999", "DECIMAL(38,0)",
+    ),
+  ]
+  for case_ in cases {
+    let (payload, expected, ty) = case_
+    let result = run_js_wrapper_prepare_query(
+      JsBackend::Node,
+      "SELECT (?::\{ty})::VARCHAR AS x",
+      [(payload, "decimal")],
+    )
+    match result {
+      Ok((_, rows, nulls)) =>
+        if rows.length() != 1 || rows[0].length() != 1 {
+          fail("expected 1 row, 1 column")
+        } else if nulls[0][0] {
+          fail("expected non-null value")
+        } else if rows[0][0] != expected {
+          fail("expected '\{expected}', got '\{rows[0][0]}'")
+        } else {
+          ()
+        }
+      Err(message) =>
+        if message.contains("@duckdb/node-api") {
+          ()
+        } else {
+          fail("node wrapper bind decimal 128-bit failed: \{message}")
+        }
+    }
   }
 }
 

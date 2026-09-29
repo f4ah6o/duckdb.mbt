@@ -1,4 +1,19 @@
 ///|
+test "decimal Value::to_string renders full 128-bit" {
+  // Positive max-width decimal: 10^38 - 1
+  let d1 = decimal_from_hugeint(
+    687399551400673279UL, 5421010862427522170L, 38, 0,
+  )
+  inspect(
+    Value::Decimal(d1).to_string(),
+    content="99999999999999999999999999999999999999",
+  )
+  // Negative value between -1 and 0 keeps its sign
+  let d2 = decimal_from_hugeint((-50L).reinterpret_as_uint64(), -1L, 10, 2)
+  inspect(Value::Decimal(d2).to_string(), content="-0.50")
+}
+
+///|
 test "quack SQL string escaping" {
   inspect(quack_sql_string("quack:local'host"), content="'quack:local''host'")
   inspect(quack_sql_string("SELECT 'duck'"), content="'SELECT ''duck'''")
