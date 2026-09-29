@@ -12,8 +12,8 @@ repository = "https://github.com/f4ah6o/duckdb.mbt"
 
 license = "Apache-2.0"
 
-keywords = [ "duckdb" ]
+keywords = [ "duckdb", "database", "sql", "ffi", "wasm", "moonbit" ]
 
-description = ""
+description = "MoonBit bindings for DuckDB on native and JavaScript targets (Node.js and browser WASM backends)"
 
 source = "src"
