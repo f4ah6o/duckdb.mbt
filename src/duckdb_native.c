@@ -21,7 +21,12 @@ typedef struct {
 
 static char *duckdb_mb_last_error_message = NULL;
 
+// DuckDB engine error classification of the last error when the failing C API
+// reported one via duckdb_result_error_type (-1 = not available).
+static int duckdb_mb_last_error_code = -1;
+
 static void duckdb_mb_set_error(const char *message) {
+  duckdb_mb_last_error_code = -1;
   if (duckdb_mb_last_error_message) {
     free(duckdb_mb_last_error_message);
     duckdb_mb_last_error_message = NULL;
@@ -159,11 +164,13 @@ duckdb_result *duckdb_mb_query(duckdb_mb_connection *handle,
   duckdb_state state = duckdb_query(handle->conn, sql_c, result);
   free(sql_c);
   if (state != DuckDBSuccess) {
+    duckdb_error_type error_type = duckdb_result_error_type(result);
     const char *error = duckdb_result_error(result);
     if (!error) {
       error = "duckdb_query failed";
     }
     duckdb_mb_set_error(error);
+    duckdb_mb_last_error_code = (int)error_type;
     duckdb_destroy_result(result);
     free(result);
     return NULL;
@@ -243,6 +250,10 @@ moonbit_bytes_t duckdb_mb_last_error(void) {
   }
   return duckdb_mb_make_bytes(duckdb_mb_last_error_message,
                               strlen(duckdb_mb_last_error_message));
+}
+
+int32_t duckdb_mb_last_error_type(void) {
+  return duckdb_mb_last_error_code;
 }
 
 int32_t duckdb_mb_is_null_conn(duckdb_mb_connection *handle) {
@@ -381,8 +392,10 @@ duckdb_mb_stream *duckdb_mb_query_stream(duckdb_mb_connection *handle,
   state = duckdb_execute_prepared_streaming(stmt, result);
   duckdb_destroy_prepare(&stmt);
   if (state != DuckDBSuccess) {
+    duckdb_error_type error_type = duckdb_result_error_type(result);
     const char *error = duckdb_result_error(result);
     duckdb_mb_set_error(error && error[0] ? error : "execute_prepared_streaming failed");
+    duckdb_mb_last_error_code = (int)error_type;
     duckdb_destroy_result(result);
     free(result);
     return NULL;
@@ -408,8 +421,10 @@ duckdb_mb_stream *duckdb_mb_execute_prepared_stream(duckdb_mb_statement *mb_stmt
   }
   duckdb_state state = duckdb_execute_prepared_streaming(mb_stmt->stmt, result);
   if (state != DuckDBSuccess) {
+    duckdb_error_type error_type = duckdb_result_error_type(result);
     const char *error = duckdb_result_error(result);
     duckdb_mb_set_error(error && error[0] ? error : "execute_prepared_streaming failed");
+    duckdb_mb_last_error_code = (int)error_type;
     duckdb_destroy_result(result);
     free(result);
     return NULL;
@@ -472,7 +487,9 @@ duckdb_mb_chunk *duckdb_mb_stream_fetch_chunk(duckdb_mb_stream *stream) {
   if (!chunk) {
     const char *error = duckdb_result_error(stream->result);
     if (error && error[0]) {
+      duckdb_error_type error_type = duckdb_result_error_type(stream->result);
       duckdb_mb_set_error(error);
+      duckdb_mb_last_error_code = (int)error_type;
     } else {
       duckdb_mb_set_error(NULL);
     }
@@ -1002,11 +1019,13 @@ duckdb_result *duckdb_mb_execute_prepared(duckdb_mb_statement *mb_stmt) {
 
   duckdb_state state = duckdb_execute_prepared(mb_stmt->stmt, result);
   if (state != DuckDBSuccess) {
+    duckdb_error_type error_type = duckdb_result_error_type(result);
     const char *error = duckdb_result_error(result);
     if (!error) {
       error = "duckdb_execute_prepared failed";
     }
     duckdb_mb_set_error(error);
+    duckdb_mb_last_error_code = (int)error_type;
     duckdb_destroy_result(result);
     free(result);
     return NULL;

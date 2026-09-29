@@ -28,7 +28,10 @@ pub fn Connection::query_arrow(
   let _ = sql
   on_done(
     Err(
-      DuckDBError::Message("arrow integration is not available for this target"),
+      DuckDBError::Unsupported(
+        feature="arrow integration",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -54,7 +57,10 @@ pub fn ArrowResult::get_schema(
     fields: [ArrowField::{ name: "", nullable: false, type_id: "", }],
   }
   Err(
-    DuckDBError::Message("arrow integration is not available for this target"),
+    DuckDBError::Unsupported(
+      feature="arrow integration",
+      backend="unsupported target",
+    ),
   )
 }
 
@@ -116,7 +122,10 @@ pub fn ArrowResult::close(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("arrow integration is not available for this target"),
+      DuckDBError::Unsupported(
+        feature="arrow integration",
+        backend="unsupported target",
+      ),
     ),
   )
 }

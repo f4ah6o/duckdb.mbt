@@ -39,9 +39,252 @@ pub(all) enum JsBackend {
 }
 
 ///|
-/// DuckDB error wrapper.
+/// Structured error raised by the duckdb bindings.
+///
+/// Match on the variants to branch on the error category without parsing
+/// strings. Every variant keeps the original diagnostic text available via
+/// `DuckDBError::message`.
+///
+/// Categories:
+/// - `Query` / `Prepare` / `Bind` / `Append`: the binding detected a failure
+///   at that stage and the DuckDB engine did not supply a classified error
+///   type (allocation failures, invalid handles, host runtime errors, ...).
+/// - `DuckDB`: a failure reported by the DuckDB engine itself; `error_type`
+///   is the engine's own classification normalized to snake_case
+///   ("parser", "catalog", "invalid_input", ...) or "unknown".
+/// - `Backend`: a backend/runtime failure outside the query path (connect,
+///   close, configuration, host exceptions).
+/// - `Unsupported`: the feature exists but this backend cannot provide it.
+///   `backend` names the backend ("native", "node", "wasm", "unsupported");
+///   designed to compose with the BackendCapabilities work in issue #65.
+/// - `Closed`: the operation was attempted on a closed handle.
+/// - `InvalidArgument`: a caller-supplied argument failed validation.
 pub suberror DuckDBError {
-  Message(String)
+  /// Query/streaming stage failure without an engine classification.
+  Query(String)
+  /// Prepare stage failure without an engine classification.
+  Prepare(String)
+  /// Bind stage failure without an engine classification.
+  Bind(String)
+  /// Appender stage failure without an engine classification.
+  Append(String)
+  /// `feature` is not supported by `backend`.
+  Unsupported(feature~ : String, backend~ : String)
+  /// The operation was attempted on a closed `resource`
+  /// ("connection", "statement", "stream", "appender").
+  Closed(resource~ : String)
+  /// `argument` failed validation (`reason` explains why).
+  InvalidArgument(argument~ : String, reason~ : String)
+  /// Backend/runtime failure that did not come from the DuckDB engine.
+  Backend(backend~ : String, message~ : String)
+  /// Error reported by the DuckDB engine itself. `error_type` is the
+  /// engine's classification in snake_case or "unknown"; `message` is the
+  /// full original diagnostic text.
+  DuckDB(error_type~ : String, message~ : String)
+}
+
+///|
+/// The diagnostic message carried by this error.
+///
+/// For errors reported by DuckDB or a backend this is the original text
+/// verbatim; for the binding-side categories (`Unsupported`, `Closed`,
+/// `InvalidArgument`) it is synthesized from the structured fields.
+///
+/// Migration note: this replaces matching on the removed
+/// `DuckDBError::Message(String)` variant.
+pub fn DuckDBError::message(self : DuckDBError) -> String {
+  match self {
+    Query(msg) | Prepare(msg) | Bind(msg) | Append(msg) => msg
+    Backend(message~, ..) | DuckDB(message~, ..) => message
+    Unsupported(feature~, backend~) =>
+      "\{feature} is not supported on the \{backend} backend"
+    Closed(resource~) => "\{resource} is closed"
+    InvalidArgument(argument~, reason~) =>
+      "invalid argument \{argument}: \{reason}"
+  }
+}
+
+///|
+/// The DuckDB engine's error classification when one is available (the
+/// `DuckDB` variant), e.g. "parser", "catalog", "invalid_input" or
+/// "unknown". Returns `None` for binding-side categories.
+pub fn DuckDBError::error_type(self : DuckDBError) -> String? {
+  match self {
+    DuckDB(error_type~, ..) => Some(error_type)
+    _ => None
+  }
+}
+
+///|
+/// Sentinel prefix emitted by the JS/WASM FFI shims when an operation is
+/// attempted on a closed handle. Not part of the public API.
+let duckdb_error_closed_sentinel = "ERR_CLOSED:"
+
+///|
+/// Normalize a DuckDB engine error type name ("Parser Error", "Invalid
+/// Input Error", ...) to snake_case without the "error" suffix
+/// ("parser", "invalid_input", ...).
+fn normalize_error_type(name : String) -> String {
+  let sb = StringBuilder::new()
+  for c in name {
+    if c == ' ' || c == '-' {
+      ignore(sb.write_char('_'))
+    } else {
+      ignore(sb.write_char(c.to_ascii_lowercase()))
+    }
+  }
+  let normalized = sb.to_string()
+  if normalized.has_suffix("_error") {
+    normalized[:normalized.length() - 6].to_owned()
+  } else {
+    normalized
+  }
+}
+
+///|
+/// Extract the engine error type from a diagnostic of the form
+/// `"<Words> Error: <detail>"` — the prefix DuckDB puts on user-facing
+/// errors. Returns `Some` normalized type, `Some("unknown")` for a bare
+/// "Error:" prefix, or `None` when the message is not engine-classified.
+fn duckdb_error_type_from_message(message : String) -> String? {
+  let mut colon = -1
+  for i, c in message {
+    if c == ':' {
+      colon = i
+      break
+    }
+    if i >= 64 {
+      return None
+    }
+  }
+  if colon <= 0 {
+    return None
+  }
+  let prefix = message[:colon].trim().to_owned()
+  if prefix == "Error" {
+    return Some("unknown")
+  }
+  if !prefix.has_suffix(" Error") {
+    return None
+  }
+  let name = prefix[:prefix.length() - 6].to_owned()
+  if name.length() == 0 {
+    return Some("unknown")
+  }
+  for c in name {
+    if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == ' ') {
+      return None
+    }
+  }
+  Some(normalize_error_type(name))
+}
+
+///|
+/// Split "<feature> is (not yet )?supported for <backend> backend" style
+/// binding-layer diagnostics into a `Unsupported` variant. Returns `None`
+/// for messages that are not unsupported-feature reports.
+fn duckdb_unsupported_from_message(message : String) -> DuckDBError? {
+  if message.contains("requires Worker support") {
+    return Some(Unsupported(feature="duckdb-wasm", backend="wasm"))
+  }
+  if message.contains("unsupported column type") {
+    return Some(
+      Unsupported(
+        feature="streamed query results with this column type",
+        backend="native",
+      ),
+    )
+  }
+  let wasm_no_support = "WASM backend does not support "
+  if message.has_prefix(wasm_no_support) {
+    let feature = message[wasm_no_support.length():]
+      .trim()
+      .to_owned()
+      .to_lower()
+    if feature.length() > 0 {
+      return Some(Unsupported(feature~, backend="wasm"))
+    }
+    return None
+  }
+  if message.has_prefix("Appender is not supported for WASM backend") {
+    return Some(Unsupported(feature="appender", backend="wasm"))
+  }
+  if message.has_prefix("Appender not yet supported for JS backend") {
+    return Some(Unsupported(feature="appender", backend="js"))
+  }
+  None
+}
+
+///|
+/// Classify a backend diagnostic message into a structured `DuckDBError`:
+///
+/// - `ERR_CLOSED:<resource>` sentinel → `Closed`
+/// - known unsupported-feature diagnostics → `Unsupported`
+/// - `"<Words> Error: ..."` engine messages → `DuckDB` (engine error type)
+/// - anything else → `fallback(message)` (usually the stage variant for the
+///   call site, or `Backend` outside the query path)
+fn classify_duckdb_error(
+  message : String,
+  fallback~ : (String) -> DuckDBError,
+) -> DuckDBError {
+  if message.has_prefix(duckdb_error_closed_sentinel) {
+    let resource = message[duckdb_error_closed_sentinel.length():]
+      .trim()
+      .to_owned()
+    return if resource.length() > 0 {
+      Closed(resource~)
+    } else {
+      Closed(resource="handle")
+    }
+  }
+  // Native stub sentinels for null/invalid handles.
+  match message {
+    "connection is null" => return Closed(resource="connection")
+    "statement is null" => return Closed(resource="statement")
+    "stream is null" => return Closed(resource="stream")
+    "appender is null" => return Closed(resource="appender")
+    _ => ()
+  }
+  match duckdb_unsupported_from_message(message) {
+    Some(err) => return err
+    None => ()
+  }
+  match duckdb_error_type_from_message(message) {
+    Some(error_type) => DuckDB(error_type~, message~)
+    None => fallback(message)
+  }
+}
+
+///|
+/// A query/stream failure reported by the DuckDB engine (classified by the
+/// `"<Type> Error:"` message prefix) or a plain `Query` binding error.
+fn query_error(message : String) -> DuckDBError {
+  classify_duckdb_error(message, fallback=fn(m) { Query(m) })
+}
+
+///|
+/// A prepare failure, classified like `query_error`.
+fn prepare_error(message : String) -> DuckDBError {
+  classify_duckdb_error(message, fallback=fn(m) { Prepare(m) })
+}
+
+///|
+/// A bind failure, classified like `query_error`.
+fn bind_error(message : String) -> DuckDBError {
+  classify_duckdb_error(message, fallback=fn(m) { Bind(m) })
+}
+
+///|
+/// An appender failure, classified like `query_error`.
+fn append_error(message : String) -> DuckDBError {
+  classify_duckdb_error(message, fallback=fn(m) { Append(m) })
+}
+
+///|
+/// A backend/runtime failure outside the query path, classified like
+/// `query_error` but falling back to `Backend`.
+fn backend_error(backend : String, message : String) -> DuckDBError {
+  classify_duckdb_error(message, fallback=fn(m) { Backend(backend~, message=m) })
 }
 
 ///|
@@ -262,8 +505,17 @@ pub fn QueryResult::column_count(self : QueryResult) -> Int {
 }
 
 ///|
+/// The string value at (`row`, `col`), or `None` when the cell is NULL or
+/// the indices are out of bounds (bounds-checked, never panics).
 pub fn QueryResult::cell(self : QueryResult, row : Int, col : Int) -> String? {
-  if self.nulls[row][col] {
+  if row < 0 ||
+    row >= self.rows.length() ||
+    col < 0 ||
+    col >= self.columns.length() ||
+    col >= self.rows[row].length() ||
+    col >= self.nulls[row].length() {
+    None
+  } else if self.nulls[row][col] {
     None
   } else {
     Some(self.rows[row][col])
@@ -281,8 +533,17 @@ pub fn DataChunk::column_count(self : DataChunk) -> Int {
 }
 
 ///|
+/// The string value at (`row`, `col`), or `None` when the cell is NULL or
+/// the indices are out of bounds (bounds-checked, never panics).
 pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
-  if self.nulls[row][col] {
+  if row < 0 ||
+    row >= self.rows.length() ||
+    col < 0 ||
+    col >= self.columns.length() ||
+    col >= self.rows[row].length() ||
+    col >= self.nulls[row].length() {
+    None
+  } else if self.nulls[row][col] {
     None
   } else {
     Some(self.rows[row][col])
@@ -319,13 +580,19 @@ fn quack_is_identifier_char(c : Char) -> Bool {
 ///|
 fn quack_identifier(value : String) -> Result[String, DuckDBError] {
   if value.length() == 0 {
-    Err(DuckDBError::Message("Quack alias must not be empty"))
+    Err(
+      DuckDBError::InvalidArgument(
+        argument="alias",
+        reason="Quack alias must not be empty",
+      ),
+    )
   } else {
     for c in value {
       if !quack_is_identifier_char(c) {
         return Err(
-          DuckDBError::Message(
-            "Quack alias may only contain letters, digits, and underscores",
+          DuckDBError::InvalidArgument(
+            argument="alias",
+            reason="Quack alias may only contain letters, digits, and underscores",
           ),
         )
       }

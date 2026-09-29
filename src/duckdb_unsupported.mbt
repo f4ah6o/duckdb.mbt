@@ -8,7 +8,10 @@ pub fn connect(
   touch_public_types(backend)
   on_ready(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -21,7 +24,10 @@ pub fn Connection::close(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -36,7 +42,10 @@ pub fn Connection::query(
   let _ = sql
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -51,7 +60,10 @@ pub fn Connection::query_stream(
   let _ = sql
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -76,7 +88,10 @@ pub fn ResultStream::next(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -89,7 +104,10 @@ pub fn ResultStream::close(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -108,7 +126,10 @@ pub fn Connection::prepare(
   let _ = sql
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -122,7 +143,12 @@ pub fn PreparedStatement::bind_int(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -134,7 +160,12 @@ pub fn PreparedStatement::bind_bigint(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -146,7 +177,12 @@ pub fn PreparedStatement::bind_double(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -158,7 +194,12 @@ pub fn PreparedStatement::bind_varchar(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -170,7 +211,12 @@ pub fn PreparedStatement::bind_bool(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -180,7 +226,12 @@ pub fn PreparedStatement::bind_null(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = index
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -188,7 +239,12 @@ pub fn PreparedStatement::clear_bindings(
   self : PreparedStatement,
 ) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -199,7 +255,10 @@ pub fn PreparedStatement::execute(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -212,7 +271,10 @@ pub fn PreparedStatement::execute_stream(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -225,7 +287,10 @@ pub fn PreparedStatement::close(
   let _ = self
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -247,7 +312,12 @@ pub fn Config::set(
   let _ = self
   let _ = key
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 // ============================================================================
@@ -266,7 +336,10 @@ pub fn Connection::create_appender(
   let _ = table
   on_done(
     Err(
-      DuckDBError::Message("duckdb bindings are not available for this target"),
+      DuckDBError::Unsupported(
+        feature="duckdb bindings",
+        backend="unsupported target",
+      ),
     ),
   )
 }
@@ -274,7 +347,12 @@ pub fn Connection::create_appender(
 ///|
 pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -284,7 +362,12 @@ pub fn Appender::append_int(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -294,7 +377,12 @@ pub fn Appender::append_bigint(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -304,7 +392,12 @@ pub fn Appender::append_double(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -314,7 +407,12 @@ pub fn Appender::append_varchar(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -324,25 +422,45 @@ pub fn Appender::append_bool(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
 pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
 pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
 pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 // Note: Appender::close() is not provided here to avoid conflict with Connection::close()
@@ -361,7 +479,12 @@ pub fn PreparedStatement::bind_date(
   let _ = self
   let _ = index
   let _ = days
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -373,7 +496,12 @@ pub fn PreparedStatement::bind_timestamp(
   let _ = self
   let _ = index
   let _ = micros
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -383,7 +511,12 @@ pub fn Appender::append_date(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = days
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -393,7 +526,12 @@ pub fn Appender::append_timestamp(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = micros
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -523,7 +661,12 @@ pub fn PreparedStatement::bind_blob(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -533,7 +676,12 @@ pub fn Appender::append_blob(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 // ----------------------------------------------------------------------------
@@ -549,7 +697,12 @@ pub fn PreparedStatement::bind_decimal(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -559,7 +712,12 @@ pub fn Appender::append_decimal(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -634,7 +792,12 @@ pub fn PreparedStatement::bind_interval(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -644,7 +807,12 @@ pub fn Appender::append_interval(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -703,7 +871,12 @@ pub fn PreparedStatement::bind_list_varchar(
   let _ = self
   let _ = index
   let _ = values
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -738,7 +911,12 @@ pub fn PreparedStatement::bind_struct(
   let _ = self
   let _ = index
   let _ = value
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|
@@ -795,7 +973,12 @@ pub fn PreparedStatement::bind_map(
   let _ = self
   let _ = index
   let _ = map
-  Err(DuckDBError::Message("duckdb bindings are not available for this target"))
+  Err(
+    DuckDBError::Unsupported(
+      feature="duckdb bindings",
+      backend="unsupported target",
+    ),
+  )
 }
 
 ///|

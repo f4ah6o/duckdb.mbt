@@ -30,6 +30,9 @@ pub fn decimal_to_double(Decimal) -> Double
 
 pub fn decimal_to_parts(Decimal) -> (@bigint.BigInt, @bigint.BigInt)
 
+#deprecated
+pub fn duckdb_message_error(String) -> DuckDBError
+
 pub fn expect_fixture_case(FixtureCase, Array[String], Array[Array[String]], Array[Array[Bool]]) -> Unit raise
 
 pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
@@ -102,8 +105,20 @@ pub fn timestamp_to_ymd_hms(Int64) -> (Int, Int, Int, Int, Int, Int)
 
 // Errors
 pub suberror DuckDBError {
-  Message(String)
+  Query(String)
+  Prepare(String)
+  Bind(String)
+  Append(String)
+  Unsupported(feature~ : String, backend~ : String)
+  Closed(resource~ : String)
+  InvalidArgument(argument~ : String, reason~ : String)
+  Backend(backend~ : String, message~ : String)
+  DuckDB(error_type~ : String, message~ : String)
 }
+pub fn DuckDBError::error_type(Self) -> String?
+pub fn DuckDBError::message(Self) -> String
+#deprecated
+pub fn DuckDBError::to_message(Self) -> String
 
 // Types and methods
 #external

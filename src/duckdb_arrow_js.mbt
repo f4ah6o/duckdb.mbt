@@ -200,7 +200,7 @@ pub fn Connection::query_arrow(
   on_done~ : (Result[ArrowResult, DuckDBError]) -> Unit,
 ) -> Unit {
   js_query_arrow(self, sql, fn(result) { on_done(Ok(result)) }, fn(err) {
-    on_done(Err(DuckDBError::Message(err)))
+    on_done(Err(query_error(err)))
   })
 }
 
@@ -231,7 +231,10 @@ fn parse_arrow_schema_json(
   let parsed = @json.parse(json) catch {
     err =>
       return Err(
-        DuckDBError::Message("schema parse failed: " + err.to_string()),
+        DuckDBError::InvalidArgument(
+          argument="arrow schema",
+          reason="schema parse failed: " + err.to_string(),
+        ),
       )
   }
   match parsed {
@@ -255,7 +258,13 @@ fn parse_arrow_schema_json(
             }
             fields.push(ArrowField::{ name, nullable, type_id, })
           }
-          _ => return Err(DuckDBError::Message("invalid field format"))
+          _ =>
+            return Err(
+              DuckDBError::InvalidArgument(
+                argument="arrow schema",
+                reason="invalid field format",
+              ),
+            )
         }
       } nobreak {
         ()
