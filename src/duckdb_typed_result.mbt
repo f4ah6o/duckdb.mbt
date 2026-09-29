@@ -39,7 +39,7 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
   } nobreak {
     ()
   }
-  { columns: self.columns, data }
+  { columns: self.columns, data, }
 }
 
 // ============================================================================

@@ -409,7 +409,7 @@ fn parse_arrow_schema_json(json : String) -> Result[Array[ArrowField], String] {
       if pos < json.length() && json[pos] == '}' {
         pos = pos + 1
       }
-      fields.push(ArrowField::{ name, nullable, type_id })
+      fields.push(ArrowField::{ name, nullable, type_id, })
     } else {
       pos = pos + 1
     }

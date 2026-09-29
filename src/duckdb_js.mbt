@@ -437,7 +437,7 @@ pub fn Connection::query(
     sql,
     fn(columns, rows, nulls, type_ids) {
       let column_types = column_types_from_ids(columns, type_ids)
-      on_done(Ok({ columns, column_types, rows, nulls }))
+      on_done(Ok({ columns, column_types, rows, nulls, }))
     },
     fn(message) { on_done(Err(DuckDBError::Message(message))) },
   )
@@ -475,7 +475,7 @@ pub fn ResultStream::next(
       if rows.length() == 0 {
         on_done(Ok(None))
       } else {
-        on_done(Ok(Some({ columns: self.columns(), rows, nulls })))
+        on_done(Ok(Some({ columns: self.columns(), rows, nulls, })))
       }
     },
     fn(message) { on_done(Err(DuckDBError::Message(message))) },
@@ -1730,7 +1730,7 @@ pub fn PreparedStatement::execute(
     self,
     fn(columns, rows, nulls, type_ids) {
       let column_types = column_types_from_ids(columns, type_ids)
-      on_done(Ok({ columns, column_types, rows, nulls }))
+      on_done(Ok({ columns, column_types, rows, nulls, }))
     },
     fn(message) { on_done(Err(DuckDBError::Message(message))) },
   )
@@ -2088,7 +2088,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
   let multiplier = int_pow10(scale).to_int()
   let scaled = (value * Double::from_int(multiplier)).to_int()
   let upper = if scaled >= 0 { 0 } else { -1 }
-  { width, scale, lower: scaled, upper }
+  { width, scale, lower: scaled, upper, }
 }
 
 ///|
@@ -2115,7 +2115,7 @@ pub fn decimal_from_parts(
     String::length(whole.to_string()) + scale
   }
   let upper = if value >= 0 { 0 } else { -1 }
-  { width: width.max(1), scale, lower: value, upper }
+  { width: width.max(1), scale, lower: value, upper, }
 }
 
 ///|
@@ -2139,7 +2139,7 @@ pub fn decimal_from_hugeint(
   width : Int,
   scale : Int,
 ) -> Decimal {
-  { width, scale, lower, upper }
+  { width, scale, lower, upper, }
 }
 
 // ----------------------------------------------------------------------------
@@ -2176,35 +2176,35 @@ pub fn interval_from_parts(
   days : Int,
   micros : Int64,
 ) -> Interval {
-  { months, days, micros }
+  { months, days, micros, }
 }
 
 ///|
 pub fn interval_from_days(days : Int) -> Interval {
-  { months: 0, days, micros: 0 }
+  { months: 0, days, micros: 0, }
 }
 
 ///|
 pub fn interval_from_hours(hours : Int) -> Interval {
   let micros = hours.to_int64() * 3600L * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_minutes(minutes : Int) -> Interval {
   let micros = minutes.to_int64() * 60L * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_seconds(seconds : Int) -> Interval {
   let micros = seconds.to_int64() * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_months(months : Int) -> Interval {
-  { months, days: 0, micros: 0 }
+  { months, days: 0, micros: 0, }
 }
 
 ///|
@@ -2269,14 +2269,14 @@ pub fn struct_from_arrays(
   fields : Array[String],
   values : Array[String],
 ) -> Struct {
-  { fields, values }
+  { fields, values, }
 }
 
 ///|
 pub fn struct_from_pairs(pairs : Array[(String, String)]) -> Struct {
   let fields = pairs.map(fn(p) { p.0 })
   let values = pairs.map(fn(p) { p.1 })
-  { fields, values }
+  { fields, values, }
 }
 
 // Helper function to find index in array
@@ -2325,14 +2325,14 @@ pub fn PreparedStatement::bind_map(
 
 ///|
 pub fn map_from_arrays(keys : Array[String], values : Array[String]) -> Map {
-  { keys, values }
+  { keys, values, }
 }
 
 ///|
 pub fn map_from_pairs(pairs : Array[(String, String)]) -> Map {
   let keys = pairs.map(fn(p) { p.0 })
   let values = pairs.map(fn(p) { p.1 })
-  { keys, values }
+  { keys, values, }
 }
 
 ///|

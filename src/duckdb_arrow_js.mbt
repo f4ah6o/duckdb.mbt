@@ -253,7 +253,7 @@ fn parse_arrow_schema_json(
               Json::String(t) => t
               _ => "string"
             }
-            fields.push(ArrowField::{ name, nullable, type_id })
+            fields.push(ArrowField::{ name, nullable, type_id, })
           }
           _ => return Err(DuckDBError::Message("invalid field format"))
         }
@@ -262,7 +262,7 @@ fn parse_arrow_schema_json(
       }
       Ok(ArrowSchemaInfo::{ fields, })
     }
-    _ => Ok(ArrowSchemaInfo::{ fields: [] })
+    _ => Ok(ArrowSchemaInfo::{ fields: [], })
   }
 }
 

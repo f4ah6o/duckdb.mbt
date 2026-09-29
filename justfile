@@ -24,7 +24,10 @@ run:
 info:
     moon info
 
+doc:
+    moon doc
+
 clean:
     moon clean
 
-release-check: fmt info check test
+release-check: fmt info doc check test

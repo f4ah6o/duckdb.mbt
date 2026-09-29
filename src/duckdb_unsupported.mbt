@@ -578,7 +578,7 @@ pub fn decimal_from_double(value : Double, width : Int, scale : Int) -> Decimal 
   let multiplier = _int_pow10(scale)
   let scaled = (value * Double::from_int(multiplier)).to_int()
   let upper = if scaled >= 0 { 0 } else { -1 }
-  { width, scale, lower: scaled, upper }
+  { width, scale, lower: scaled, upper, }
 }
 
 ///|
@@ -605,7 +605,7 @@ pub fn decimal_from_parts(
     String::length(whole.to_string()) + scale
   }
   let upper = if value >= 0 { 0 } else { -1 }
-  { width: width.max(1), scale, lower: value, upper }
+  { width: width.max(1), scale, lower: value, upper, }
 }
 
 ///|
@@ -653,35 +653,35 @@ pub fn interval_from_parts(
   days : Int,
   micros : Int64,
 ) -> Interval {
-  { months, days, micros }
+  { months, days, micros, }
 }
 
 ///|
 pub fn interval_from_days(days : Int) -> Interval {
-  { months: 0, days, micros: 0 }
+  { months: 0, days, micros: 0, }
 }
 
 ///|
 pub fn interval_from_hours(hours : Int) -> Interval {
   let micros = hours.to_int64() * 3600L * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_minutes(minutes : Int) -> Interval {
   let micros = minutes.to_int64() * 60L * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_seconds(seconds : Int) -> Interval {
   let micros = seconds.to_int64() * 1000000L
-  { months: 0, days: 0, micros }
+  { months: 0, days: 0, micros, }
 }
 
 ///|
 pub fn interval_from_months(months : Int) -> Interval {
-  { months, days: 0, micros: 0 }
+  { months, days: 0, micros: 0, }
 }
 
 ///|
@@ -746,14 +746,14 @@ pub fn struct_from_arrays(
   fields : Array[String],
   values : Array[String],
 ) -> Struct {
-  { fields, values }
+  { fields, values, }
 }
 
 ///|
 pub fn struct_from_pairs(pairs : Array[(String, String)]) -> Struct {
   let fields = pairs.map(fn(p) { p.0 })
   let values = pairs.map(fn(p) { p.1 })
-  { fields, values }
+  { fields, values, }
 }
 
 ///|
@@ -800,14 +800,14 @@ pub fn PreparedStatement::bind_map(
 
 ///|
 pub fn map_from_arrays(keys : Array[String], values : Array[String]) -> Map {
-  { keys, values }
+  { keys, values, }
 }
 
 ///|
 pub fn map_from_pairs(pairs : Array[(String, String)]) -> Map {
   let keys = pairs.map(fn(p) { p.0 })
   let values = pairs.map(fn(p) { p.1 })
-  { keys, values }
+  { keys, values, }
 }
 
 ///|
