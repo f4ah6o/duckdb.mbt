@@ -678,9 +678,9 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|          if (!src.isValid(r)) flags[r] = 1;
   #|        }
   #|        const fields = src.nested.struct();
-  #|        const childSlots = fields.map((f) => emitColumn(f.src));
   #|        nameOffsets[s] = names.length;
   #|        for (const f of fields) names.push(f.name);
+  #|        const childSlots = fields.map((f) => emitColumn(f.src));
   #|        shapeOffsets[s] = shapes.length;
   #|        shapes.push(S_STRUCT, fields.length, ...childSlots);
   #|        return s;
