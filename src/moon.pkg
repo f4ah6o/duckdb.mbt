@@ -19,6 +19,7 @@ options(
   targets: {
     "duckdb_appender_state_machine.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_arrow_js.mbt": [ "js" ],
+    "duckdb_arrow_js_wbtest.mbt": [ "js" ],
     "duckdb_arrow_native.mbt": [ "native" ],
     "duckdb_arrow_test.mbt": [ "native" ],
     "duckdb_arrow_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
@@ -34,6 +35,7 @@ options(
     "duckdb_js.mbt": [ "js" ],
     "duckdb_js_test.mbt": [ "js" ],
     "duckdb_native.mbt": [ "native" ],
+    "duckdb_native_error_wbtest.mbt": [ "native" ],
     "duckdb_vector_js.mbt": [ "js" ],
     "duckdb_vector_js_wbtest.mbt": [ "js" ],
     "duckdb_vector_native.mbt": [ "native" ],

@@ -1,5 +1,4 @@
 ///|
-#external
 pub type ArrowResult
 
 // ============================================================================
@@ -231,9 +230,9 @@ fn parse_arrow_schema_json(
   let parsed = @json.parse(json) catch {
     err =>
       return Err(
-        DuckDBError::InvalidArgument(
-          argument="arrow schema",
-          reason="schema parse failed: " + err.to_string(),
+        DuckDBError::Backend(
+          backend="js",
+          message="schema parse failed: " + err.to_string(),
         ),
       )
   }
@@ -260,9 +259,9 @@ fn parse_arrow_schema_json(
           }
           _ =>
             return Err(
-              DuckDBError::InvalidArgument(
-                argument="arrow schema",
-                reason="invalid field format",
+              DuckDBError::Backend(
+                backend="js",
+                message="schema parse failed: invalid field format",
               ),
             )
         }

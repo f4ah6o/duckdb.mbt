@@ -39,7 +39,8 @@ fn assert_unsupported(
     Err(
       @duckdb.DuckDBError::Unsupported(
         feature=actual_feature,
-        backend=actual_backend
+        backend=actual_backend,
+        ..
       )
     ) => {
       assert_eq(actual_feature, feature)
@@ -79,7 +80,7 @@ test "wasm appender is gated by capabilities before reaching the FFI" {
         content="appender is not supported on the wasm backend",
       )
       match err {
-        @duckdb.DuckDBError::Unsupported(feature~, backend~) => {
+        @duckdb.DuckDBError::Unsupported(feature~, backend~, ..) => {
           inspect(feature, content="appender")
           inspect(backend, content="wasm")
         }
@@ -132,14 +133,14 @@ test "node capabilities do not gate supported binds" {
 ///|
 test "js appender date/timestamp errors name the concrete backend" {
   match js_fake_appender(1).append_date(0) {
-    Err(@duckdb.DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(@duckdb.DuckDBError::Unsupported(feature~, backend~, ..)) => {
       inspect(feature, content="appender append_date")
       inspect(backend, content="node")
     }
     _ => fail("expected Unsupported error")
   }
   match js_fake_appender(2).append_timestamp(0L) {
-    Err(@duckdb.DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(@duckdb.DuckDBError::Unsupported(feature~, backend~, ..)) => {
       inspect(feature, content="appender append_timestamp")
       inspect(backend, content="wasm")
     }
