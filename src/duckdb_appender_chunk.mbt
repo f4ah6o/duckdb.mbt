@@ -216,6 +216,7 @@ fn column_write_spec(
     DuckDBError::Unsupported(
       feature="append_chunk for column type \{column_type_name(vector.logical_type)}",
       backend=backend.name(),
+      message="append_chunk cannot ingest column type \{column_type_name(vector.logical_type)}",
     )
   }
   let mismatch = fn() {

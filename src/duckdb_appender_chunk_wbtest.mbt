@@ -106,7 +106,7 @@ test "append_chunk_specs reports Unsupported for nested and exotic types" {
   )
   let chunk : VectorChunk = { columns: ["l"], vectors: [list_vector], }
   match append_chunk_specs(chunk, backend) {
-    Err(DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(DuckDBError::Unsupported(feature~, backend~, ..)) => {
       inspect(feature.contains("LIST"), content="true")
       inspect(backend, content="native")
     }

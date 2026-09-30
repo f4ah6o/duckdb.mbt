@@ -333,7 +333,7 @@ pub fn Appender::append_chunk(
       pool_bytes,
     ) = js_pack_chunk(chunk, offset, slice_rows)
     // The JS body invokes exactly one callback synchronously.
-    let result_ref : Ref[Result[Unit, String]?] = Ref::new(None)
+    let result_ref : Ref[Result[Unit, String]?] = { val: None, }
     js_appender_append_chunk_ffi(
       self,
       type_ids,

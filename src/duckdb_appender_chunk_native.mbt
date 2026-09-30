@@ -356,7 +356,7 @@ pub fn Appender::append_chunk(
     let ok = native_appender_append_data_chunk(self, data_chunk)
     native_destroy_data_chunk(data_chunk)
     if !ok {
-      return Err(append_error(appender_error(self, "append_chunk failed")))
+      return Err(native_typed_error(append_error, "append_chunk failed"))
     }
   } nobreak {
     ()
