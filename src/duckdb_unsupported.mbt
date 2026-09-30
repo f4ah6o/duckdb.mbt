@@ -89,6 +89,35 @@ pub fn ResultStream::next(
 }
 
 ///|
+pub fn ResultStream::next_chunk(
+  self : ResultStream,
+  on_done~ : (Result[VectorChunk?, DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  on_done(Err(unsupported_target_error()))
+}
+
+///|
+pub fn Connection::query_chunks(
+  self : Connection,
+  sql : String,
+  on_done~ : (Result[Array[VectorChunk], DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  let _ = sql
+  on_done(Err(unsupported_target_error()))
+}
+
+///|
+pub fn PreparedStatement::execute_chunks(
+  self : PreparedStatement,
+  on_done~ : (Result[Array[VectorChunk], DuckDBError]) -> Unit,
+) -> Unit {
+  let _ = self
+  on_done(Err(unsupported_target_error()))
+}
+
+///|
 pub fn ResultStream::close(
   self : ResultStream,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,

@@ -468,6 +468,8 @@ pub fn Value::is_null(self : Value) -> Bool {
 pub fn Value::to_string(self : Value) -> String {
   match self {
     Int(n) => n.to_string()
+    Int64(n) => n.to_string()
+    UInt64(n) => n.to_string()
     Double(d) => d.to_string()
     Bool(b) => if b { "true" } else { "false" }
     String(s) => s
@@ -480,9 +482,32 @@ pub fn Value::to_string(self : Value) -> String {
       // Convert microseconds since epoch to timestamp string
       timestamp_to_string(micros)
     Decimal(dec) => decimal_render(dec)
+    Interval(iv) =>
+      "\{iv.months} months \{iv.days} days \{iv.micros} microseconds"
+    HugeInt(lower~, upper~) =>
+      ((BigInt::from_int64(upper) << 64) | BigInt::from_uint64(lower)).to_string()
     Blob(_) =>
       // Convert bytes to hex string representation (simplified)
       "<blob>"
+    List(items) => "[" + items.map(fn(v) { v.to_string() }).join(", ") + "]"
+    Struct(fields~, values~) => {
+      let pairs : Array[String] = []
+      for i, field in fields {
+        if i < values.length() {
+          pairs.push("\{field}: \{values[i].to_string()}")
+        }
+      }
+      "{" + pairs.join(", ") + "}"
+    }
+    Map(keys~, values~) => {
+      let pairs : Array[String] = []
+      for i, key in keys {
+        if i < values.length() {
+          pairs.push("\{key.to_string()}=\{values[i].to_string()}")
+        }
+      }
+      "{" + pairs.join(", ") + "}"
+    }
     Null => "NULL"
   }
 }

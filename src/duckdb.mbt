@@ -19,12 +19,16 @@ pub type Appender
 pub type ResultStream
 
 ///|
+/// A borrowed DuckDB logical type handle (native backend only).
 #external
-pub type LogicalType
+pub type NativeLogicalType
 
 ///|
+/// A borrowed DuckDB vector handle (native backend only). Only valid while
+/// the chunk it was taken from is alive; the canonical, owned column
+/// representation is `Vector`.
 #external
-pub type Vector
+pub type NativeVector
 
 ///|
 #external
@@ -348,7 +352,10 @@ pub enum ColumnType {
   IntegerLiteral
   TimeNs
   Unknown(Int)
-}
+} derive(Eq)
+
+///|
+pub extend ColumnType with Eq::{not_equal, equal}
 
 ///|
 // Ensure public constructors are referenced in all target builds.
@@ -367,8 +374,21 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ = column_type_from_id(0)
   // Typed result API types
   let _ : Value = Value::Decimal({ width: 0, scale: 0, lower: 0, upper: 0, })
+  let _ : Value = Value::Int64(0L)
+  let _ : Value = Value::UInt64(0UL)
+  let _ : Value = Value::Interval({ months: 0, days: 0, micros: 0, })
+  let _ : Value = Value::HugeInt(lower=0UL, upper=0L)
+  let _ : Value = Value::List([])
+  let _ : Value = Value::Struct(fields=[], values=[])
+  let _ : Value = Value::Map(keys=[], values=[])
   let _ : Value = Value::Blob(Bytes::default())
   let _ : Value = Value::Null
+  let _ : VectorChunk = { columns: [], vectors: [], }
+  let _ : Vector = {
+    logical_type: ColumnType::Unknown(-1),
+    data: VectorData::Any([]),
+    validity: FixedArray::make(0, false),
+  }
   let _ : TypedQueryResult = { columns: [], data: [], }
 }
 
@@ -474,15 +494,22 @@ pub struct Map {
 
 ///|
 /// Typed value representing a single DuckDB cell.
-pub enum Value {
+pub(all) enum Value {
   Int(Int)
+  Int64(Int64)
+  UInt64(UInt64)
   Double(Double)
   Bool(Bool)
   String(String)
   Date(Int) // Days since 1970-01-01
   Timestamp(Int64) // Microseconds since 1970-01-01
   Decimal(Decimal)
+  Interval(Interval)
+  HugeInt(lower~ : UInt64, upper~ : Int64)
   Blob(Bytes)
+  List(Array[Value])
+  Struct(fields~ : Array[String], values~ : Array[Value])
+  Map(keys~ : Array[Value], values~ : Array[Value])
   Null
 }
 
