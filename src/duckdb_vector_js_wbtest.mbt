@@ -60,7 +60,7 @@ extern "js" fn js_run_stream_vectors(backend : Int, sql : String) -> String =
   #|    "  const chunks = [];",
   #|    "  for (;;) {",
   #|    "    const chunk = await nextVectors(stream);",
-  #|    "    if (chunk.rowCount <= 0 || chunk.columns.length === 0) break;",
+  #|    "    if (chunk.columns.length === 0) break;",
   #|    "    chunks.push(chunk);",
   #|    "  }",
   #|    "  await new Promise((res, rej) => js_stream_close(stream, res, rej));",
@@ -676,6 +676,8 @@ test "js stream vectors: struct-in-struct keeps field names aligned" {
     ) {
     Ok(chunks) => {
       let chunk = chunks[0]
+      // Orphaned child slots must not surface as phantom top-level columns.
+      inspect(chunk.column_count(), content="1")
       match chunk.column(0).unwrap().data {
         VectorData::Struct(fields~, children~) => {
           inspect(fields, content="[inner, b]")
@@ -692,6 +694,35 @@ test "js stream vectors: struct-in-struct keeps field names aligned" {
           inspect(value.to_string(), content="{inner: {x: 1, y: 2}, b: 3}")
         _ => fail("expected Struct")
       }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: empty result keeps column schema" {
+  // WHERE false: the drained chunks should still carry one schema-only
+  // chunk so compat facades report real column names/types.
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT 42 AS a, 'x'::VARCHAR AS b, {'k': [1]}::STRUCT(k INTEGER[]) AS s WHERE false",
+    ) {
+    Ok(chunks) => {
+      inspect(chunks.length(), content="1")
+      let chunk = chunks[0]
+      inspect(chunk.row_count(), content="0")
+      inspect(chunk.column_count(), content="3")
+      let result = chunks_to_query_result(chunks)
+      inspect(result.columns, content="[a, b, s]")
+      inspect(result.column_types.length(), content="3")
+      inspect(result.rows.length(), content="0")
+      inspect(result.column_types[2] is ColumnType::Struct, content="true")
     }
     Err(message) =>
       if message.contains("@duckdb/node-api") {
