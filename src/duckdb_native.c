@@ -358,10 +358,41 @@ typedef struct {
   int32_t column_count;
 } duckdb_mb_stream;
 
+// A fetched data chunk plus the column type ids of the result it came from.
+// `column_types` is owned by the chunk (a copy made at fetch time), so the
+// chunk stays usable standalone regardless of where it was fetched from.
 typedef struct {
   duckdb_data_chunk chunk;
-  duckdb_mb_stream *stream;
+  duckdb_type *column_types;
+  int32_t column_count;
 } duckdb_mb_chunk;
+
+static duckdb_mb_chunk *duckdb_mb_chunk_wrap(duckdb_data_chunk chunk,
+                                             const duckdb_type *column_types,
+                                             int32_t column_count) {
+  duckdb_mb_chunk *mb_chunk = (duckdb_mb_chunk *)malloc(sizeof(duckdb_mb_chunk));
+  if (!mb_chunk) {
+    duckdb_mb_set_error("failed to allocate chunk handle");
+    duckdb_destroy_data_chunk(&chunk);
+    return NULL;
+  }
+  mb_chunk->chunk = chunk;
+  mb_chunk->column_types = NULL;
+  mb_chunk->column_count = column_count;
+  if (column_count > 0) {
+    mb_chunk->column_types =
+        (duckdb_type *)malloc(sizeof(duckdb_type) * (size_t)column_count);
+    if (!mb_chunk->column_types) {
+      duckdb_mb_set_error("failed to allocate chunk column types");
+      duckdb_destroy_data_chunk(&chunk);
+      free(mb_chunk);
+      return NULL;
+    }
+    memcpy(mb_chunk->column_types, column_types,
+           sizeof(duckdb_type) * (size_t)column_count);
+  }
+  return mb_chunk;
+}
 
 static bool duckdb_mb_is_stream_supported_type(duckdb_type type) {
   switch (type) {
@@ -401,7 +432,10 @@ static moonbit_bytes_t duckdb_mb_value_to_bytes(duckdb_value value) {
   if (!value) {
     return moonbit_make_bytes_raw(0);
   }
-  char *str = duckdb_value_to_string(value);
+  // duckdb_get_varchar renders the unquoted VARCHAR cast (like
+  // duckdb_value_varchar); duckdb_value_to_string wraps strings, decimals
+  // and dates in single quotes, which would change compat output.
+  char *str = duckdb_get_varchar(value);
   duckdb_destroy_value(&value);
   if (!str) {
     return moonbit_make_bytes_raw(0);
@@ -600,14 +634,39 @@ duckdb_mb_chunk *duckdb_mb_stream_fetch_chunk(duckdb_mb_stream *stream) {
     }
     return NULL;
   }
-  duckdb_mb_chunk *mb_chunk = (duckdb_mb_chunk *)malloc(sizeof(duckdb_mb_chunk));
-  if (!mb_chunk) {
-    duckdb_mb_set_error("failed to allocate chunk handle");
-    duckdb_destroy_data_chunk(&chunk);
+  return duckdb_mb_chunk_wrap(chunk, stream->column_types, stream->column_count);
+}
+
+// Fetch the next chunk of a materialized result (duckdb_fetch_chunk). Unlike
+// the streaming path there is no supported-type gate: vector readers decide
+// per column type and exotic types degrade to per-cell strings.
+duckdb_mb_chunk *duckdb_mb_result_fetch_chunk(duckdb_result *result) {
+  if (!result) {
+    duckdb_mb_set_error("result is null");
     return NULL;
   }
-  mb_chunk->chunk = chunk;
-  mb_chunk->stream = stream;
+  duckdb_data_chunk chunk = duckdb_fetch_chunk(*result);
+  if (!chunk) {
+    duckdb_mb_set_error(NULL);
+    return NULL;
+  }
+  int32_t column_count = (int32_t)duckdb_column_count(result);
+  duckdb_type *column_types = NULL;
+  if (column_count > 0) {
+    column_types =
+        (duckdb_type *)malloc(sizeof(duckdb_type) * (size_t)column_count);
+    if (!column_types) {
+      duckdb_mb_set_error("failed to allocate column types");
+      duckdb_destroy_data_chunk(&chunk);
+      return NULL;
+    }
+    for (int32_t col = 0; col < column_count; col++) {
+      column_types[col] = duckdb_column_type(result, (idx_t)col);
+    }
+  }
+  duckdb_mb_chunk *mb_chunk =
+      duckdb_mb_chunk_wrap(chunk, column_types, column_count);
+  free(column_types);
   return mb_chunk;
 }
 
@@ -618,6 +677,7 @@ void duckdb_mb_chunk_destroy(duckdb_mb_chunk *chunk) {
   if (chunk->chunk) {
     duckdb_destroy_data_chunk(&chunk->chunk);
   }
+  free(chunk->column_types);
   free(chunk);
 }
 
@@ -642,10 +702,10 @@ int32_t duckdb_mb_chunk_column_count(duckdb_mb_chunk *chunk) {
 int32_t duckdb_mb_chunk_is_null(duckdb_mb_chunk *chunk,
                                 int32_t col,
                                 int32_t row) {
-  if (!chunk || !chunk->chunk || !chunk->stream) {
+  if (!chunk || !chunk->chunk || !chunk->column_types) {
     return 1;
   }
-  if (col < 0 || col >= chunk->stream->column_count || row < 0) {
+  if (col < 0 || col >= chunk->column_count || row < 0) {
     return 1;
   }
   duckdb_vector vector = duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
@@ -656,21 +716,13 @@ int32_t duckdb_mb_chunk_is_null(duckdb_mb_chunk *chunk,
   return duckdb_validity_row_is_valid(validity, (idx_t)row) ? 0 : 1;
 }
 
-moonbit_bytes_t duckdb_mb_chunk_value(duckdb_mb_chunk *chunk,
-                                      int32_t col,
-                                      int32_t row) {
-  if (!chunk || !chunk->chunk || !chunk->stream) {
-    return moonbit_make_bytes_raw(0);
-  }
-  if (col < 0 || col >= chunk->stream->column_count || row < 0) {
-    return moonbit_make_bytes_raw(0);
-  }
-  duckdb_vector vector = duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+static moonbit_bytes_t duckdb_mb_cell_to_bytes(duckdb_vector vector,
+                                               duckdb_type type,
+                                               idx_t row) {
   void *data = duckdb_vector_get_data(vector);
   if (!data) {
     return moonbit_make_bytes_raw(0);
   }
-  duckdb_type type = chunk->stream->column_types[col];
   switch (type) {
   case DUCKDB_TYPE_BOOLEAN: {
     bool val = ((bool *)data)[row];
@@ -782,10 +834,84 @@ moonbit_bytes_t duckdb_mb_chunk_value(duckdb_mb_chunk *chunk,
     duckdb_uhugeint val = ((duckdb_uhugeint *)data)[row];
     return duckdb_mb_value_to_bytes(duckdb_create_uuid(val));
   }
+  case DUCKDB_TYPE_DECIMAL: {
+    duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+    if (!ltype) {
+      return moonbit_make_bytes_raw(0);
+    }
+    duckdb_decimal dec;
+    dec.width = duckdb_decimal_width(ltype);
+    dec.scale = duckdb_decimal_scale(ltype);
+    switch (duckdb_decimal_internal_type(ltype)) {
+    case DUCKDB_TYPE_SMALLINT: {
+      int64_t v = (int64_t)((int16_t *)data)[row];
+      dec.value.lower = (uint64_t)v;
+      dec.value.upper = v >> 63;
+      break;
+    }
+    case DUCKDB_TYPE_INTEGER: {
+      int64_t v = (int64_t)((int32_t *)data)[row];
+      dec.value.lower = (uint64_t)v;
+      dec.value.upper = v >> 63;
+      break;
+    }
+    case DUCKDB_TYPE_BIGINT: {
+      int64_t v = ((int64_t *)data)[row];
+      dec.value.lower = (uint64_t)v;
+      dec.value.upper = v >> 63;
+      break;
+    }
+    default: {
+      duckdb_hugeint v = ((duckdb_hugeint *)data)[row];
+      dec.value = v;
+      break;
+    }
+    }
+    duckdb_destroy_logical_type(&ltype);
+    return duckdb_mb_value_to_bytes(duckdb_create_decimal(dec));
+  }
+  case DUCKDB_TYPE_ENUM: {
+    duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+    if (!ltype) {
+      return moonbit_make_bytes_raw(0);
+    }
+    // DuckDB stores enum cells as dictionary indices sized by the
+    // dictionary: <=256 entries -> uint8, <=65536 -> uint16, else uint32.
+    uint32_t dict_size = duckdb_enum_dictionary_size(ltype);
+    uint32_t index;
+    if (dict_size <= 256) {
+      index = ((uint8_t *)data)[row];
+    } else if (dict_size <= 65536) {
+      index = ((uint16_t *)data)[row];
+    } else {
+      index = ((uint32_t *)data)[row];
+    }
+    char *member = duckdb_enum_dictionary_value(ltype, (idx_t)index);
+    moonbit_bytes_t bytes =
+        member ? duckdb_mb_make_bytes(member, strlen(member))
+               : moonbit_make_bytes_raw(0);
+    if (member) {
+      duckdb_free(member);
+    }
+    duckdb_destroy_logical_type(&ltype);
+    return bytes;
+  }
   default:
-    duckdb_mb_set_error("unsupported streaming type");
     return moonbit_make_bytes_raw(0);
   }
+}
+
+moonbit_bytes_t duckdb_mb_chunk_value(duckdb_mb_chunk *chunk,
+                                      int32_t col,
+                                      int32_t row) {
+  if (!chunk || !chunk->chunk || !chunk->column_types) {
+    return moonbit_make_bytes_raw(0);
+  }
+  if (col < 0 || col >= chunk->column_count || row < 0) {
+    return moonbit_make_bytes_raw(0);
+  }
+  duckdb_vector vector = duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+  return duckdb_mb_cell_to_bytes(vector, chunk->column_types[col], (idx_t)row);
 }
 
 // ============================================================================
@@ -2793,4 +2919,662 @@ moonbit_bytes_t duckdb_mb_arrow_get_column_bool_nullable(
   }
 
   return result;
+}
+
+// ============================================================================
+// Canonical typed vector readers (issue #61)
+// ============================================================================
+//
+// These functions bulk-copy one column of a fetched data chunk into owned
+// MoonBit arrays. Borrowed `duckdb_vector` handles never escape C — each
+// call copies into a freshly allocated MoonBit array, so the resulting
+// `Vector` outlives the chunk it was decoded from.
+
+// Borrowed vector handle for column `col` of a fetched chunk. The handle is
+// only valid while `chunk` is alive — materialize it into owned MoonBit
+// arrays before destroying the chunk.
+duckdb_vector duckdb_mb_chunk_vector(duckdb_mb_chunk *chunk, int32_t col) {
+  if (!chunk || !chunk->chunk || col < 0 || col >= chunk->column_count) {
+    return NULL;
+  }
+  return duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+}
+
+// Column type ids of a fetched chunk (as declared at query time).
+duckdb_type duckdb_mb_chunk_column_type(duckdb_mb_chunk *chunk, int32_t col) {
+  if (!chunk || !chunk->column_types || col < 0 || col >= chunk->column_count) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  return chunk->column_types[col];
+}
+
+// 0/1 validity flags for `rows` rows of `vector` (1 = valid). Returns NULL on
+// invalid input; an all-valid column yields all ones.
+int32_t *duckdb_mb_vector_validity_flags(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  int32_t *flags = moonbit_make_int32_array_raw(rows);
+  if (!flags) {
+    return NULL;
+  }
+  uint64_t *validity = duckdb_vector_get_validity(vector);
+  for (int32_t row = 0; row < rows; row++) {
+    flags[row] =
+        (!validity || duckdb_validity_row_is_valid(validity, (idx_t)row)) ? 1
+                                                                        : 0;
+  }
+  return flags;
+}
+
+// BOOLEAN column -> int32 flags.
+int32_t *duckdb_mb_vector_bool(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  bool *data = (bool *)duckdb_vector_get_data(vector);
+  int32_t *out = moonbit_make_int32_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    out[row] = data[row] ? 1 : 0;
+  }
+  return out;
+}
+
+// TINYINT/SMALLINT/INTEGER/UTINYINT/USMALLINT/DATE column -> int32 values.
+int32_t *duckdb_mb_vector_i32(duckdb_vector vector,
+                              duckdb_type type,
+                              int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int32_t *out = moonbit_make_int32_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  switch (type) {
+  case DUCKDB_TYPE_TINYINT: {
+    int8_t *src = (int8_t *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row];
+    }
+    break;
+  }
+  case DUCKDB_TYPE_SMALLINT: {
+    int16_t *src = (int16_t *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row];
+    }
+    break;
+  }
+  case DUCKDB_TYPE_UTINYINT: {
+    uint8_t *src = (uint8_t *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row];
+    }
+    break;
+  }
+  case DUCKDB_TYPE_USMALLINT: {
+    uint16_t *src = (uint16_t *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row];
+    }
+    break;
+  }
+  default:
+    memcpy(out, data, sizeof(int32_t) * (size_t)rows);
+    break;
+  }
+  return out;
+}
+
+// BIGINT/UINTEGER/TIME/TIMESTAMP*/TIME_NS column -> int64 values.
+// Payloads keep DuckDB's raw per-type unit (TIMESTAMP_S seconds,
+// TIMESTAMP_MS millis, TIMESTAMP_NS nanos, others micros/plain ints);
+// the MoonBit side renders each `ColumnType` in its stored unit.
+int64_t *duckdb_mb_vector_i64(duckdb_vector vector,
+                              duckdb_type type,
+                              int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  if (type == DUCKDB_TYPE_UINTEGER) {
+    uint32_t *src = (uint32_t *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = (int64_t)src[row];
+    }
+  } else if (type == DUCKDB_TYPE_TIMESTAMP_S) {
+    // Seconds -> microseconds (canonical timestamp unit).
+    duckdb_timestamp *src = (duckdb_timestamp *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row].micros * 1000000;
+    }
+  } else if (type == DUCKDB_TYPE_TIMESTAMP_MS) {
+    // Millis -> microseconds.
+    duckdb_timestamp *src = (duckdb_timestamp *)data;
+    for (int32_t row = 0; row < rows; row++) {
+      out[row] = src[row].micros * 1000;
+    }
+  } else {
+    // TIMESTAMP_NS keeps nanoseconds; everything else is already
+    // stored as int64 micros or plain ints.
+    memcpy(out, data, sizeof(int64_t) * (size_t)rows);
+  }
+  return out;
+}
+
+// UBIGINT column -> raw uint64 bits (int64 array reinterpreted on the
+// MoonBit side as FixedArray[UInt64]).
+int64_t *duckdb_mb_vector_u64(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  memcpy(out, data, sizeof(uint64_t) * (size_t)rows);
+  return out;
+}
+
+// FLOAT column.
+float *duckdb_mb_vector_f32(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  float *out = moonbit_make_float_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  memcpy(out, data, sizeof(float) * (size_t)rows);
+  return out;
+}
+
+// DOUBLE column.
+double *duckdb_mb_vector_f64(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  double *out = moonbit_make_double_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  memcpy(out, data, sizeof(double) * (size_t)rows);
+  return out;
+}
+
+// VARCHAR/ENUM column -> ref array of utf8 byte strings (MoonBit decodes
+// with the same lossy-utf8 path as the legacy row API).
+void **duckdb_mb_vector_strings(duckdb_vector vector,
+                                duckdb_type type,
+                                int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  void **out = moonbit_make_ref_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  duckdb_logical_type ltype = NULL;
+  if (type == DUCKDB_TYPE_ENUM) {
+    ltype = duckdb_vector_get_column_type(vector);
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    if (type == DUCKDB_TYPE_ENUM) {
+      uint32_t dict_size = ltype ? duckdb_enum_dictionary_size(ltype) : 0;
+      uint32_t index;
+      if (dict_size <= 256) {
+        index = ((uint8_t *)data)[row];
+      } else if (dict_size <= 65536) {
+        index = ((uint16_t *)data)[row];
+      } else {
+        index = ((uint32_t *)data)[row];
+      }
+      char *member =
+          ltype ? duckdb_enum_dictionary_value(ltype, (idx_t)index) : NULL;
+      out[row] = member ? duckdb_mb_make_bytes(member, strlen(member))
+                        : moonbit_make_bytes_raw(0);
+      if (member) {
+        duckdb_free(member);
+      }
+    } else {
+      duckdb_string_t str = ((duckdb_string_t *)data)[row];
+      const char *ptr = duckdb_string_t_data(&str);
+      idx_t len = duckdb_string_t_length(str);
+      out[row] = ptr ? duckdb_mb_make_bytes(ptr, len) : moonbit_make_bytes_raw(0);
+    }
+  }
+  if (ltype) {
+    duckdb_destroy_logical_type(&ltype);
+  }
+  return out;
+}
+
+// BLOB column -> ref array of raw byte strings.
+void **duckdb_mb_vector_blobs(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  void **out = moonbit_make_ref_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    duckdb_string_t blob = ((duckdb_string_t *)data)[row];
+    const char *ptr = duckdb_string_t_data(&blob);
+    idx_t len = duckdb_string_t_length(blob);
+    out[row] = ptr ? duckdb_mb_make_bytes(ptr, len) : moonbit_make_bytes_raw(0);
+  }
+  return out;
+}
+
+// HUGEINT/UHUGEINT/UUID/DECIMAL 128-bit columns: lower halves as uint64 bits.
+int64_t *duckdb_mb_vector_i128_lo(duckdb_vector vector,
+                                  duckdb_type type,
+                                  int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    if (type == DUCKDB_TYPE_UHUGEINT) {
+      out[row] = (int64_t)((duckdb_uhugeint *)data)[row].lower;
+    } else if (type == DUCKDB_TYPE_UUID) {
+      out[row] = (int64_t)((duckdb_uhugeint *)data)[row].lower;
+    } else {
+      out[row] = (int64_t)((duckdb_hugeint *)data)[row].lower;
+    }
+  }
+  return out;
+}
+
+// HUGEINT/UHUGEINT/UUID 128-bit columns: upper halves. UUID upper bits are
+// converted back to uhugeint space (duckdb_uhugeint) by flipping the sign bit.
+int64_t *duckdb_mb_vector_i128_hi(duckdb_vector vector,
+                                duckdb_type type,
+                                int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    if (type == DUCKDB_TYPE_UHUGEINT) {
+      out[row] = (int64_t)((duckdb_uhugeint *)data)[row].upper;
+    } else if (type == DUCKDB_TYPE_UUID) {
+      // Stored as hugeint with the sign bit flipped.
+      out[row] = (int64_t)(((duckdb_uhugeint *)data)[row].upper ^
+                           0x8000000000000000ULL);
+    } else {
+      out[row] = ((duckdb_hugeint *)data)[row].upper;
+    }
+  }
+  return out;
+}
+
+// DECIMAL columns: width/scale plus int64 lo/hi halves sign-extended from the
+// internal physical type. `duckdb_mb_vector_decimal_kind` returns the width
+// and scale packed as (width << 16) | scale for a single FFI round trip.
+int32_t duckdb_mb_vector_decimal_meta(duckdb_vector vector) {
+  if (!vector) {
+    return 0;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return 0;
+  }
+  int32_t meta = ((int32_t)duckdb_decimal_width(ltype) << 16) |
+                 (int32_t)duckdb_decimal_scale(ltype);
+  duckdb_destroy_logical_type(&ltype);
+  return meta;
+}
+
+// DECIMAL column -> lo halves sign-extended to 128 bits.
+int64_t *duckdb_mb_vector_decimal_lo(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  duckdb_type internal =
+      ltype ? duckdb_decimal_internal_type(ltype) : DUCKDB_TYPE_HUGEINT;
+  for (int32_t row = 0; row < rows; row++) {
+    switch (internal) {
+    case DUCKDB_TYPE_SMALLINT:
+      out[row] = (int64_t)(uint64_t)(int64_t)((int16_t *)data)[row];
+      break;
+    case DUCKDB_TYPE_INTEGER:
+      out[row] = (int64_t)(uint64_t)(int64_t)((int32_t *)data)[row];
+      break;
+    case DUCKDB_TYPE_BIGINT:
+      out[row] = (int64_t)(uint64_t)((int64_t *)data)[row];
+      break;
+    default:
+      out[row] = (int64_t)((duckdb_hugeint *)data)[row].lower;
+      break;
+    }
+  }
+  if (ltype) {
+    duckdb_destroy_logical_type(&ltype);
+  }
+  return out;
+}
+
+// DECIMAL column -> hi halves (sign extension for narrow internals).
+int64_t *duckdb_mb_vector_decimal_hi(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  duckdb_type internal =
+      ltype ? duckdb_decimal_internal_type(ltype) : DUCKDB_TYPE_HUGEINT;
+  for (int32_t row = 0; row < rows; row++) {
+    switch (internal) {
+    case DUCKDB_TYPE_SMALLINT:
+      out[row] = ((int64_t)((int16_t *)data)[row]) >> 63;
+      break;
+    case DUCKDB_TYPE_INTEGER:
+      out[row] = ((int64_t)((int32_t *)data)[row]) >> 63;
+      break;
+    case DUCKDB_TYPE_BIGINT:
+      out[row] = ((int64_t *)data)[row] >> 63;
+      break;
+    default:
+      out[row] = ((duckdb_hugeint *)data)[row].upper;
+      break;
+    }
+  }
+  if (ltype) {
+    duckdb_destroy_logical_type(&ltype);
+  }
+  return out;
+}
+
+// INTERVAL column -> flattened int64 triples [months, days, micros] per row.
+int64_t *duckdb_mb_vector_interval(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows * 3);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    duckdb_interval iv = ((duckdb_interval *)data)[row];
+    out[row * 3] = iv.months;
+    out[row * 3 + 1] = iv.days;
+    out[row * 3 + 2] = iv.micros;
+  }
+  return out;
+}
+
+// LIST column -> per-row offsets (uint64 bits) into the child vector.
+int64_t *duckdb_mb_vector_list_offsets(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    out[row] = (int64_t)((duckdb_list_entry *)data)[row].offset;
+  }
+  return out;
+}
+
+// LIST column -> per-row entry counts (uint64 bits).
+int64_t *duckdb_mb_vector_list_lengths(duckdb_vector vector, int32_t rows) {
+  if (!vector || rows < 0) {
+    return NULL;
+  }
+  void *data = duckdb_vector_get_data(vector);
+  int64_t *out = moonbit_make_int64_array_raw(rows);
+  if (!data || !out) {
+    return NULL;
+  }
+  for (int32_t row = 0; row < rows; row++) {
+    out[row] = (int64_t)((duckdb_list_entry *)data)[row].length;
+  }
+  return out;
+}
+
+// LIST column -> borrowed child vector and its element count.
+// The child is only valid while the chunk is alive; materialize it before
+// destroying the chunk.
+duckdb_vector duckdb_mb_vector_list_child(duckdb_vector vector) {
+  if (!vector) {
+    return NULL;
+  }
+  return duckdb_list_vector_get_child(vector);
+}
+
+int64_t duckdb_mb_vector_list_child_size(duckdb_vector vector) {
+  if (!vector) {
+    return 0;
+  }
+  return (int64_t)duckdb_list_vector_get_size(vector);
+}
+
+// STRUCT column -> child count, borrowed child vector, and field name.
+int32_t duckdb_mb_vector_struct_child_count(duckdb_vector vector) {
+  if (!vector) {
+    return 0;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return 0;
+  }
+  int32_t count = (int32_t)duckdb_struct_type_child_count(ltype);
+  duckdb_destroy_logical_type(&ltype);
+  return count;
+}
+
+duckdb_vector duckdb_mb_vector_struct_child(duckdb_vector vector,
+                                            int32_t child) {
+  if (!vector) {
+    return NULL;
+  }
+  return duckdb_struct_vector_get_child(vector, (idx_t)child);
+}
+
+moonbit_bytes_t duckdb_mb_vector_struct_child_name(duckdb_vector vector,
+                                                  int32_t child) {
+  if (!vector) {
+    return moonbit_make_bytes_raw(0);
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return moonbit_make_bytes_raw(0);
+  }
+  char *name = duckdb_struct_type_child_name(ltype, (idx_t)child);
+  moonbit_bytes_t bytes = name ? duckdb_mb_make_bytes(name, strlen(name))
+                               : moonbit_make_bytes_raw(0);
+  if (name) {
+    duckdb_free(name);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return bytes;
+}
+
+// ARRAY column -> fixed child count per row and borrowed child vector.
+int32_t duckdb_mb_vector_array_size(duckdb_vector vector) {
+  if (!vector) {
+    return 0;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return 0;
+  }
+  int32_t size = (int32_t)duckdb_array_type_array_size(ltype);
+  duckdb_destroy_logical_type(&ltype);
+  return size;
+}
+
+duckdb_vector duckdb_mb_vector_array_child(duckdb_vector vector) {
+  if (!vector) {
+    return NULL;
+  }
+  return duckdb_array_vector_get_child(vector);
+}
+
+// Logical-type child introspection for LIST/MAP/ARRAY/STRUCT columns, so the
+// MoonBit decoder can type nested vectors. Returns DUCKDB_TYPE_INVALID when
+// unavailable.
+duckdb_type duckdb_mb_vector_list_child_type(duckdb_vector vector) {
+  if (!vector) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type child = duckdb_list_type_child_type(ltype);
+  duckdb_type id = child ? duckdb_get_type_id(child) : DUCKDB_TYPE_INVALID;
+  if (child) {
+    duckdb_destroy_logical_type(&child);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return id;
+}
+
+duckdb_type duckdb_mb_vector_map_key_type(duckdb_vector vector) {
+  if (!vector) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type child = duckdb_map_type_key_type(ltype);
+  duckdb_type id = child ? duckdb_get_type_id(child) : DUCKDB_TYPE_INVALID;
+  if (child) {
+    duckdb_destroy_logical_type(&child);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return id;
+}
+
+duckdb_type duckdb_mb_vector_map_value_type(duckdb_vector vector) {
+  if (!vector) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type child = duckdb_map_type_value_type(ltype);
+  duckdb_type id = child ? duckdb_get_type_id(child) : DUCKDB_TYPE_INVALID;
+  if (child) {
+    duckdb_destroy_logical_type(&child);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return id;
+}
+
+duckdb_type duckdb_mb_vector_array_child_type(duckdb_vector vector) {
+  if (!vector) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type child = duckdb_array_type_child_type(ltype);
+  duckdb_type id = child ? duckdb_get_type_id(child) : DUCKDB_TYPE_INVALID;
+  if (child) {
+    duckdb_destroy_logical_type(&child);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return id;
+}
+
+duckdb_type duckdb_mb_vector_struct_child_type(duckdb_vector vector,
+                                               int32_t child) {
+  if (!vector) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type ltype = duckdb_vector_get_column_type(vector);
+  if (!ltype) {
+    return DUCKDB_TYPE_INVALID;
+  }
+  duckdb_logical_type child_type =
+      duckdb_struct_type_child_type(ltype, (idx_t)child);
+  duckdb_type id =
+      child_type ? duckdb_get_type_id(child_type) : DUCKDB_TYPE_INVALID;
+  if (child_type) {
+    duckdb_destroy_logical_type(&child_type);
+  }
+  duckdb_destroy_logical_type(&ltype);
+  return id;
+}
+
+// Single cell rendered as a utf8 string via `duckdb_mb_cell_to_bytes`.
+// Fallback path for types without a dedicated vector layout (UNION, BIT,
+// TIME_TZ, BIGNUM, ...) — used to fill `VectorData::Any` cells.
+moonbit_bytes_t duckdb_mb_vector_cell_string(duckdb_vector vector,
+                                             duckdb_type type,
+                                             int32_t row) {
+  if (!vector || row < 0) {
+    return moonbit_make_bytes_raw(0);
+  }
+  return duckdb_mb_cell_to_bytes(vector, type, (idx_t)row);
+}
+
+// Whole column rendered as per-cell utf8 strings, reusing
+// `duckdb_mb_cell_to_bytes`. Used by the compat row API so the legacy string
+// output flows through the canonical chunk path.
+void **duckdb_mb_chunk_col_strings(duckdb_mb_chunk *chunk, int32_t col) {
+  if (!chunk || !chunk->chunk || col < 0 || col >= chunk->column_count) {
+    return NULL;
+  }
+  int32_t rows = (int32_t)duckdb_data_chunk_get_size(chunk->chunk);
+  void **out = moonbit_make_ref_array_raw(rows);
+  if (!out) {
+    return NULL;
+  }
+  duckdb_vector vector =
+      duckdb_data_chunk_get_vector(chunk->chunk, (idx_t)col);
+  duckdb_type type =
+      chunk->column_types ? chunk->column_types[col] : DUCKDB_TYPE_INVALID;
+  uint64_t *validity = duckdb_vector_get_validity(vector);
+  for (int32_t row = 0; row < rows; row++) {
+    if (validity && !duckdb_validity_row_is_valid(validity, (idx_t)row)) {
+      out[row] = moonbit_make_bytes_raw(0);
+      continue;
+    }
+    out[row] = duckdb_mb_cell_to_bytes(vector, type, (idx_t)row);
+  }
+  return out;
 }

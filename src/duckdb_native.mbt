@@ -513,7 +513,6 @@ pub fn Connection::query(
     on_done(Err(native_typed_error(query_error, "duckdb_query failed")))
   } else {
     let column_count = native_result_column_count(result)
-    let row_count = native_result_row_count(result)
     let columns : Array[String] = []
     let column_types : Array[ColumnType] = []
     for col = 0; col < column_count; col = col + 1 {
@@ -524,26 +523,23 @@ pub fn Connection::query(
     } nobreak {
       ()
     }
+    // Compat facade: materialize through the canonical chunk path
+    // (duckdb_fetch_chunk) instead of per-cell `duckdb_value_varchar`.
     let rows : Array[Array[String]] = []
     let nulls : Array[Array[Bool]] = []
-    for row = 0; row < row_count; row = row + 1 {
-      let row_values : Array[String] = []
-      let row_nulls : Array[Bool] = []
-      for col = 0; col < column_count; col = col + 1 {
-        let is_null = native_result_is_null(result, col, row)
-        row_nulls.push(is_null)
-        if is_null {
-          row_values.push("")
-        } else {
-          row_values.push(
-            bytes_to_string(native_result_value(result, col, row)),
-          )
-        }
-      } nobreak {
-        ()
+    for ;; {
+      let chunk = native_result_fetch_chunk(result)
+      if native_is_null_chunk(chunk) {
+        break
       }
-      rows.push(row_values)
-      nulls.push(row_nulls)
+      let (chunk_rows, chunk_nulls) = native_chunk_string_rows(chunk)
+      native_chunk_destroy(chunk)
+      for row in chunk_rows {
+        rows.push(row)
+      }
+      for row_nulls in chunk_nulls {
+        nulls.push(row_nulls)
+      }
     } nobreak {
       ()
     }
@@ -604,29 +600,7 @@ pub fn ResultStream::next(
       on_done(Ok(None))
     } else {
       let columns = self.columns()
-      let rows : Array[Array[String]] = []
-      let nulls : Array[Array[Bool]] = []
-      for row = 0; row < row_count; row = row + 1 {
-        let row_values : Array[String] = []
-        let row_nulls : Array[Bool] = []
-        for col = 0; col < column_count; col = col + 1 {
-          let is_null = native_chunk_is_null(chunk, col, row)
-          row_nulls.push(is_null)
-          if is_null {
-            row_values.push("")
-          } else {
-            row_values.push(
-              bytes_to_string(native_chunk_value(chunk, col, row)),
-            )
-          }
-        } nobreak {
-          ()
-        }
-        rows.push(row_values)
-        nulls.push(row_nulls)
-      } nobreak {
-        ()
-      }
+      let (rows, nulls) = native_chunk_string_rows(chunk)
       native_chunk_destroy(chunk)
       on_done(Ok(Some({ columns, rows, nulls, })))
     }
@@ -902,7 +876,6 @@ pub fn PreparedStatement::execute(
     on_done(Err(native_typed_error(query_error, "execute_prepared failed")))
   } else {
     let column_count = native_result_column_count(result)
-    let row_count = native_result_row_count(result)
     let columns : Array[String] = []
     let column_types : Array[ColumnType] = []
     for col = 0; col < column_count; col = col + 1 {
@@ -913,26 +886,22 @@ pub fn PreparedStatement::execute(
     } nobreak {
       ()
     }
+    // Compat facade: materialize through the canonical chunk path.
     let rows : Array[Array[String]] = []
     let nulls : Array[Array[Bool]] = []
-    for row = 0; row < row_count; row = row + 1 {
-      let row_values : Array[String] = []
-      let row_nulls : Array[Bool] = []
-      for col = 0; col < column_count; col = col + 1 {
-        let is_null = native_result_is_null(result, col, row)
-        row_nulls.push(is_null)
-        if is_null {
-          row_values.push("")
-        } else {
-          row_values.push(
-            bytes_to_string(native_result_value(result, col, row)),
-          )
-        }
-      } nobreak {
-        ()
+    for ;; {
+      let chunk = native_result_fetch_chunk(result)
+      if native_is_null_chunk(chunk) {
+        break
       }
-      rows.push(row_values)
-      nulls.push(row_nulls)
+      let (chunk_rows, chunk_nulls) = native_chunk_string_rows(chunk)
+      native_chunk_destroy(chunk)
+      for row in chunk_rows {
+        rows.push(row)
+      }
+      for row_nulls in chunk_nulls {
+        nulls.push(row_nulls)
+      }
     } nobreak {
       ()
     }

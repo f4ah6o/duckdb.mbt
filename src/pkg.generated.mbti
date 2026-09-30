@@ -6,6 +6,8 @@ import {
 }
 
 // Values
+pub fn chunks_to_query_result(Array[VectorChunk]) -> QueryResult
+
 pub fn column_type_from_id(Int) -> ColumnType
 
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
@@ -263,7 +265,9 @@ pub enum ColumnType {
   IntegerLiteral
   TimeNs
   Unknown(Int)
-}
+} derive(Eq)
+pub fn ColumnType::equal(Self, Self) -> Bool
+pub fn ColumnType::not_equal(Self, Self) -> Bool
 
 pub type Config
 pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
@@ -281,6 +285,7 @@ pub fn Connection::prepare(Self, String, on_done~ : (Result[PreparedStatement, D
 pub fn Connection::quack_query(Self, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query(Self, String, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query_arrow(Self, String, on_done~ : (Result[ArrowResult, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::query_chunks(Self, String, on_done~ : (Result[Array[VectorChunk], DuckDBError]) -> Unit) -> Unit
 pub fn Connection::query_stream(Self, String, on_done~ : (Result[ResultStream, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::start_quack_server(Self, String, token? : String, allow_other_hostname? : Bool, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::stop_quack_server(Self, String, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
@@ -325,9 +330,6 @@ pub struct List {
   elements : Array[String]
 }
 
-#external
-pub type LogicalType
-
 pub struct Map {
   keys : Array[String]
   values : Array[String]
@@ -335,6 +337,12 @@ pub struct Map {
 
 #external
 pub type NativeDataChunk
+
+#external
+pub type NativeLogicalType
+
+#external
+pub type NativeVector
 
 pub type PreparedStatement
 pub fn PreparedStatement::backend(Self) -> Backend
@@ -356,6 +364,7 @@ pub fn PreparedStatement::capabilities(Self) -> BackendCapabilities
 pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn PreparedStatement::execute(Self, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit
+pub fn PreparedStatement::execute_chunks(Self, on_done~ : (Result[Array[VectorChunk], DuckDBError]) -> Unit) -> Unit
 pub fn PreparedStatement::execute_stream(Self, on_done~ : (Result[ResultStream, DuckDBError]) -> Unit) -> Unit
 
 pub struct QueryResult {
@@ -383,6 +392,7 @@ pub fn ResultStream::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit)
 pub fn ResultStream::column_count(Self) -> Int
 pub fn ResultStream::columns(Self) -> Array[String]
 pub fn ResultStream::next(Self, on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit) -> Unit
+pub fn ResultStream::next_chunk(Self, on_done~ : (Result[VectorChunk?, DuckDBError]) -> Unit) -> Unit
 
 pub struct Struct {
   fields : Array[String]
@@ -414,15 +424,23 @@ pub fn TypedQueryResult::get_value(Self, Int, Int) -> Value?
 pub fn TypedQueryResult::is_null(Self, Int, Int) -> Bool
 pub fn TypedQueryResult::row_count(Self) -> Int
 
-pub enum Value {
+pub(all) enum Value {
   Int(Int)
+  Int64(Int64)
+  UInt64(UInt64)
   Double(Double)
   Bool(Bool)
   String(String)
   Date(Int)
   Timestamp(Int64)
+  TimestampNs(Int64)
   Decimal(Decimal)
+  Interval(Interval)
+  HugeInt(lower~ : UInt64, upper~ : Int64)
   Blob(Bytes)
+  List(Array[Value])
+  Struct(fields~ : Array[String], values~ : Array[Value])
+  Map(keys~ : Array[Value], values~ : Array[Value])
   Null
 }
 pub fn Value::as_blob(Self) -> Bytes?
@@ -433,11 +451,65 @@ pub fn Value::as_double(Self) -> Double?
 pub fn Value::as_int(Self) -> Int?
 pub fn Value::as_string(Self) -> String?
 pub fn Value::as_timestamp(Self) -> Int64?
+pub fn Value::as_timestamp_ns(Self) -> Int64?
 pub fn Value::is_null(Self) -> Bool
 pub fn Value::to_string(Self) -> String
 
-#external
-pub type Vector
+pub(all) struct Vector {
+  logical_type : ColumnType
+  data : VectorData
+  validity : FixedArray[Bool]
+}
+pub fn Vector::any_cells(Self) -> Array[Value]?
+pub fn Vector::blobs(Self) -> Array[Bytes]?
+pub fn Vector::bools(Self) -> FixedArray[Bool]?
+pub fn Vector::decimals(Self) -> FixedArray[Decimal]?
+pub fn Vector::doubles(Self) -> FixedArray[Double]?
+pub fn Vector::int64s(Self) -> FixedArray[Int64]?
+pub fn Vector::intervals(Self) -> FixedArray[Interval]?
+pub fn Vector::ints(Self) -> FixedArray[Int]?
+pub fn Vector::is_null(Self, Int) -> Bool
+pub fn Vector::len(Self) -> Int
+pub fn Vector::list_parts(Self) -> (Self, FixedArray[UInt64], FixedArray[UInt64])?
+pub fn Vector::map_parts(Self) -> (FixedArray[UInt64], FixedArray[UInt64], Self, Self)?
+pub fn Vector::string_at(Self, Int) -> String
+pub fn Vector::strings(Self) -> Array[String]?
+pub fn Vector::struct_parts(Self) -> (Array[String], Array[Self])?
+pub fn Vector::uint64s(Self) -> FixedArray[UInt64]?
+pub fn Vector::value_at(Self, Int) -> Value
+
+pub(all) struct VectorChunk {
+  columns : Array[String]
+  vectors : Array[Vector]
+}
+pub fn VectorChunk::column(Self, Int) -> Vector?
+pub fn VectorChunk::column_by_name(Self, String) -> Vector?
+pub fn VectorChunk::column_count(Self) -> Int
+pub fn VectorChunk::column_type(Self, Int) -> ColumnType
+pub fn VectorChunk::get_value(Self, Int, Int) -> Value?
+pub fn VectorChunk::is_null(Self, Int, Int) -> Bool
+pub fn VectorChunk::row_count(Self) -> Int
+pub fn VectorChunk::to_data_chunk(Self) -> DataChunk
+pub fn VectorChunk::to_query_result(Self) -> QueryResult
+pub fn VectorChunk::to_typed(Self) -> TypedQueryResult
+
+pub(all) enum VectorData {
+  Bool(FixedArray[Bool])
+  Int32(FixedArray[Int])
+  Int64(FixedArray[Int64])
+  UInt64(FixedArray[UInt64])
+  Float(FixedArray[Float])
+  Double(FixedArray[Double])
+  Varchar(Array[String])
+  Blob(Array[Bytes])
+  Decimal(FixedArray[Decimal])
+  Interval(FixedArray[Interval])
+  HugeInt(lower~ : FixedArray[UInt64], upper~ : FixedArray[Int64])
+  List(child~ : Vector, offsets~ : FixedArray[UInt64], lengths~ : FixedArray[UInt64])
+  Struct(fields~ : Array[String], children~ : Array[Vector])
+  Map(offsets~ : FixedArray[UInt64], lengths~ : FixedArray[UInt64], keys~ : Vector, values~ : Vector)
+  Any(Array[Value])
+}
 
 // Type aliases
 
