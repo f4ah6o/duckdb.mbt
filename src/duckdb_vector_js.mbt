@@ -461,6 +461,42 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    return src;
   #|  };
   #|
+  #|  // apache-arrow >= 9 wraps `Data` chunks in `vector.data` (an array);
+  #|  // older arrows exposed a single `Data`. Normalize to a chunk list.
+  #|  const dataChunks = (v) => {
+  #|    const d = v && v.data;
+  #|    return Array.isArray(d) ? d : d ? [d] : [];
+  #|  };
+  #|
+  #|  // Row bounds of a variable-width parent (LIST/MAP): each chunk's
+  #|  // `valueOffsets` is windowed to the chunk's own row range while its
+  #|  // values are absolute indexes into that chunk's child data, so the
+  #|  // emitted bounds shift by the chunk's base row and its base element
+  #|  // index inside the concatenated child vector.
+  #|  const nestedBounds = (vector, child) => {
+  #|    const chunks = dataChunks(vector);
+  #|    const childChunks = dataChunks(child);
+  #|    const rowBase = [], childBase = [];
+  #|    let rAcc = 0, cAcc = 0;
+  #|    for (let i = 0; i < chunks.length; i++) {
+  #|      rowBase.push(rAcc);
+  #|      childBase.push(cAcc);
+  #|      rAcc += chunks[i].length;
+  #|      cAcc += childChunks[i] ? childChunks[i].length : 0;
+  #|    }
+  #|    return (r) => {
+  #|      let c = 0;
+  #|      while (c + 1 < chunks.length && r >= rowBase[c] + chunks[c].length) c++;
+  #|      const vo = chunks[c] && chunks[c].valueOffsets;
+  #|      if (!vo) {
+  #|        throw new Error("nested vector is missing valueOffsets");
+  #|      }
+  #|      const local = r - rowBase[c];
+  #|      const off = Number(vo[local]);
+  #|      return [childBase[c] + off, Number(vo[local + 1]) - off];
+  #|    };
+  #|  };
+  #|
   #|  const wasmSrc = (vector, atype) => {
   #|    const type = (vector && vector.type) || atype || null;
   #|    const src = {
@@ -482,22 +518,17 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    if (vector && typeof vector.getChildAt === "function") {
   #|      src.nested = {
   #|        // LIST/FixedSizeList: real offsets buffer, or synthesized
-  #|        // (offset + r) * listSize bounds for fixed arrays.
+  #|        // r * listSize bounds for fixed arrays (their children are
+  #|        // sliced to the parent window, so emitted indexes are
+  #|        // child-relative).
   #|        list: () => {
-  #|          const data = vector.data;
-  #|          const base = data && data.offset ? data.offset | 0 : 0;
+  #|          const child = vector.getChildAt(0);
   #|          const fixed = type && type.listSize !== undefined
   #|            ? type.listSize | 0 : -1;
-  #|          const vo = data && data.valueOffsets;
-  #|          const bounds = (r) => {
-  #|            if (fixed >= 0) {
-  #|              const s = (base + r) * fixed;
-  #|              return [s, fixed];
-  #|            }
-  #|            const off = Number(vo[base + r]);
-  #|            return [off, Number(vo[base + r + 1]) - off];
-  #|          };
-  #|          return { bounds, child: wasmSrc(vector.getChildAt(0)) };
+  #|          const bounds = fixed >= 0
+  #|            ? (r) => [r * fixed, fixed]
+  #|            : nestedBounds(vector, child);
+  #|          return { bounds, child: wasmSrc(child) };
   #|        },
   #|        // STRUCT: child vectors align 1:1 with parent rows; field names
   #|        // come from type.children (arrow Field).
@@ -512,17 +543,10 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|        // children are keys/values.
   #|        map: () => {
   #|          const entries = vector.getChildAt(0);
-  #|          const data = vector.data;
-  #|          const base = data && data.offset ? data.offset | 0 : 0;
-  #|          const vo = data && data.valueOffsets;
-  #|          const bounds = (r) => {
-  #|            const off = Number(vo[base + r]);
-  #|            return [off, Number(vo[base + r + 1]) - off];
-  #|          };
   #|          return {
-  #|            bounds,
-  #|            keys: wasmSrc(entries.getChildAt(0)),
-  #|            values: wasmSrc(entries.getChildAt(1)),
+  #|            bounds: nestedBounds(vector, entries),
+  #|            keys: wasmSrc(entries && entries.getChildAt(0)),
+  #|            values: wasmSrc(entries && entries.getChildAt(1)),
   #|          };
   #|        },
   #|      };
