@@ -2,6 +2,10 @@
 
 MoonBit bindings for DuckDB on native and JavaScript targets.
 
+> **Upgrading from 0.6.4?** See [MIGRATION.md](MIGRATION.md) for the
+> 0.6.4 → 0.7.0 breaking changes (structured errors, 128-bit Decimal, typed
+> Arrow vectors, the `quack` package move) with before/after examples.
+
 ## Targets
 
 - **Native**: links against `libduckdb` via the DuckDB C API.
@@ -61,10 +65,18 @@ changing capabilities; CI regenerates the section and fails on drift.
 Basic support is available on all targets:
 - Arrow query result type
 - Schema extraction
-- Column-based data access (native also exposes nullable getters)
-- Supported types: BOOLEAN, INTEGER, VARCHAR, DOUBLE, BIGINT
+- Columnar access via canonical typed vectors (`ArrowResult::to_chunks` +
+  `Vector` accessors); the legacy `get_column_*` getters still work as
+  deprecated forwarders — see [MIGRATION.md](MIGRATION.md)
+- Supported types: BOOLEAN, INTEGER, VARCHAR, DOUBLE, BIGINT (plus wider
+  `ColumnType` coverage through the typed vectors)
 
-**Note:** Complex types (List, Struct, Map) are not yet supported.
+**Note:** Nested columns (List, Struct, Map) decode logically on every
+backend — `Vector::value_at(row)` yields `Value::List`/`Struct`/`Map`,
+and the typed accessors (`list_parts`/`struct_parts`/`map_parts`) work
+because real `VectorData::List`/`Struct`/`Map` is produced. A tagged-JSON
+`Any` cell fallback remains only for genuinely unsupported types
+(UNION/BIT/TIME_TZ/BIGNUM).
 
 ## CI Coverage
 
@@ -515,7 +527,11 @@ connect_with_config(
 
 All `bind_*` methods and `Config::set` return `Result[Unit, DuckDBError]` on both native and JS targets:
 - **Success**: Returns `Ok(())`
-- **Failure**: Returns `Err(DuckDBError::Message(reason))`
+- **Failure**: Returns `Err(err)` where `err` is a structured `DuckDBError`
+  variant (`Query`, `Prepare`, `Bind`, `Append`, `Unsupported`, `Closed`,
+  `InvalidArgument`, `Backend`, `DuckDB`); `err.message()` returns the
+  diagnostic text and `err.error_type()` the engine classification when one
+  exists. See [MIGRATION.md](MIGRATION.md) for the 0.6.4 `Message` migration.
 
 On JS targets, bind operations are synchronous and errors are properly propagated. Use pattern matching to handle errors:
 
