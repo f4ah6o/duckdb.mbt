@@ -57,18 +57,33 @@ extern "js" fn js_run_stream_vectors(backend : Int, sql : String) -> String =
   #|    "const run = async () => {",
   #|    "  const conn = await new Promise((res, rej) => js_connect(':memory:', backend, res, rej));",
   #|    "  const stream = await new Promise((res, rej) => js_query_stream(conn, sql, res, rej));",
-  #|    "  const chunks = [];",
+  #|    "  const emits = [];",
   #|    "  for (;;) {",
-  #|    "    const chunk = await nextVectors(stream);",
-  #|    "    if (chunk.columns.length === 0) break;",
-  #|    "    chunks.push(chunk);",
+  #|    "    const emit = await nextVectors(stream);",
+  #|    "    emits.push(emit);",
+  #|    "    if (emit.columns.length === 0) break;",
+  #|    "  }",
+  #|    "  // Public next_chunk view (js_chunk_is_eos with keep_schema=false):",
+  #|    "  // a 0-row or columnless emit is end-of-stream, matching native's",
+  #|    "  // row_count() <= 0 filter. A caller stops at the first None.",
+  #|    "  const publicNext = [];",
+  #|    "  for (const emit of emits) {",
+  #|    "    if (emit.columns.length === 0 || emit.rowCount <= 0) {",
+  #|    "      publicNext.push('none');",
+  #|    "      break;",
+  #|    "    }",
+  #|    "    publicNext.push('some');",
   #|    "  }",
   #|    "  await new Promise((res, rej) => js_stream_close(stream, res, rej));",
   #|    "  await new Promise((res, rej) => js_close(conn, res, rej));",
-  #|    "  return chunks;",
+  #|    "  return {",
+  #|    "    chunks: emits.slice(0, emits.length - 1),",
+  #|    "    publicNext,",
+  #|    "    firstColumns: emits[0].columns,",
+  #|    "  };",
   #|    "};",
   #|    "run()",
-  #|    "  .then((chunks) => console.log(stringify({ ok: true, chunks })))",
+  #|    "  .then((result) => console.log(stringify({ ok: true, ...result })))",
   #|    "  .catch((err) => console.log(stringify({ ok: false, error: String(err) })));",
   #|  ].join("\n");
   #|  try {
@@ -93,6 +108,44 @@ fn js_stream_vector_chunks(
         Err(json)
       } else {
         parse_chunks_json(json)
+      }
+    Err(err) => Err(err)
+  }
+}
+
+///|
+/// Run `sql` through the real stream FFI and report the per-call outcomes
+/// the public `ResultStream::next_chunk` path would observe — `some`/`none`
+/// labels per `js_chunk_is_eos(keep_schema=false)` — plus the first emit's
+/// column names (what the drain facade materializes). Returned as
+/// `(outcomes, first_columns)`.
+fn js_stream_public_next_outcomes(
+  backend : JsBackend,
+  sql : String,
+) -> Result[(Array[String], Array[String]), String] {
+  match run_js_stream_vectors(backend, sql) {
+    Ok(json) =>
+      if json.has_prefix("ERR:") {
+        Err(json)
+      } else {
+        match
+          (try @json.parse(json) |> Ok catch {
+            e => Err(e)
+          }) {
+          Err(_) => Err("child output not json: " + json)
+          Ok(Json::Object(top)) =>
+            match (top.get("publicNext"), top.get("firstColumns")) {
+              (Some(outcomes), Some(first_columns)) =>
+                Ok(
+                  (
+                    json_str_array(Some(outcomes)),
+                    json_str_array(Some(first_columns)),
+                  ),
+                )
+              _ => Err("missing publicNext/firstColumns: " + json)
+            }
+          _ => Err("unexpected child output: " + json)
+        }
       }
     Err(err) => Err(err)
   }
@@ -717,6 +770,44 @@ test "js stream vectors: schema-only emits are EOS for public next_chunk" {
   assert_true(js_chunk_is_eos(empty, 0, keep_schema=true))
   assert_true(!js_chunk_is_eos(cols, 3, keep_schema=false))
   assert_true(!js_chunk_is_eos(cols, 3, keep_schema=true))
+}
+
+///|
+test "js stream vectors: public next_chunk yields None for empty results" {
+  // Drive a real js_query_stream and apply the public-path EOS mapping
+  // (js_chunk_is_eos with keep_schema=false) the same way
+  // ResultStream::next_chunk does — 0 rows or no columns => Ok(None).
+  // Mirrors the native test of the same name shape in duckdb_vector_test.
+  match
+    js_stream_public_next_outcomes(
+      JsBackend::Node,
+      "SELECT 42 AS a, 'x'::VARCHAR AS b WHERE false",
+    ) {
+    Ok((outcomes, first_columns)) => {
+      assert_eq(outcomes, ["none"])
+      // The drained schema emit still carries the columns for query/execute.
+      assert_eq(first_columns, ["a", "b"])
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+  match
+    js_stream_public_next_outcomes(
+      JsBackend::Node,
+      "SELECT i FROM range(3) t(i)",
+    ) {
+    Ok((outcomes, _)) => assert_eq(outcomes, ["some", "none"])
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
 }
 
 ///|
