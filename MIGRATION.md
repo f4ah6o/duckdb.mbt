@@ -268,12 +268,14 @@ The typed-chunk APIs benefit too: `query_chunks`, `execute_chunks`,
 columns into real `VectorData::List`/`Struct`/`Map` on JS, so
 `vector.list_parts()`/`struct_parts()`/`map_parts()` and nested
 `vector.value_at(row)` return structured data instead of `Any` cells.
-Two qualifications keep this short of full native parity: `nested_typed`
-in `conn.capabilities()` remains `false` on JS (the support matrix still
-reports partial advanced-type support), and genuinely unsupported column
-types (UNION/BIT/TIME_TZ/BIGNUM) keep the tagged-JSON `Any` fallback —
-`vector.value_at(row)` still decodes those cells into `Value`s.
-`conn.execute` and `stream.columns`/`stream.column_types` are unchanged.
+JS is still short of native parity on one axis: genuinely unsupported
+column types (UNION/BIT/TIME_TZ/BIGNUM) keep the tagged-JSON `Any`
+fallback, which `vector.value_at(row)` decodes into `Value`s.
+(Separately: `conn.capabilities().nested_typed` is `false` on *every*
+backend — it rates matrix-level nested-type support across
+bind/append/typed coverage, not read-side vector decode, so it does not
+indicate the JS accessors are unavailable.) `conn.execute` and
+`stream.columns`/`stream.column_types` are unchanged.
 
 ## Quack: moved to `f4ah6o/duckdb/quack`
 
