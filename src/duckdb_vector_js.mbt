@@ -1175,7 +1175,14 @@ fn js_drain_stream_chunks(
           })
       }
     },
-    fn(message) { on_done(Err(query_error(message))) },
+    // Close before reporting so a failed drain cannot leak the stream.
+    fn(message) {
+      js_stream_close(stream, fn() { on_done(Err(query_error(message))) }, fn(
+        _,
+      ) {
+        on_done(Err(query_error(message)))
+      })
+    },
   )
 }
 
