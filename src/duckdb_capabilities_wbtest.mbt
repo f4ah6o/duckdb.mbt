@@ -65,10 +65,13 @@ test "capability supports() agrees with the table" {
 ///|
 test "capabilities: require returns structured Unsupported errors" {
   match Backend::Wasm.capabilities().require(BackendFeature::Appender) {
-    Err(DuckDBError::Unsupported(feature~, backend~, message~)) => {
+    Err(DuckDBError::Unsupported(feature~, backend~, ..) as err) => {
       inspect(feature, content="appender")
       inspect(backend, content="wasm")
-      inspect(message, content="appender is not supported on the wasm backend")
+      inspect(
+        err.message(),
+        content="appender is not supported on the wasm backend",
+      )
     }
     _ => fail("expected Unsupported error")
   }
