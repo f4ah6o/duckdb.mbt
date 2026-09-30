@@ -1,21 +1,16 @@
 ///|
-#external
 pub type Connection
 
 ///|
-#external
 pub type PreparedStatement
 
 ///|
-#external
 pub type Config
 
 ///|
-#external
 pub type Appender
 
 ///|
-#external
 pub type ResultStream
 
 ///|
@@ -56,7 +51,9 @@ pub(all) enum JsBackend {
 ///   close, configuration, host exceptions).
 /// - `Unsupported`: the feature exists but this backend cannot provide it.
 ///   `backend` names the backend ("native", "node", "wasm", "unsupported");
-///   designed to compose with the BackendCapabilities work in issue #65.
+///   `message` is the backend's original diagnostic verbatim when it
+///   reported one, otherwise a synthesized description; designed to compose
+///   with the BackendCapabilities work in issue #65.
 /// - `Closed`: the operation was attempted on a closed handle.
 /// - `InvalidArgument`: a caller-supplied argument failed validation.
 pub suberror DuckDBError {
@@ -68,8 +65,10 @@ pub suberror DuckDBError {
   Bind(String)
   /// Appender stage failure without an engine classification.
   Append(String)
-  /// `feature` is not supported by `backend`.
-  Unsupported(feature~ : String, backend~ : String)
+  /// `feature` is not supported by `backend`. `message` is the backend's
+  /// original diagnostic verbatim, or a synthesized description when the
+  /// backend did not report one.
+  Unsupported(feature~ : String, backend~ : String, message~ : String)
   /// The operation was attempted on a closed `resource`
   /// ("connection", "statement", "stream", "appender").
   Closed(resource~ : String)
@@ -87,8 +86,10 @@ pub suberror DuckDBError {
 /// The diagnostic message carried by this error.
 ///
 /// For errors reported by DuckDB or a backend this is the original text
-/// verbatim; for the binding-side categories (`Unsupported`, `Closed`,
-/// `InvalidArgument`) it is synthesized from the structured fields.
+/// verbatim (an `Unsupported` classified from a backend diagnostic carries
+/// that diagnostic); for the remaining binding-side categories (`Closed`,
+/// `InvalidArgument`, and `Unsupported` without an upstream diagnostic) it
+/// is synthesized from the structured fields.
 ///
 /// Migration note: this replaces matching on the removed
 /// `DuckDBError::Message(String)` variant.
@@ -96,8 +97,7 @@ pub fn DuckDBError::message(self : DuckDBError) -> String {
   match self {
     Query(msg) | Prepare(msg) | Bind(msg) | Append(msg) => msg
     Backend(message~, ..) | DuckDB(message~, ..) => message
-    Unsupported(feature~, backend~) =>
-      "\{feature} is not supported on the \{backend} backend"
+    Unsupported(message~, ..) => message
     Closed(resource~) => "\{resource} is closed"
     InvalidArgument(argument~, reason~) =>
       "invalid argument \{argument}: \{reason}"
@@ -184,14 +184,16 @@ fn duckdb_error_type_from_message(message : String) -> String? {
 /// binding-layer diagnostics into a `Unsupported` variant. Returns `None`
 /// for messages that are not unsupported-feature reports.
 fn duckdb_unsupported_from_message(message : String) -> DuckDBError? {
+  // The original backend diagnostic is preserved verbatim in `message`.
   if message.contains("requires Worker support") {
-    return Some(Unsupported(feature="duckdb-wasm", backend="wasm"))
+    return Some(Unsupported(feature="duckdb-wasm", backend="wasm", message~))
   }
   if message.contains("unsupported column type") {
     return Some(
       Unsupported(
         feature="streamed query results with this column type",
         backend="native",
+        message~,
       ),
     )
   }
@@ -202,17 +204,28 @@ fn duckdb_unsupported_from_message(message : String) -> DuckDBError? {
       .to_owned()
       .to_lower()
     if feature.length() > 0 {
-      return Some(Unsupported(feature~, backend="wasm"))
+      return Some(Unsupported(feature~, backend="wasm", message~))
     }
     return None
   }
   if message.has_prefix("Appender is not supported for WASM backend") {
-    return Some(Unsupported(feature="appender", backend="wasm"))
+    return Some(Unsupported(feature="appender", backend="wasm", message~))
   }
   if message.has_prefix("Appender not yet supported for JS backend") {
-    return Some(Unsupported(feature="appender", backend="js"))
+    return Some(Unsupported(feature="appender", backend="js", message~))
   }
   None
+}
+
+///|
+/// A binding-generated `Unsupported` error, for backends that cannot provide
+/// `feature` and did not report a diagnostic of their own.
+fn unsupported_error(feature : String, backend : String) -> DuckDBError {
+  Unsupported(
+    feature~,
+    backend~,
+    message="\{feature} is not supported on the \{backend} backend",
+  )
 }
 
 ///|

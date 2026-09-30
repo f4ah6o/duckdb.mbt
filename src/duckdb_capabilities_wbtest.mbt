@@ -65,25 +65,22 @@ test "capability supports() agrees with the table" {
 ///|
 test "capabilities: require returns structured Unsupported errors" {
   match Backend::Wasm.capabilities().require(BackendFeature::Appender) {
-    Err(DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(DuckDBError::Unsupported(feature~, backend~, message~)) => {
       inspect(feature, content="appender")
       inspect(backend, content="wasm")
-      inspect(
-        DuckDBError::Unsupported(feature~, backend~).message(),
-        content="appender is not supported on the wasm backend",
-      )
+      inspect(message, content="appender is not supported on the wasm backend")
     }
     _ => fail("expected Unsupported error")
   }
   match Backend::Wasm.capabilities().require(BackendFeature::BlobBind) {
-    Err(DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(DuckDBError::Unsupported(feature~, backend~, ..)) => {
       inspect(feature, content="direct blob prepared parameters")
       inspect(backend, content="wasm")
     }
     _ => fail("expected Unsupported error")
   }
   match Backend::Node.capabilities().require(BackendFeature::NestedAppend) {
-    Err(DuckDBError::Unsupported(feature~, backend~)) => {
+    Err(DuckDBError::Unsupported(feature~, backend~, ..)) => {
       inspect(feature, content="nested appender appends")
       inspect(backend, content="node")
     }
