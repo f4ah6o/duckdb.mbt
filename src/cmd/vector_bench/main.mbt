@@ -9,9 +9,10 @@
 ///     process for a fair peak-RSS comparison.
 ///   - rows: row count (default 1_000_000).
 /// Prints wall-clock ms, rows/s, a deterministic logical-allocation count,
-/// and peak RSS (Linux `ru_maxrss`, same metric as `/proc/self/status`
-/// VmHWM) for each path. The comparison measures the result-consumption path
-/// only; DuckDB-side query execution is identical.
+/// and peak RSS in KiB (`ru_maxrss` — KiB on Linux, bytes on macOS, so
+/// `peak_rss_kb` normalizes by 1024 there) for each path. The comparison
+/// measures the result-consumption path only; DuckDB-side query execution
+/// is identical.
 
 ///|
 /// Parse a positive decimal integer, or `None` for anything else.
