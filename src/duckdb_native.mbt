@@ -22,7 +22,7 @@ extern "C" fn native_config_create() -> Config = "duckdb_mb_config_create"
 
 ///|
 #borrow(config)
-extern "C" fn native_config_destroy(config : Config) = "duckdb_mb_config_destroy"
+extern "C" fn native_config_destroy(config : Config) -> Bool = "duckdb_mb_config_destroy"
 
 ///|
 #borrow(config, key, value)
@@ -31,9 +31,6 @@ extern "C" fn native_config_set(
   key : Bytes,
   value : Bytes,
 ) -> Bool = "duckdb_mb_config_set"
-
-///|
-extern "C" fn native_config_error(config : Config) -> Bytes = "duckdb_mb_config_error"
 
 // ============================================================================
 // Appender FFI Declarations
@@ -49,11 +46,7 @@ extern "C" fn native_appender_create(
 
 ///|
 #borrow(append)
-extern "C" fn native_appender_destroy(append : Appender) = "duckdb_mb_appender_destroy"
-
-///|
-#borrow(append)
-extern "C" fn native_appender_error(append : Appender) -> Bytes = "duckdb_mb_appender_error"
+extern "C" fn native_appender_destroy(append : Appender) -> Bool = "duckdb_mb_appender_destroy"
 
 ///|
 #borrow(append)
@@ -107,6 +100,7 @@ extern "C" fn native_appender_end_row(append : Appender) -> Bool = "duckdb_mb_en
 extern "C" fn native_appender_flush(append : Appender) -> Bool = "duckdb_mb_flush"
 
 ///|
+#borrow(append)
 extern "C" fn native_is_null_appender(append : Appender) -> Bool = "duckdb_mb_is_null_appender"
 
 // ============================================================================
@@ -289,7 +283,7 @@ extern "C" fn native_appender_append_map_varchar_varchar(
 
 ///|
 #borrow(conn)
-extern "C" fn native_disconnect(conn : Connection) = "duckdb_mb_disconnect"
+extern "C" fn native_disconnect(conn : Connection) -> Bool = "duckdb_mb_disconnect"
 
 ///|
 #borrow(conn, sql)
@@ -346,7 +340,7 @@ extern "C" fn native_result_value(
 
 ///|
 #borrow(stream)
-extern "C" fn native_stream_destroy(stream : ResultStream) = "duckdb_mb_stream_destroy"
+extern "C" fn native_stream_destroy(stream : ResultStream) -> Bool = "duckdb_mb_stream_destroy"
 
 ///|
 #borrow(stream)
@@ -429,61 +423,24 @@ fn last_error(fallback : String) -> String {
 }
 
 ///|
+extern "C" fn native_error_type_name(code : Int) -> Bytes = "duckdb_mb_error_type_name"
+
+///|
 /// Map a `duckdb_error_type` code to the same normalized snake_case names
-/// `duckdb_error_type_from_message` produces.
+/// `duckdb_error_type_from_message` produces. Mapped in C over the
+/// `DUCKDB_ERROR_*` constants so the table cannot drift from the engine.
 fn duckdb_error_type_name(code : Int) -> String {
-  match code {
-    0 => "invalid"
-    1 => "out_of_range"
-    2 => "conversion"
-    3 => "unknown_type"
-    4 => "decimal"
-    5 => "mismatch_type"
-    6 => "divide_by_zero"
-    7 => "object_size"
-    8 => "invalid_type"
-    9 => "serialization"
-    10 => "transaction"
-    11 => "not_implemented"
-    12 => "expression"
-    13 => "catalog"
-    14 => "parser"
-    15 => "planner"
-    16 => "scheduler"
-    17 => "executor"
-    18 => "constraint"
-    19 => "index"
-    20 => "stat"
-    21 => "connection"
-    22 => "syntax"
-    23 => "settings"
-    24 => "binder"
-    25 => "network"
-    26 => "optimizer"
-    27 => "null_pointer"
-    28 => "io"
-    29 => "interrupt"
-    30 => "fatal"
-    31 => "internal"
-    32 => "invalid_input"
-    33 => "out_of_memory"
-    34 => "permission"
-    35 => "parameter_not_resolved"
-    36 => "parameter_not_allowed"
-    37 => "dependency"
-    38 => "http"
-    39 => "missing_extension"
-    40 => "autoload"
-    41 => "sequence"
-    _ => "unknown"
-  }
+  bytes_to_string(native_error_type_name(code))
 }
 
 ///|
-/// Error for failed native calls that may report `duckdb_result_error_type`
-/// (query/stream/execute paths). Prefers the engine classification, then the
-/// `"<Type> Error:"` message prefix, then a plain `Query` binding error.
-fn native_typed_error(fallback : String) -> DuckDBError {
+/// Error for a failed native call. Prefers the engine classification
+/// (`duckdb_error_type` code), then the `"<Type> Error:"` message prefix,
+/// then `stage` as the binding-side category.
+fn native_typed_error(
+  stage : (String) -> DuckDBError,
+  fallback : String,
+) -> DuckDBError {
   let code = native_last_error_type()
   let msg = bytes_to_string(native_last_error())
   if code >= 0 {
@@ -492,7 +449,7 @@ fn native_typed_error(fallback : String) -> DuckDBError {
       message=if msg == "" { fallback } else { msg },
     )
   } else {
-    query_error(if msg == "" { fallback } else { msg })
+    stage(if msg == "" { fallback } else { msg })
   }
 }
 
@@ -517,8 +474,11 @@ pub fn Connection::close(
   self : Connection,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  native_disconnect(self)
-  on_done(Ok(()))
+  if native_disconnect(self) {
+    on_done(Ok(()))
+  } else {
+    on_done(Err(DuckDBError::Closed(resource="connection")))
+  }
 }
 
 ///|
@@ -529,7 +489,7 @@ pub fn Connection::query(
 ) -> Unit {
   let result = native_query(self, @encoding/utf8.encode(sql))
   if native_is_null_result(result) {
-    on_done(Err(native_typed_error("duckdb_query failed")))
+    on_done(Err(native_typed_error(query_error, "duckdb_query failed")))
   } else {
     let column_count = native_result_column_count(result)
     let row_count = native_result_row_count(result)
@@ -579,7 +539,7 @@ pub fn Connection::query_stream(
 ) -> Unit {
   let stream = native_query_stream(self, @encoding/utf8.encode(sql))
   if native_is_null_stream(stream) {
-    on_done(Err(native_typed_error("duckdb_stream failed")))
+    on_done(Err(native_typed_error(query_error, "duckdb_stream failed")))
   } else {
     on_done(Ok(stream))
   }
@@ -613,7 +573,7 @@ pub fn ResultStream::next(
     if msg is "" {
       on_done(Ok(None))
     } else {
-      on_done(Err(native_typed_error("stream fetch failed")))
+      on_done(Err(native_typed_error(query_error, "stream fetch failed")))
     }
   } else {
     let row_count = native_chunk_row_count(chunk)
@@ -657,23 +617,16 @@ pub fn ResultStream::close(
   self : ResultStream,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  native_stream_destroy(self)
-  on_done(Ok(()))
+  if native_stream_destroy(self) {
+    on_done(Ok(()))
+  } else {
+    on_done(Err(DuckDBError::Closed(resource="stream")))
+  }
 }
 
 // ============================================================================
 // Configuration API Implementation
 // ============================================================================
-
-///|
-fn config_error(cfg : Config, fallback : String) -> String {
-  let msg = bytes_to_string(native_config_error(cfg))
-  if msg is "" {
-    fallback
-  } else {
-    msg
-  }
-}
 
 ///|
 pub fn Config::create() -> Config {
@@ -693,7 +646,7 @@ pub fn Config::set(
     ) {
     Ok(())
   } else {
-    Err(backend_error("native", config_error(self, "config_set failed")))
+    Err(backend_error("native", last_error("config_set failed")))
   }
 }
 
@@ -709,7 +662,7 @@ pub fn connect_with_config(
     Some(cfg) => {
       let path_bytes = @encoding/utf8.encode(path)
       let conn = native_connect_with_config(path_bytes, cfg)
-      native_config_destroy(cfg)
+      let _ = native_config_destroy(cfg)
       if native_is_null_conn(conn) {
         on_ready(
           Err(
@@ -748,11 +701,7 @@ extern "C" fn native_prepare(
 
 ///|
 #borrow(stmt)
-extern "C" fn native_statement_destroy(stmt : PreparedStatement) = "duckdb_mb_statement_destroy"
-
-///|
-#borrow(stmt)
-extern "C" fn native_statement_error(stmt : PreparedStatement) -> Bytes = "duckdb_mb_statement_error"
+extern "C" fn native_statement_destroy(stmt : PreparedStatement) -> Bool = "duckdb_mb_statement_destroy"
 
 ///|
 #borrow(stmt)
@@ -821,16 +770,6 @@ extern "C" fn native_is_null_statement(stmt : PreparedStatement) -> Bool = "duck
 // ============================================================================
 
 ///|
-fn statement_error(stmt : PreparedStatement, fallback : String) -> String {
-  let msg = bytes_to_string(native_statement_error(stmt))
-  if msg is "" {
-    fallback
-  } else {
-    msg
-  }
-}
-
-///|
 pub fn Connection::prepare(
   self : Connection,
   sql : String,
@@ -838,7 +777,7 @@ pub fn Connection::prepare(
 ) -> Unit {
   let stmt = native_prepare(self, @encoding/utf8.encode(sql))
   if native_is_null_statement(stmt) {
-    on_done(Err(prepare_error(statement_error(stmt, "duckdb_prepare failed"))))
+    on_done(Err(native_typed_error(prepare_error, "duckdb_prepare failed")))
   } else {
     on_done(Ok(stmt))
   }
@@ -853,7 +792,7 @@ pub fn PreparedStatement::bind_int(
   if native_bind_int(self, index, value) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_int failed")))
+    Err(native_typed_error(bind_error, "bind_int failed"))
   }
 }
 
@@ -866,7 +805,7 @@ pub fn PreparedStatement::bind_bigint(
   if native_bind_bigint(self, index, value) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_bigint failed")))
+    Err(native_typed_error(bind_error, "bind_bigint failed"))
   }
 }
 
@@ -879,7 +818,7 @@ pub fn PreparedStatement::bind_double(
   if native_bind_double(self, index, value) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_double failed")))
+    Err(native_typed_error(bind_error, "bind_double failed"))
   }
 }
 
@@ -892,7 +831,7 @@ pub fn PreparedStatement::bind_varchar(
   if native_bind_varchar(self, index, @encoding/utf8.encode(value)) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_varchar failed")))
+    Err(native_typed_error(bind_error, "bind_varchar failed"))
   }
 }
 
@@ -905,7 +844,7 @@ pub fn PreparedStatement::bind_bool(
   if native_bind_bool(self, index, value) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_bool failed")))
+    Err(native_typed_error(bind_error, "bind_bool failed"))
   }
 }
 
@@ -917,7 +856,7 @@ pub fn PreparedStatement::bind_null(
   if native_bind_null(self, index) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_null failed")))
+    Err(native_typed_error(bind_error, "bind_null failed"))
   }
 }
 
@@ -928,7 +867,7 @@ pub fn PreparedStatement::clear_bindings(
   if native_clear_bindings(self) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "clear_bindings failed")))
+    Err(native_typed_error(bind_error, "clear_bindings failed"))
   }
 }
 
@@ -939,7 +878,7 @@ pub fn PreparedStatement::execute(
 ) -> Unit {
   let result = native_execute_prepared(self)
   if native_is_null_result(result) {
-    on_done(Err(native_typed_error("execute_prepared failed")))
+    on_done(Err(native_typed_error(query_error, "execute_prepared failed")))
   } else {
     let column_count = native_result_column_count(result)
     let row_count = native_result_row_count(result)
@@ -988,7 +927,7 @@ pub fn PreparedStatement::execute_stream(
 ) -> Unit {
   let stream = native_execute_prepared_stream(self)
   if native_is_null_stream(stream) {
-    on_done(Err(native_typed_error("execute_stream failed")))
+    on_done(Err(native_typed_error(query_error, "execute_stream failed")))
   } else {
     on_done(Ok(stream))
   }
@@ -999,23 +938,16 @@ pub fn PreparedStatement::close(
   self : PreparedStatement,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  native_statement_destroy(self)
-  on_done(Ok(()))
+  if native_statement_destroy(self) {
+    on_done(Ok(()))
+  } else {
+    on_done(Err(DuckDBError::Closed(resource="statement")))
+  }
 }
 
 // ============================================================================
 // Appender API Implementation
 // ============================================================================
-
-///|
-fn appender_error(append : Appender, fallback : String) -> String {
-  let msg = bytes_to_string(native_appender_error(append))
-  if msg is "" {
-    fallback
-  } else {
-    msg
-  }
-}
 
 ///|
 pub fn Connection::create_appender(
@@ -1030,7 +962,7 @@ pub fn Connection::create_appender(
     @encoding/utf8.encode(table),
   )
   if native_is_null_appender(append) {
-    on_done(Err(append_error("create_appender failed")))
+    on_done(Err(native_typed_error(append_error, "create_appender failed")))
   } else {
     on_done(Ok(append))
   }
@@ -1041,7 +973,7 @@ pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
   if native_appender_begin_row(self) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "begin_row failed")))
+    Err(native_typed_error(append_error, "begin_row failed"))
   }
 }
 
@@ -1053,7 +985,7 @@ pub fn Appender::append_int(
   if native_appender_append_int(self, value) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_int failed")))
+    Err(native_typed_error(append_error, "append_int failed"))
   }
 }
 
@@ -1065,7 +997,7 @@ pub fn Appender::append_bigint(
   if native_appender_append_bigint(self, value) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_bigint failed")))
+    Err(native_typed_error(append_error, "append_bigint failed"))
   }
 }
 
@@ -1077,7 +1009,7 @@ pub fn Appender::append_double(
   if native_appender_append_double(self, value) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_double failed")))
+    Err(native_typed_error(append_error, "append_double failed"))
   }
 }
 
@@ -1089,7 +1021,7 @@ pub fn Appender::append_varchar(
   if native_appender_append_varchar(self, @encoding/utf8.encode(value)) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_varchar failed")))
+    Err(native_typed_error(append_error, "append_varchar failed"))
   }
 }
 
@@ -1101,7 +1033,7 @@ pub fn Appender::append_bool(
   if native_appender_append_bool(self, value) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_bool failed")))
+    Err(native_typed_error(append_error, "append_bool failed"))
   }
 }
 
@@ -1110,7 +1042,7 @@ pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
   if native_appender_append_null(self) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_null failed")))
+    Err(native_typed_error(append_error, "append_null failed"))
   }
 }
 
@@ -1119,7 +1051,7 @@ pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
   if native_appender_end_row(self) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "end_row failed")))
+    Err(native_typed_error(append_error, "end_row failed"))
   }
 }
 
@@ -1128,7 +1060,7 @@ pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   if native_appender_flush(self) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "flush failed")))
+    Err(native_typed_error(append_error, "flush failed"))
   }
 }
 
@@ -1137,8 +1069,11 @@ pub fn Appender::close(
   self : Appender,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  native_appender_destroy(self)
-  on_done(Ok(()))
+  if native_appender_destroy(self) {
+    on_done(Ok(()))
+  } else {
+    on_done(Err(DuckDBError::Closed(resource="appender")))
+  }
 }
 
 // ============================================================================
@@ -1154,7 +1089,7 @@ pub fn PreparedStatement::bind_date(
   if native_bind_date(self, index, days) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_date failed")))
+    Err(native_typed_error(bind_error, "bind_date failed"))
   }
 }
 
@@ -1167,7 +1102,7 @@ pub fn PreparedStatement::bind_timestamp(
   if native_bind_timestamp(self, index, micros) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_timestamp failed")))
+    Err(native_typed_error(bind_error, "bind_timestamp failed"))
   }
 }
 
@@ -1179,7 +1114,7 @@ pub fn Appender::append_date(
   if native_appender_append_date(self, days) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_date failed")))
+    Err(native_typed_error(append_error, "append_date failed"))
   }
 }
 
@@ -1191,7 +1126,7 @@ pub fn Appender::append_timestamp(
   if native_appender_append_timestamp(self, micros) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_timestamp failed")))
+    Err(native_typed_error(append_error, "append_timestamp failed"))
   }
 }
 
@@ -1370,7 +1305,7 @@ pub fn PreparedStatement::bind_blob(
   if native_bind_blob(self, index, value, Bytes::length(value)) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_blob failed")))
+    Err(native_typed_error(bind_error, "bind_blob failed"))
   }
 }
 
@@ -1382,7 +1317,7 @@ pub fn Appender::append_blob(
   if native_appender_append_blob(self, value, Bytes::length(value)) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_blob failed")))
+    Err(native_typed_error(append_error, "append_blob failed"))
   }
 }
 
@@ -1406,7 +1341,7 @@ pub fn PreparedStatement::bind_decimal(
     ) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_decimal failed")))
+    Err(native_typed_error(bind_error, "bind_decimal failed"))
   }
 }
 
@@ -1424,7 +1359,7 @@ pub fn Appender::append_decimal(
     ) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_decimal failed")))
+    Err(native_typed_error(append_error, "append_decimal failed"))
   }
 }
 
@@ -1515,7 +1450,7 @@ pub fn PreparedStatement::bind_interval(
   if native_bind_interval(self, index, value.months, value.days, value.micros) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_interval failed")))
+    Err(native_typed_error(bind_error, "bind_interval failed"))
   }
 }
 
@@ -1532,7 +1467,7 @@ pub fn Appender::append_interval(
     ) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_interval failed")))
+    Err(native_typed_error(append_error, "append_interval failed"))
   }
 }
 
@@ -1601,7 +1536,7 @@ pub fn PreparedStatement::bind_list_varchar(
   if native_bind_list_varchar(self, index, encoded, encoded.length()) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_list_varchar failed")))
+    Err(native_typed_error(bind_error, "bind_list_varchar failed"))
   }
 }
 
@@ -1648,7 +1583,7 @@ pub fn PreparedStatement::bind_struct(
     ) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_struct failed")))
+    Err(native_typed_error(bind_error, "bind_struct failed"))
   }
 }
 
@@ -1720,7 +1655,7 @@ pub fn PreparedStatement::bind_map(
     ) {
     Ok(())
   } else {
-    Err(bind_error(statement_error(self, "bind_map failed")))
+    Err(native_typed_error(bind_error, "bind_map failed"))
   }
 }
 
@@ -1768,7 +1703,7 @@ pub fn Appender::append_list_varchar(
   if native_appender_append_list_varchar(self, encoded, encoded.length()) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_list_varchar failed")))
+    Err(native_typed_error(append_error, "append_list_varchar failed"))
   }
 }
 
@@ -1788,7 +1723,7 @@ pub fn Appender::append_struct(
     ) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_struct failed")))
+    Err(native_typed_error(append_error, "append_struct failed"))
   }
 }
 
@@ -1808,7 +1743,7 @@ pub fn Appender::append_map(
     ) {
     Ok(())
   } else {
-    Err(append_error(appender_error(self, "append_map failed")))
+    Err(native_typed_error(append_error, "append_map failed"))
   }
 }
 

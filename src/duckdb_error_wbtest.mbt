@@ -37,9 +37,14 @@ test "error classification: closed handle sentinel" {
 test "error classification: unsupported feature sentinels" {
   match
     bind_error("WASM backend does not support direct BLOB prepared parameters") {
-    Unsupported(feature~, backend~) => {
+    Unsupported(feature~, backend~, message~) => {
       inspect(feature, content="direct blob prepared parameters")
       inspect(backend, content="wasm")
+      // the backend diagnostic is preserved verbatim
+      inspect(
+        message,
+        content="WASM backend does not support direct BLOB prepared parameters",
+      )
     }
     err => fail("expected Unsupported variant, got \{err.message()}")
   }
@@ -47,16 +52,36 @@ test "error classification: unsupported feature sentinels" {
     append_error(
       "Appender is not supported for WASM backend. Use INSERT statements instead.",
     ) {
-    Unsupported(feature~, backend~) => {
+    Unsupported(feature~, backend~, message~) => {
       inspect(feature, content="appender")
       inspect(backend, content="wasm")
+      inspect(
+        message,
+        content="Appender is not supported for WASM backend. Use INSERT statements instead.",
+      )
     }
     err => fail("expected Unsupported variant, got \{err.message()}")
   }
   match bind_error("Appender not yet supported for JS backend") {
-    Unsupported(feature~, backend~) => {
+    Unsupported(feature~, backend~, message~) => {
       inspect(feature, content="appender")
       inspect(backend, content="js")
+      inspect(message, content="Appender not yet supported for JS backend")
+    }
+    err => fail("expected Unsupported variant, got \{err.message()}")
+  }
+}
+
+///|
+test "error contract: binding-generated Unsupported synthesizes its message" {
+  match unsupported_error("duckdb bindings", "unsupported target") {
+    Unsupported(feature~, backend~, message~) => {
+      inspect(feature, content="duckdb bindings")
+      inspect(backend, content="unsupported target")
+      inspect(
+        message,
+        content="duckdb bindings is not supported on the unsupported target backend",
+      )
     }
     err => fail("expected Unsupported variant, got \{err.message()}")
   }
@@ -112,7 +137,7 @@ test "error accessors: message and error_type" {
     Prepare("p"),
     Bind("b"),
     Append("a"),
-    Unsupported(feature="appender", backend="wasm"),
+    Unsupported(feature="appender", backend="wasm", message="no appender"),
     Closed(resource="stream"),
     InvalidArgument(argument="alias", reason="must not be empty"),
     Backend(backend="native", message="boom"),
@@ -122,7 +147,7 @@ test "error accessors: message and error_type" {
   inspect(
     messages,
     content=(
-      #|[q, p, b, a, appender is not supported on the wasm backend, stream is closed, invalid argument alias: must not be empty, boom, table not found]
+      #|[q, p, b, a, no appender, stream is closed, invalid argument alias: must not be empty, boom, table not found]
     ),
   )
   inspect(

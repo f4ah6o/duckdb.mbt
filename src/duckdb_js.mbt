@@ -1758,7 +1758,7 @@ pub fn Appender::append_date(
   let _ = self
   let _ = days
   // Appender not supported in JS backend
-  Err(DuckDBError::Unsupported(feature="appender append_date", backend="js"))
+  Err(unsupported_error("appender append_date", "js"))
 }
 
 ///|
@@ -1769,9 +1769,7 @@ pub fn Appender::append_timestamp(
   let _ = self
   let _ = micros
   // Appender not supported in JS backend
-  Err(
-    DuckDBError::Unsupported(feature="appender append_timestamp", backend="js"),
-  )
+  Err(unsupported_error("appender append_timestamp", "js"))
 }
 
 ///|

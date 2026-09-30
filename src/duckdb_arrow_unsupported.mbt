@@ -1,5 +1,4 @@
 ///|
-#external
 pub type ArrowResult
 
 ///|
@@ -26,14 +25,7 @@ pub fn Connection::query_arrow(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(
-    Err(
-      DuckDBError::Unsupported(
-        feature="arrow integration",
-        backend="unsupported target",
-      ),
-    ),
-  )
+  on_done(Err(unsupported_error("arrow integration", "unsupported target")))
 }
 
 ///|
@@ -56,12 +48,7 @@ pub fn ArrowResult::get_schema(
   let _ = ArrowSchemaInfo::{
     fields: [ArrowField::{ name: "", nullable: false, type_id: "", }],
   }
-  Err(
-    DuckDBError::Unsupported(
-      feature="arrow integration",
-      backend="unsupported target",
-    ),
-  )
+  Err(unsupported_error("arrow integration", "unsupported target"))
 }
 
 ///|
@@ -120,12 +107,5 @@ pub fn ArrowResult::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(
-    Err(
-      DuckDBError::Unsupported(
-        feature="arrow integration",
-        backend="unsupported target",
-      ),
-    ),
-  )
+  on_done(Err(unsupported_error("arrow integration", "unsupported target")))
 }
