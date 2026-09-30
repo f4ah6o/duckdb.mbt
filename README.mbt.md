@@ -211,21 +211,29 @@ paths, but the current smoke check uses the MVP worker bundle.
 
 ## Quack Remote Protocol
 
-Quack support is exposed as thin SQL helpers on `Connection`. The helpers use
-DuckDB's `quack` extension instead of implementing the low-level
+Quack helpers live in the `f4ah6o/duckdb/quack` package and are thin SQL
+wrappers built on the generic extension primitives
+(`Connection::install_extension` / `load_extension` / `attach` / `query`).
+They use DuckDB's `quack` extension instead of implementing the low-level
 `application/duckdb` wire format in MoonBit.
 
 Quack is experimental in DuckDB 1.5.x and is distributed from DuckDB's
 `core_nightly` extension repository. Function names, defaults, and protocol
 details may change before DuckDB 2.0.
 
+The older `Connection::install_quack` / `load_quack` / `start_quack_server` /
+`stop_quack_server` / `quack_query` / `create_quack_secret` / `attach_quack`
+methods remain as deprecated facades during the transition — new code should
+import the `quack` package instead.
+
 ```mbt nocheck
 connect(on_ready=fn(result) {
   match result {
     Ok(conn) => {
-      conn.install_quack(on_done=fn(_) { () })
-      conn.load_quack(on_done=fn(_) { () })
-      conn.start_quack_server(
+      @quack.install(conn, on_done=fn(_) { () })
+      @quack.load(conn, on_done=fn(_) { () })
+      @quack.serve(
+        conn,
         "quack:localhost",
         token="super_secret",
         on_done=fn(started) {
@@ -245,13 +253,15 @@ Client helpers cover scoped secrets, stateless remote queries, and attached
 remote catalogs:
 
 ```mbt nocheck
-conn.create_quack_secret(
+@quack.create_secret(
+  conn,
   "super_secret",
   scope="quack:localhost",
   on_done=fn(_) { () },
 )
 
-conn.quack_query(
+@quack.query(
+  conn,
   "quack:localhost",
   "SELECT 42 AS answer",
   token="super_secret",
@@ -263,7 +273,8 @@ conn.quack_query(
   },
 )
 
-conn.attach_quack(
+@quack.attach(
+  conn,
   "quack:localhost",
   "remote_db",
   token="super_secret",

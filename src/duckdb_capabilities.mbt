@@ -157,7 +157,7 @@ pub(all) enum BackendFeature {
   Arrow
   /// File-backed databases (any path other than `:memory:`).
   PersistentStorage
-  /// Quack extension helpers (`install_quack`, `load_quack`, ...).
+  /// Quack extension helpers (the `f4ah6o/duckdb/quack` package).
   Quack
   /// Decimal prepared-statement binds (WASM via string params + SQL cast).
   DecimalBind
@@ -256,7 +256,7 @@ pub struct BackendCapabilities {
   arrow : Bool
   /// File-backed databases (any path other than `:memory:`).
   persistent_storage : Bool
-  /// Quack extension helpers (`install_quack`, `load_quack`, ...).
+  /// Quack extension helpers (the `f4ah6o/duckdb/quack` package).
   quack : Bool
   /// Decimal prepared-statement binds (WASM via string params + SQL cast).
   decimal_bind : Bool

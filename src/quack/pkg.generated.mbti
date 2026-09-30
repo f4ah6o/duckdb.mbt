@@ -1,0 +1,29 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "f4ah6o/duckdb/quack"
+
+import {
+  "f4ah6o/duckdb",
+}
+
+// Values
+pub fn attach(@duckdb.Connection, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[Unit, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn create_secret(@duckdb.Connection, String, scope? : String, on_done~ : (Result[Unit, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn install(@duckdb.Connection, on_done~ : (Result[Unit, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn load(@duckdb.Connection, on_done~ : (Result[Unit, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn query(@duckdb.Connection, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[@duckdb.QueryResult, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn serve(@duckdb.Connection, String, token? : String, allow_other_hostname? : Bool, on_done~ : (Result[@duckdb.QueryResult, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+pub fn stop(@duckdb.Connection, String, on_done~ : (Result[Unit, @duckdb.DuckDBError]) -> Unit) -> Unit
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
