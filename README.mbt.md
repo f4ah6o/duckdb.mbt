@@ -25,6 +25,7 @@ changing capabilities; CI regenerates the section and fails on drift.
 | Prepared Statements | ✅ | ✅ | ✅ |
 | Streaming Results | ✅ | ✅ | ✅ |
 | Appender | ✅ | ✅ (Node only) | ❌ |
+| Appender DataChunk | ✅ | ✅ (Node only) | ❌ |
 | Arrow Integration | ✅ | ✅ | ✅ |
 | Advanced Types | ⚠️ | ⚠️ | ⚠️ |
 

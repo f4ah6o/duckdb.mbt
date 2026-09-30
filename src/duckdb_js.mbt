@@ -1080,7 +1080,10 @@ extern "js" fn js_create_appender(
   #|    if (conn && conn.kind === "node") {
   #|      try {
   #|        const appender = await conn.connection.createAppender(table);
-  #|        on_ok({ kind: "appender", connection: conn, appender });
+  #|        // Stash the node-api module so vectorized append_chunk can build
+  #|        // DuckDBDataChunk synchronously (it is already in the module cache).
+  #|        const api = await import("@duckdb/node-api");
+  #|        on_ok({ kind: "appender", connection: conn, appender, api });
   #|        return;
   #|      } catch (e) {
   #|        on_err(toError(e));

@@ -323,7 +323,7 @@ pub struct DataChunk {
 
 ///|
 /// DuckDB column type identifiers.
-pub enum ColumnType {
+pub(all) enum ColumnType {
   Invalid
   Boolean
   TinyInt

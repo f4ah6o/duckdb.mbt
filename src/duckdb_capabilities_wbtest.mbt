@@ -108,6 +108,7 @@ test "capabilities: README support matrix is generated from this table" {
       #|| Prepared Statements | ✅ | ✅ | ✅ |
       #|| Streaming Results | ✅ | ✅ | ✅ |
       #|| Appender | ✅ | ✅ (Node only) | ❌ |
+      #|| Appender DataChunk | ✅ | ✅ (Node only) | ❌ |
       #|| Arrow Integration | ✅ | ✅ | ✅ |
       #|| Advanced Types | ⚠️ | ⚠️ | ⚠️ |
       #|

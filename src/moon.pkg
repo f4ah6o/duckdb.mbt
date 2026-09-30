@@ -17,6 +17,12 @@ options(
   },
   "native-stub": [ "duckdb_native.c" ],
   targets: {
+    "duckdb_appender_chunk_js.mbt": [ "js" ],
+    "duckdb_appender_chunk_js_test.mbt": [ "js" ],
+    "duckdb_appender_chunk_js_wbtest.mbt": [ "js" ],
+    "duckdb_appender_chunk_native.mbt": [ "native" ],
+    "duckdb_appender_chunk_test.mbt": [ "native" ],
+    "duckdb_appender_chunk_wbtest.mbt": [ "or", "native", "js" ],
     "duckdb_appender_state_machine.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_arrow_js.mbt": [ "js" ],
     "duckdb_arrow_js_wbtest.mbt": [ "js" ],

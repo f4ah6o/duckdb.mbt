@@ -10,6 +10,8 @@ pub fn chunks_to_query_result(Array[VectorChunk]) -> QueryResult
 
 pub fn column_type_from_id(Int) -> ColumnType
 
+pub fn column_type_to_id(ColumnType) -> Int
+
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
 pub fn date_from_ymd(Int, Int, Int) -> Int
@@ -129,6 +131,7 @@ pub type Appender
 pub fn Appender::append_bigint(Self, Int) -> Result[Unit, DuckDBError]
 pub fn Appender::append_blob(Self, Bytes) -> Result[Unit, DuckDBError]
 pub fn Appender::append_bool(Self, Bool) -> Result[Unit, DuckDBError]
+pub fn Appender::append_chunk(Self, VectorChunk) -> Result[Unit, DuckDBError]
 pub fn Appender::append_date(Self, Int) -> Result[Unit, DuckDBError]
 pub fn Appender::append_decimal(Self, Decimal) -> Result[Unit, DuckDBError]
 pub fn Appender::append_double(Self, Double) -> Result[Unit, DuckDBError]
@@ -180,6 +183,7 @@ pub struct BackendCapabilities {
   prepared_statements : Bool
   streaming : Bool
   appender : Bool
+  appender_chunk : Bool
   appender_date_timestamp : Bool
   arrow : Bool
   persistent_storage : Bool
@@ -204,6 +208,7 @@ pub(all) enum BackendFeature {
   PreparedStatements
   Streaming
   Appender
+  AppenderChunk
   AppenderDateTimestamp
   Arrow
   PersistentStorage
@@ -223,7 +228,7 @@ pub(all) enum BackendFeature {
 pub fn BackendFeature::all() -> Array[Self]
 pub fn BackendFeature::name(Self) -> String
 
-pub enum ColumnType {
+pub(all) enum ColumnType {
   Invalid
   Boolean
   TinyInt
@@ -470,6 +475,7 @@ pub(all) struct Vector {
   data : VectorData
   validity : FixedArray[Bool]
 }
+pub fn Vector::all_valid(ColumnType, VectorData) -> Self
 pub fn Vector::any_cells(Self) -> Array[Value]?
 pub fn Vector::blobs(Self) -> Array[Bytes]?
 pub fn Vector::bools(Self) -> FixedArray[Bool]?
@@ -498,6 +504,7 @@ pub fn VectorChunk::column_count(Self) -> Int
 pub fn VectorChunk::column_type(Self, Int) -> ColumnType
 pub fn VectorChunk::get_value(Self, Int, Int) -> Value?
 pub fn VectorChunk::is_null(Self, Int, Int) -> Bool
+pub fn VectorChunk::new(Array[String], Array[Vector]) -> Result[Self, DuckDBError]
 pub fn VectorChunk::row_count(Self) -> Int
 pub fn VectorChunk::to_data_chunk(Self) -> DataChunk
 pub fn VectorChunk::to_query_result(Self) -> QueryResult
@@ -520,6 +527,7 @@ pub(all) enum VectorData {
   Map(offsets~ : FixedArray[UInt64], lengths~ : FixedArray[UInt64], keys~ : Vector, values~ : Vector)
   Any(Array[Value])
 }
+pub fn VectorData::len(Self) -> Int
 
 // Type aliases
 
