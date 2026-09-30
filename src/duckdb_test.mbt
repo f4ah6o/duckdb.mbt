@@ -1069,6 +1069,67 @@ test "typed result basic types" {
 }
 
 ///|
+test "native value inference distinguishes booleans numbers and strings" {
+  inspect(parse_value("true") is Value::Bool(true), content="true")
+  inspect(parse_value("false") is Value::Bool(false), content="true")
+  inspect(parse_value("-42") is Value::Int(-42), content="true")
+  inspect(parse_value("1.25") is Value::Double(1.25), content="true")
+  match parse_value("trueish") {
+    Value::String(s) => inspect(s, content="trueish")
+    _ => fail("expected a string for an unrecognized value")
+  }
+}
+
+///|
+test "native numeric parsing rejects malformed input" {
+  for
+    (input, valid) in [
+      ("", false),
+      ("+", false),
+      ("-", false),
+      ("+12", true),
+      ("-12", true),
+      ("12a", false),
+      ("1.2", false),
+    ] {
+    if is_integer(input) != valid {
+      fail("is_integer(\{input}) should be \{valid}")
+    }
+  }
+  for
+    (input, valid) in [
+      ("", false),
+      (".", false),
+      ("-0.25", true),
+      ("+1.25", true),
+      ("1..2", false),
+      ("1.2a", false),
+    ] {
+    if is_double(input) != valid {
+      fail("is_double(\{input}) should be \{valid}")
+    }
+  }
+  inspect(parse_int("-42"), content="-42")
+  inspect(parse_double("-1.25"), content="-1.25")
+}
+
+///|
+test "native date parsing validates calendar boundaries" {
+  match parse_date("2024-02-29") {
+    Ok(days) => inspect(days, content="19782")
+    Err(error) => fail("expected leap day: \{error}")
+  }
+  for
+    input in [
+      "2023-02-29", "2024-02-30", "2024-04-31", "2024-00-01", "2024-13-01", "2024-01-00",
+    ] {
+    if parse_date(input) is Ok(_) {
+      fail("expected invalid date: \{input}")
+    }
+  }
+}
+
+///|
 test "typed result varchar stays string" {
   let result = run_native_query(
     "SELECT '00123' AS num_str, '2024-06-03' AS date_str, '3.14' AS float_str",
