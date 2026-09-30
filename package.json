@@ -9,7 +9,7 @@
     "gen:fixtures": "node scripts/generate_duckdb_fixtures.js",
     "test": "pnpm test:js",
     "test:js": "moon test --target js",
-    "test:wasm-browser": "node scripts/wasm_browser_smoke.mjs",
+    "test:wasm-browser": "node scripts/wasm_browser_smoke.mjs && node scripts/wasm_nested_vectors_test.mjs",
     "check:dep-pins": "node scripts/check_duckdb_pins.mjs",
     "test:wasm-browser:install": "playwright install chromium"
   },

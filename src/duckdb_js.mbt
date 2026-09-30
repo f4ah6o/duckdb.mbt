@@ -95,163 +95,6 @@ pub fn Appender::backend(self : Appender) -> Backend {
 }
 
 ///|
-extern "js" fn js_query_ffi(
-  conn : Connection,
-  sql : String,
-  on_ok : (
-    FixedArray[String],
-    FixedArray[FixedArray[String]],
-    FixedArray[FixedArray[Bool]],
-    FixedArray[Int],
-  ) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(conn, sql, on_ok, on_err) => {
-  #|  const toError = (err) => err && err.message ? err.message : String(err);
-  #|  let floatTypeId = null;
-  #|  let doubleTypeId = null;
-  #|  const toCell = (value, typeId) => {
-  #|    if (value === null || value === undefined) {
-  #|      return ["", true];
-  #|    }
-  #|    if (typeof value === "string") {
-  #|      if (typeId !== null && (typeId === floatTypeId || typeId === doubleTypeId)) {
-  #|        if (value === "NaN") {
-  #|          return ["nan", false];
-  #|        }
-  #|        if (value === "Infinity") {
-  #|          return ["inf", false];
-  #|        }
-  #|        if (value === "-Infinity") {
-  #|          return ["-inf", false];
-  #|        }
-  #|      }
-  #|      return [value, false];
-  #|    }
-  #|    if (typeof value === "number") {
-  #|      if (Number.isNaN(value)) {
-  #|        return ["nan", false];
-  #|      }
-  #|      if (value === Infinity) {
-  #|        return ["inf", false];
-  #|      }
-  #|      if (value === -Infinity) {
-  #|        return ["-inf", false];
-  #|      }
-  #|      return [String(value), false];
-  #|    }
-  #|    if (typeof value === "boolean" || typeof value === "bigint") {
-  #|      return [String(value), false];
-  #|    }
-  #|    return [JSON.stringify(value), false];
-  #|  };
-  #|  const pushRow = (values, rows, nulls, typeIds) => {
-  #|    const row = [];
-  #|    const rowNulls = [];
-  #|    for (let i = 0; i < values.length; i++) {
-  #|      const cell = toCell(values[i], typeIds ? typeIds[i] : null);
-  #|      row.push(cell[0]);
-  #|      rowNulls.push(cell[1]);
-  #|    }
-  #|    rows.push(row);
-  #|    nulls.push(rowNulls);
-  #|  };
-  #|  const runNode = async () => {
-  #|    const api = await import('@duckdb/node-api');
-  #|    floatTypeId = api.DuckDBTypeId.FLOAT;
-  #|    doubleTypeId = api.DuckDBTypeId.DOUBLE;
-  #|    const result = await conn.connection.run(sql);
-  #|    const columns = result.columnNames();
-  #|    const rowsJson = await result.getRowsJson();
-  #|    const typeIds = columns.map((_, idx) => result.columnTypeId(idx));
-  #|    const rows = [];
-  #|    const nulls = [];
-  #|    for (const row of rowsJson) {
-  #|      const values = Array.isArray(row) ? row : columns.map((name) => row[name]);
-  #|      pushRow(values, rows, nulls, typeIds);
-  #|    }
-  #|    on_ok(columns, rows, nulls, typeIds);
-  #|  };
-  #|  const runWasm = async () => {
-  #|    const arrowResult = await conn.conn.query(sql);
-  #|    let columns = [];
-  #|    if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {
-  #|      columns = arrowResult.schema.fields.map((field) => field.name);
-  #|    }
-  #|    const rowObjects = arrowResult.toArray().map((row) => row.toJSON());
-  #|    if (columns.length === 0 && rowObjects.length > 0) {
-  #|      columns = Object.keys(rowObjects[0]);
-  #|    }
-  #|    const rows = [];
-  #|    const nulls = [];
-  #|    for (const row of rowObjects) {
-  #|      const values = columns.map((name) => row[name]);
-  #|      pushRow(values, rows, nulls, null);
-  #|    }
-  #|    const typeIds = [];
-  #|    on_ok(columns, rows, nulls, typeIds);
-  #|  };
-  #|  const run = async () => {
-  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
-  #|    if (conn && conn.kind === "node") {
-  #|      await runNode();
-  #|      return;
-  #|    }
-  #|    if (conn && conn.kind === "wasm") {
-  #|      await runWasm();
-  #|      return;
-  #|    }
-  #|    throw new Error("unknown connection backend");
-  #|  };
-  #|  run().catch((err) => on_err(toError(err)));
-  #|}
-
-///|
-fn js_query(
-  conn : Connection,
-  sql : String,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit {
-  js_query_ffi(
-    conn,
-    sql,
-    fn(__a1, __a2, __a3, __a4) {
-      on_ok(
-        Array::from_fixed_array(__a1),
-        Array::from_fixed_array(
-          __a2.map(fn(__a5) { Array::from_fixed_array(__a5) }),
-        ),
-        Array::from_fixed_array(
-          __a3.map(fn(__a6) { Array::from_fixed_array(__a6) }),
-        ),
-        Array::from_fixed_array(__a4),
-      )
-    },
-    on_err,
-  )
-}
-
-///|
-fn column_types_from_ids(
-  columns : Array[String],
-  type_ids : Array[Int],
-) -> Array[ColumnType] {
-  let column_types : Array[ColumnType] = []
-  let count = columns.length()
-  for col = 0; col < count; col = col + 1 {
-    if col < type_ids.length() {
-      column_types.push(column_type_from_id(type_ids[col]))
-    } else {
-      column_types.push(ColumnType::Unknown(-1))
-    }
-  } nobreak {
-    ()
-  }
-  column_types
-}
-
-///|
 extern "js" fn js_query_stream(
   conn : Connection,
   sql : String,
@@ -321,143 +164,6 @@ extern "js" fn js_stream_column_count(stream : ResultStream) -> Int =
   #|  }
   #|  return 0;
   #|}
-
-///|
-extern "js" fn js_stream_next_ffi(
-  stream : ResultStream,
-  on_ok : (FixedArray[FixedArray[String]], FixedArray[FixedArray[Bool]]) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stream, on_ok, on_err) => {
-  #|  const toError = (err) => err && err.message ? err.message : String(err);
-  #|  const toCell = (value, typeId) => {
-  #|    const floatTypeId = stream.floatTypeId;
-  #|    const doubleTypeId = stream.doubleTypeId;
-  #|    if (value === null || value === undefined) {
-  #|      return ["", true];
-  #|    }
-  #|    if (typeof value === "string") {
-  #|      if (typeId !== null && typeId !== undefined &&
-  #|          (typeId === floatTypeId || typeId === doubleTypeId)) {
-  #|        if (value === "NaN") return ["nan", false];
-  #|        if (value === "Infinity") return ["inf", false];
-  #|        if (value === "-Infinity") return ["-inf", false];
-  #|      }
-  #|      return [value, false];
-  #|    }
-  #|    if (typeof value === "number") {
-  #|      if (Number.isNaN(value)) return ["nan", false];
-  #|      if (value === Infinity) return ["inf", false];
-  #|      if (value === -Infinity) return ["-inf", false];
-  #|      return [String(value), false];
-  #|    }
-  #|    if (typeof value === "boolean" || typeof value === "bigint") {
-  #|      return [String(value), false];
-  #|    }
-  #|    return [JSON.stringify(value), false];
-  #|  };
-  #|  const pushRow = (values, rows, nulls, typeIds) => {
-  #|    const row = [];
-  #|    const rowNulls = [];
-  #|    for (let i = 0; i < values.length; i++) {
-  #|      const cell = toCell(values[i], typeIds ? typeIds[i] : null);
-  #|      row.push(cell[0]);
-  #|      rowNulls.push(cell[1]);
-  #|    }
-  #|    rows.push(row);
-  #|    nulls.push(rowNulls);
-  #|  };
-  #|  const runNode = async () => {
-  #|    const chunk = await stream.result.fetchChunk();
-  #|    if (!chunk) {
-  #|      throw new Error("fetchChunk failed");
-  #|    }
-  #|    if (chunk.rowCount <= 0) {
-  #|      on_ok([], []);
-  #|      return;
-  #|    }
-  #|    const rows = [];
-  #|    const nulls = [];
-  #|    const values = chunk.getRows();
-  #|    for (const row of values) {
-  #|      pushRow(row, rows, nulls, stream.typeIds || null);
-  #|    }
-  #|    on_ok(rows, nulls);
-  #|  };
-  #|  const runWasm = async () => {
-  #|    if (stream.done) {
-  #|      on_ok([], []);
-  #|      return;
-  #|    }
-  #|    const next = await stream.reader.next();
-  #|    if (!next || next.done || !next.value) {
-  #|      stream.done = true;
-  #|      on_ok([], []);
-  #|      return;
-  #|    }
-  #|    const batch = next.value;
-  #|    const rowCount = batch.numRows ?? batch.length ?? 0;
-  #|    let columnCount = batch.numCols ?? 0;
-  #|    if (!columnCount && batch.schema && batch.schema.fields) {
-  #|      columnCount = batch.schema.fields.length;
-  #|    }
-  #|    if ((!stream.columns || stream.columns.length === 0) &&
-  #|        batch.schema && batch.schema.fields) {
-  #|      stream.columns = batch.schema.fields.map((field) => field.name);
-  #|    }
-  #|    const rows = [];
-  #|    const nulls = [];
-  #|    for (let r = 0; r < rowCount; r++) {
-  #|      const row = [];
-  #|      const rowNulls = [];
-  #|      for (let c = 0; c < columnCount; c++) {
-  #|        const vector = batch.getChildAt ? batch.getChildAt(c) : batch.getChild(c);
-  #|        const value = vector ? vector.get(r) : null;
-  #|        const cell = toCell(value, null);
-  #|        row.push(cell[0]);
-  #|        rowNulls.push(cell[1]);
-  #|      }
-  #|      rows.push(row);
-  #|      nulls.push(rowNulls);
-  #|    }
-  #|    on_ok(rows, nulls);
-  #|  };
-  #|  const run = async () => {
-  #|    if (stream && stream.closed) { on_err("ERR_CLOSED:stream"); return; }
-  #|    if (stream && stream.kind === "node") {
-  #|      await runNode();
-  #|      return;
-  #|    }
-  #|    if (stream && stream.kind === "wasm") {
-  #|      await runWasm();
-  #|      return;
-  #|    }
-  #|    throw new Error("unknown stream backend");
-  #|  };
-  #|  run().catch((err) => on_err(toError(err)));
-  #|}
-
-///|
-fn js_stream_next(
-  stream : ResultStream,
-  on_ok : (Array[Array[String]], Array[Array[Bool]]) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit {
-  js_stream_next_ffi(
-    stream,
-    fn(__a1, __a2) {
-      on_ok(
-        Array::from_fixed_array(
-          __a1.map(fn(__a3) { Array::from_fixed_array(__a3) }),
-        ),
-        Array::from_fixed_array(
-          __a2.map(fn(__a4) { Array::from_fixed_array(__a4) }),
-        ),
-      )
-    },
-    on_err,
-  )
-}
 
 ///|
 extern "js" fn js_stream_close(
@@ -548,15 +254,12 @@ pub fn Connection::query(
   sql : String,
   on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
 ) -> Unit {
-  js_query(
-    self,
-    sql,
-    fn(columns, rows, nulls, type_ids) {
-      let column_types = column_types_from_ids(columns, type_ids)
-      on_done(Ok({ columns, column_types, rows, nulls, }))
-    },
-    fn(message) { on_done(Err(query_error(message))) },
-  )
+  self.query_chunks(sql, on_done=fn(result) {
+    match result {
+      Ok(chunks) => on_done(Ok(chunks_to_query_result(chunks)))
+      Err(err) => on_done(Err(err))
+    }
+  })
 }
 
 ///|
@@ -585,17 +288,12 @@ pub fn ResultStream::next(
   self : ResultStream,
   on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit,
 ) -> Unit {
-  js_stream_next(
-    self,
-    fn(rows, nulls) {
-      if rows.length() == 0 {
-        on_done(Ok(None))
-      } else {
-        on_done(Ok(Some({ columns: self.columns(), rows, nulls, })))
-      }
-    },
-    fn(message) { on_done(Err(query_error(message))) },
-  )
+  self.next_chunk(on_done=fn(result) {
+    match result {
+      Ok(chunk) => on_done(Ok(chunk.map(fn(chunk) { chunk.to_data_chunk() })))
+      Err(err) => on_done(Err(err))
+    }
+  })
 }
 
 ///|
@@ -1344,193 +1042,6 @@ extern "js" fn js_appender_close(
   #|}
 
 ///|
-extern "js" fn js_execute_prepared_ffi(
-  stmt : PreparedStatement,
-  on_ok : (
-    FixedArray[String],
-    FixedArray[FixedArray[String]],
-    FixedArray[FixedArray[Bool]],
-    FixedArray[Int],
-  ) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit =
-  #|(stmt, on_ok, on_err) => {
-  #|  let floatTypeId = null;
-  #|  let doubleTypeId = null;
-  #|  const toCell = (value, typeId) => {
-  #|    if (value === null || value === undefined) {
-  #|      return ["", true];
-  #|    }
-  #|    if (typeof value === "string") {
-  #|      if (typeId !== null && (typeId === floatTypeId || typeId === doubleTypeId)) {
-  #|        if (value === "NaN") {
-  #|          return ["nan", false];
-  #|        }
-  #|        if (value === "Infinity") {
-  #|          return ["inf", false];
-  #|        }
-  #|        if (value === "-Infinity") {
-  #|          return ["-inf", false];
-  #|        }
-  #|      }
-  #|      return [value, false];
-  #|    }
-  #|    if (typeof value === "number") {
-  #|      if (Number.isNaN(value)) {
-  #|        return ["nan", false];
-  #|      }
-  #|      if (value === Infinity) {
-  #|        return ["inf", false];
-  #|      }
-  #|      if (value === -Infinity) {
-  #|        return ["-inf", false];
-  #|      }
-  #|      return [String(value), false];
-  #|    }
-  #|    if (typeof value === "boolean" || typeof value === "bigint") {
-  #|      return [String(value), false];
-  #|    }
-  #|    return [JSON.stringify(value), false];
-  #|  };
-  #|  const pushRow = (values, rows, nulls, typeIds) => {
-  #|    const row = [];
-  #|    const rowNulls = [];
-  #|    for (let i = 0; i < values.length; i++) {
-  #|      const cell = toCell(values[i], typeIds ? typeIds[i] : null);
-  #|      row.push(cell[0]);
-  #|      rowNulls.push(cell[1]);
-  #|    }
-  #|    rows.push(row);
-  #|    nulls.push(rowNulls);
-  #|  };
-  #|  const decimalToString = (value, scale) => {
-  #|    let raw = String(value);
-  #|    let sign = "";
-  #|    if (raw.startsWith("-")) {
-  #|      sign = "-";
-  #|      raw = raw.slice(1);
-  #|    }
-  #|    if (scale <= 0) return sign + raw;
-  #|    while (raw.length <= scale) raw = "0" + raw;
-  #|    const split = raw.length - scale;
-  #|    return sign + raw.slice(0, split) + "." + raw.slice(split);
-  #|  };
-  #|  const materializeWasmParams = (stmt) => {
-  #|    const params = [];
-  #|    if (!stmt.params) return params;
-  #|    const indices = Object.keys(stmt.params).map(Number).sort((a, b) => a - b);
-  #|    for (const index of indices) {
-  #|      const param = stmt.params[index];
-  #|      if (param.type === "null") {
-  #|        params.push(null);
-  #|      } else if (param.type === "bigint") {
-  #|        params.push(BigInt(param.value));
-  #|      } else if (param.type === "date" || param.type === "timestamp") {
-  #|        params.push(param.value);
-  #|      } else if (param.type === "blob") {
-  #|        params.push(new Uint8Array(param.value));
-  #|      } else if (param.type === "decimal") {
-  #|        params.push(decimalToString(param.value, param.scale));
-  #|      } else if (param.type === "interval") {
-  #|        params.push(`${param.months} months ${param.days} days ${param.micros} microseconds`);
-  #|      } else if (param.type === "list_varchar") {
-  #|        params.push(param.value);
-  #|      } else if (param.type === "struct") {
-  #|        const obj = {};
-  #|        for (let i = 0; i < param.fields.length; i++) {
-  #|          obj[param.fields[i]] = param.values[i];
-  #|        }
-  #|        params.push(obj);
-  #|      } else if (param.type === "map") {
-  #|        params.push(param.keys.map((key, i) => ({ key, value: param.values[i] })));
-  #|      } else {
-  #|        params.push(param.value);
-  #|      }
-  #|    }
-  #|    return params;
-  #|  };
-  #|  const run = async () => {
-  #|    if (stmt && stmt.closed) { on_err("ERR_CLOSED:statement"); return; }
-  #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
-  #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
-  #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
-  #|    if (kind === "node" && stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        const api = await import('@duckdb/node-api');
-  #|        floatTypeId = api.DuckDBTypeId.FLOAT;
-  #|        doubleTypeId = api.DuckDBTypeId.DOUBLE;
-  #|        const result = await stmt.statement.run();
-  #|        const columns = result.columnNames();
-  #|        const rowsJson = await result.getRowsJson();
-  #|        const typeIds = columns.map((_, idx) => result.columnTypeId(idx));
-  #|        const rows = [];
-  #|        const nulls = [];
-  #|        for (const row of rowsJson) {
-  #|          const values = Array.isArray(row) ? row : columns.map((name) => row[name]);
-  #|          pushRow(values, rows, nulls, typeIds);
-  #|        }
-  #|        on_ok(columns, rows, nulls, typeIds);
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
-  #|    }
-  #|    if (kind === "wasm" && stmt && stmt.kind === "prepared" && stmt.statement) {
-  #|      try {
-  #|        const arrowResult = await stmt.statement.query(...materializeWasmParams(stmt));
-  #|        let columns = [];
-  #|        if (arrowResult && arrowResult.schema && arrowResult.schema.fields) {
-  #|          columns = arrowResult.schema.fields.map((field) => field.name);
-  #|        }
-  #|        const rowObjects = arrowResult.toArray().map((row) => row.toJSON());
-  #|        if (columns.length === 0 && rowObjects.length > 0) {
-  #|          columns = Object.keys(rowObjects[0]);
-  #|        }
-  #|        const rows = [];
-  #|        const nulls = [];
-  #|        for (const row of rowObjects) {
-  #|          const values = columns.map((name) => row[name]);
-  #|          pushRow(values, rows, nulls, null);
-  #|        }
-  #|        const typeIds = [];
-  #|        on_ok(columns, rows, nulls, typeIds);
-  #|        return;
-  #|      } catch (e) {
-  #|        on_err(e.message || String(e));
-  #|        return;
-  #|      }
-  #|    }
-  #|    on_err("unknown statement backend");
-  #|  };
-  #|  run().catch((err) => on_err(err.message || String(err)));
-  #|}
-
-///|
-fn js_execute_prepared(
-  stmt : PreparedStatement,
-  on_ok : (Array[String], Array[Array[String]], Array[Array[Bool]], Array[Int]) -> Unit,
-  on_err : (String) -> Unit,
-) -> Unit {
-  js_execute_prepared_ffi(
-    stmt,
-    fn(__a1, __a2, __a3, __a4) {
-      on_ok(
-        Array::from_fixed_array(__a1),
-        Array::from_fixed_array(
-          __a2.map(fn(__a5) { Array::from_fixed_array(__a5) }),
-        ),
-        Array::from_fixed_array(
-          __a3.map(fn(__a6) { Array::from_fixed_array(__a6) }),
-        ),
-        Array::from_fixed_array(__a4),
-      )
-    },
-    on_err,
-  )
-}
-
-///|
 extern "js" fn js_execute_prepared_stream(
   stmt : PreparedStatement,
   on_ok : (ResultStream) -> Unit,
@@ -1949,14 +1460,12 @@ pub fn PreparedStatement::execute(
   self : PreparedStatement,
   on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
 ) -> Unit {
-  js_execute_prepared(
-    self,
-    fn(columns, rows, nulls, type_ids) {
-      let column_types = column_types_from_ids(columns, type_ids)
-      on_done(Ok({ columns, column_types, rows, nulls, }))
-    },
-    fn(message) { on_done(Err(query_error(message))) },
-  )
+  self.execute_chunks(on_done=fn(result) {
+    match result {
+      Ok(chunks) => on_done(Ok(chunks_to_query_result(chunks)))
+      Err(err) => on_done(Err(err))
+    }
+  })
 }
 
 ///|
