@@ -1,5 +1,4 @@
 ///|
-#external
 pub type ArrowResult
 
 // ============================================================================
@@ -12,7 +11,7 @@ extern "C" fn native_query_arrow(conn : Connection, sql : Bytes) -> ArrowResult 
 
 ///|
 #borrow(result)
-extern "C" fn native_arrow_destroy(result : ArrowResult) = "duckdb_mb_arrow_destroy"
+extern "C" fn native_arrow_destroy(result : ArrowResult) -> Bool = "duckdb_mb_arrow_destroy"
 
 ///|
 #borrow(result)
@@ -97,6 +96,7 @@ extern "C" fn native_arrow_get_column_bool_nullable(
 ) -> Bytes = "duckdb_mb_arrow_get_column_bool_nullable"
 
 ///|
+#borrow(result)
 extern "C" fn native_is_null_arrow_result(result : ArrowResult) -> Bool = "duckdb_mb_is_null_arrow_result"
 
 ///|
@@ -128,7 +128,7 @@ pub fn Connection::query_arrow(
   let sql_bytes = @encoding/utf8.encode(sql)
   let result = native_query_arrow(self, sql_bytes)
   if native_is_null_arrow_result(result) {
-    on_done(Err(DuckDBError::Message(last_error("arrow query failed"))))
+    on_done(Err(native_typed_error(query_error, "arrow query failed")))
   } else {
     on_done(Ok(result))
   }
@@ -153,7 +153,13 @@ pub fn ArrowResult::get_schema(
   let json_str = json_str_from_bytes(json_bytes)
   match parse_arrow_schema_json(json_str) {
     Ok(fields) => Ok(ArrowSchemaInfo::{ fields, })
-    Err(msg) => Err(DuckDBError::Message("schema parse failed: " + msg))
+    Err(msg) =>
+      Err(
+        DuckDBError::Backend(
+          backend="native",
+          message="schema parse failed: " + msg,
+        ),
+      )
   }
 }
 
@@ -607,8 +613,11 @@ pub fn ArrowResult::close(
   self : ArrowResult,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  native_arrow_destroy(self)
-  on_done(Ok(()))
+  if native_arrow_destroy(self) {
+    on_done(Ok(()))
+  } else {
+    on_done(Err(DuckDBError::Closed(resource="arrow result")))
+  }
 }
 
 // ============================================================================

@@ -14,12 +14,11 @@ fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
         conn.query_arrow(sql, on_done=fn(arrow_result) {
           match arrow_result {
             Ok(result) => result_ref.val = Some(result)
-            Err(DuckDBError::Message(message)) =>
-              error_ref.val = Some("arrow query failed: \{message}")
+            Err(err) =>
+              error_ref.val = Some("arrow query failed: \{err.message()}")
           }
         })
-      Err(DuckDBError::Message(message)) =>
-        error_ref.val = Some("connect failed: \{message}")
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
     }
   })
   match error_ref.val {
@@ -48,7 +47,7 @@ test "native arrow query basic" {
         ()
       }
     }
-    Err(message) => fail("arrow query failed: \{message}")
+    Err(err) => fail("arrow query failed: \{err}")
   }
 }
 
@@ -68,7 +67,7 @@ test "native arrow query multiple rows" {
         ()
       }
     }
-    Err(message) => fail("arrow query failed: \{message}")
+    Err(err) => fail("arrow query failed: \{err}")
   }
 }
 
@@ -87,7 +86,7 @@ test "native arrow query with types" {
         ()
       }
     }
-    Err(message) => fail("arrow query failed: \{message}")
+    Err(err) => fail("arrow query failed: \{err}")
   }
 }
 
@@ -107,7 +106,7 @@ test "native arrow query empty result" {
         ()
       }
     }
-    Err(message) => fail("arrow query failed: \{message}")
+    Err(err) => fail("arrow query failed: \{err}")
   }
 }
 
@@ -156,7 +155,7 @@ test "native arrow schema extraction" {
         }
         Err(err) =>
           match err {
-            Message(msg) => fail("schema failed: \{msg}")
+            err => fail("schema failed: \{err.message()}")
           }
       }
       result.close(on_done=fn(_) { () })
@@ -193,7 +192,7 @@ test "native arrow schema multiple types" {
         }
         Err(err) =>
           match err {
-            Message(msg) => fail("schema failed: \{msg}")
+            err => fail("schema failed: \{err.message()}")
           }
       }
       result.close(on_done=fn(_) { () })

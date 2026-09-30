@@ -9,20 +9,17 @@ fn main {
               println("columns: \{result.columns}")
               println("rows: \{result.rows}")
             }
-            Err(@lib.DuckDBError::Message(message)) =>
-              println("query failed: \{message}")
+            Err(err) => println("query failed: \{err.message()}")
           }
         })
         conn.close(on_done=fn(closed) {
           match closed {
             Ok(_) => ()
-            Err(@lib.DuckDBError::Message(message)) =>
-              println("close failed: \{message}")
+            Err(err) => println("close failed: \{err.message()}")
           }
         })
       }
-      Err(@lib.DuckDBError::Message(message)) =>
-        println("connect failed: \{message}")
+      Err(err) => println("connect failed: \{err.message()}")
     }
   })
 }

@@ -35,8 +35,7 @@ test "quack attach SQL" {
         sql,
         content="ATTACH 'quack:localhost' AS \"remote_db\" (TYPE quack, TOKEN 'secret')",
       )
-    Err(DuckDBError::Message(message)) =>
-      fail("unexpected attach SQL error: \{message}")
+    Err(err) => fail("unexpected attach SQL error: \{err.message()}")
   }
   match quack_attach_sql("quack:remote.com", "remote_2", "", true) {
     Ok(sql) =>
@@ -44,8 +43,7 @@ test "quack attach SQL" {
         sql,
         content="ATTACH 'quack:remote.com' AS \"remote_2\" (TYPE quack, DISABLE_SSL true)",
       )
-    Err(DuckDBError::Message(message)) =>
-      fail("unexpected attach SQL error: \{message}")
+    Err(err) => fail("unexpected attach SQL error: \{err.message()}")
   }
 }
 
@@ -53,15 +51,18 @@ test "quack attach SQL" {
 test "quack attach rejects unsafe aliases" {
   match quack_attach_sql("quack:localhost", "", "", false) {
     Ok(sql) => fail("expected empty alias error, got \{sql}")
-    Err(DuckDBError::Message(message)) =>
-      inspect(message, content="Quack alias must not be empty")
+    Err(err) => inspect(err.message(), content=(
+      #|invalid argument alias: Quack alias must not be empty
+    ))
   }
   match quack_attach_sql("quack:localhost", "remote-db", "", false) {
     Ok(sql) => fail("expected invalid alias error, got \{sql}")
-    Err(DuckDBError::Message(message)) =>
+    Err(err) =>
       inspect(
-        message,
-        content="Quack alias may only contain letters, digits, and underscores",
+        err.message(),
+        content=(
+          #|invalid argument alias: Quack alias may only contain letters, digits, and underscores
+        ),
       )
   }
 }

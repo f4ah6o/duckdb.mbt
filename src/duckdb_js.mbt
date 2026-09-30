@@ -144,6 +144,7 @@ extern "js" fn js_query_ffi(
   #|    on_ok(columns, rows, nulls, typeIds);
   #|  };
   #|  const run = async () => {
+  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
   #|    if (conn && conn.kind === "node") {
   #|      await runNode();
   #|      return;
@@ -234,6 +235,7 @@ extern "js" fn js_query_stream(
   #|    on_ok({ kind: "wasm", reader, columns, done: false });
   #|  };
   #|  const run = async () => {
+  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
   #|    if (conn && conn.kind === "node") {
   #|      await runNode();
   #|      return;
@@ -373,6 +375,7 @@ extern "js" fn js_stream_next_ffi(
   #|    on_ok(rows, nulls);
   #|  };
   #|  const run = async () => {
+  #|    if (stream && stream.closed) { on_err("ERR_CLOSED:stream"); return; }
   #|    if (stream && stream.kind === "node") {
   #|      await runNode();
   #|      return;
@@ -416,12 +419,14 @@ extern "js" fn js_stream_close(
 ) -> Unit =
   #|(stream, on_ok, on_err) => {
   #|  const run = async () => {
+  #|    if (stream && stream.closed) { on_err("ERR_CLOSED:stream"); return; }
   #|    if (stream && stream.kind === "wasm") {
   #|      if (stream.reader && typeof stream.reader.cancel === "function") {
   #|        await stream.reader.cancel();
   #|      }
   #|      stream.done = true;
   #|    }
+  #|    stream.closed = true;
   #|    on_ok();
   #|  };
   #|  run().catch((err) => on_err(err && err.message ? err.message : String(err)));
@@ -436,6 +441,7 @@ extern "js" fn js_close(
   #|(conn, on_ok, on_err) => {
   #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const run = async () => {
+  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
   #|    if (conn && conn.kind === "node") {
   #|      if (conn.connection && typeof conn.connection.closeSync === "function") {
   #|        conn.connection.closeSync();
@@ -443,6 +449,7 @@ extern "js" fn js_close(
   #|      if (conn.instance && typeof conn.instance.close === "function") {
   #|        await conn.instance.close();
   #|      }
+  #|    conn.closed = true;
   #|      on_ok();
   #|      return;
   #|    }
@@ -456,6 +463,7 @@ extern "js" fn js_close(
   #|      if (conn.worker && typeof conn.worker.terminate === "function") {
   #|        conn.worker.terminate();
   #|      }
+  #|    conn.closed = true;
   #|      on_ok();
   #|      return;
   #|    }
@@ -472,7 +480,7 @@ pub fn connect(
 ) -> Unit {
   touch_public_types(backend)
   js_connect(path, backend, fn(conn) { on_ready(Ok(conn)) }, fn(message) {
-    on_ready(Err(DuckDBError::Message(message)))
+    on_ready(Err(backend_error("js", message)))
   })
 }
 
@@ -482,7 +490,7 @@ pub fn Connection::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   js_close(self, fn() { on_done(Ok(())) }, fn(message) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(backend_error("js", message)))
   })
 }
 
@@ -499,7 +507,7 @@ pub fn Connection::query(
       let column_types = column_types_from_ids(columns, type_ids)
       on_done(Ok({ columns, column_types, rows, nulls, }))
     },
-    fn(message) { on_done(Err(DuckDBError::Message(message))) },
+    fn(message) { on_done(Err(query_error(message))) },
   )
 }
 
@@ -510,7 +518,7 @@ pub fn Connection::query_stream(
   on_done~ : (Result[ResultStream, DuckDBError]) -> Unit,
 ) -> Unit {
   js_query_stream(self, sql, fn(stream) { on_done(Ok(stream)) }, fn(message) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(query_error(message)))
   })
 }
 
@@ -538,7 +546,7 @@ pub fn ResultStream::next(
         on_done(Ok(Some({ columns: self.columns(), rows, nulls, })))
       }
     },
-    fn(message) { on_done(Err(DuckDBError::Message(message))) },
+    fn(message) { on_done(Err(query_error(message))) },
   )
 }
 
@@ -548,7 +556,7 @@ pub fn ResultStream::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   js_stream_close(self, fn() { on_done(Ok(())) }, fn(message) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(backend_error("js", message)))
   })
 }
 
@@ -566,6 +574,7 @@ extern "js" fn js_prepare(
   #|(conn, sql, on_ok, on_err) => {
   #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const run = async () => {
+  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
   #|    if (conn && conn.kind === "node") {
   #|      try {
   #|        const statement = await conn.connection.prepare(sql);
@@ -606,6 +615,7 @@ extern "js" fn js_bind_int(
   value : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindInteger(index, value);
@@ -630,6 +640,7 @@ extern "js" fn js_bind_bigint(
   value : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindBigInt(index, BigInt(value));
@@ -653,6 +664,7 @@ extern "js" fn js_bind_double(
   value : Double,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindDouble(index, value);
@@ -676,6 +688,7 @@ extern "js" fn js_bind_varchar(
   value : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindVarchar(index, value);
@@ -699,6 +712,7 @@ extern "js" fn js_bind_bool(
   value : Bool,
 ) -> Result[Unit, String] =
   #|(stmt, index, value) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindBoolean(index, value);
@@ -721,6 +735,7 @@ extern "js" fn js_bind_null(
   index : Int,
 ) -> Result[Unit, String] =
   #|(stmt, index) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindNull(index);
@@ -742,6 +757,7 @@ extern "js" fn js_clear_bindings(
   stmt : PreparedStatement,
 ) -> Result[Unit, String] =
   #|(stmt) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.clearBindings();
@@ -764,6 +780,7 @@ extern "js" fn js_bind_date(
   date_str : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, date_str) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindDate(index, date_str);
@@ -787,6 +804,7 @@ extern "js" fn js_bind_timestamp(
   timestamp_str : String,
 ) -> Result[Unit, String] =
   #|(stmt, index, timestamp_str) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindTimestamp(index, timestamp_str);
@@ -814,6 +832,7 @@ extern "js" fn js_bind_blob(
   data : Bytes,
 ) -> Result[Unit, String] =
   #|(stmt, index, data) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const uint8Array = new Uint8Array(data.byteLength);
@@ -842,6 +861,7 @@ extern "js" fn js_bind_decimal(
   upper : Int64,
 ) -> Result[Unit, String] =
   #|(stmt, index, width, scale, lower, upper) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  const value = BigInt.asIntN(128, (BigInt(upper) << 64n) | BigInt.asUintN(64, lower));
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
@@ -868,6 +888,7 @@ extern "js" fn js_bind_interval(
   micros : Int64,
 ) -> Result[Unit, String] =
   #|(stmt, index, months, days, micros) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bindInterval(index, { months, days, micros: BigInt(micros) });
@@ -891,6 +912,7 @@ extern "js" fn js_bind_list_varchar_ffi(
   values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, values) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      stmt.statement.bind(index, { items: values }, { typeId: 24 }); // LIST type
@@ -922,6 +944,7 @@ extern "js" fn js_bind_struct_ffi(
   values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, fields, values) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const entries = fields.map((name, i) => ({ name, value: values[i] }));
@@ -960,6 +983,7 @@ extern "js" fn js_bind_map_ffi(
   values : FixedArray[String],
 ) -> Result[Unit, String] =
   #|(stmt, index, keys, values) => {
+  #|    if (stmt && stmt.closed) return { ok: false, error: "ERR_CLOSED:statement" };
   #|  if (stmt && stmt.kind === "prepared" && stmt.connection && stmt.connection.kind === "node" && stmt.statement) {
   #|    try {
   #|      const entries = keys.map((key, i) => ({ key, value: values[i] }));
@@ -1004,6 +1028,7 @@ extern "js" fn js_create_appender(
   #|(conn, table, on_ok, on_err) => {
   #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const run = async () => {
+  #|    if (conn && conn.closed) { on_err("ERR_CLOSED:connection"); return; }
   #|    if (conn && conn.kind === "node") {
   #|      try {
   #|        const appender = await conn.connection.createAppender(table);
@@ -1028,6 +1053,7 @@ extern "js" fn js_appender_begin_row(
   appender : Appender,
 ) -> Result[Unit, String] =
   #|(appender) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      // No-op in Node API, but kept for API compatibility
@@ -1045,6 +1071,7 @@ extern "js" fn js_appender_append_int(
   value : Int,
 ) -> Result[Unit, String] =
   #|(appender, value) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendInteger(value);
@@ -1062,6 +1089,7 @@ extern "js" fn js_appender_append_bigint(
   value : Int,
 ) -> Result[Unit, String] =
   #|(appender, value) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendBigInt(BigInt(value));
@@ -1079,6 +1107,7 @@ extern "js" fn js_appender_append_double(
   value : Double,
 ) -> Result[Unit, String] =
   #|(appender, value) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendDouble(value);
@@ -1096,6 +1125,7 @@ extern "js" fn js_appender_append_varchar(
   value : String,
 ) -> Result[Unit, String] =
   #|(appender, value) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendVarchar(value);
@@ -1113,6 +1143,7 @@ extern "js" fn js_appender_append_bool(
   value : Bool,
 ) -> Result[Unit, String] =
   #|(appender, value) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendBoolean(value);
@@ -1129,6 +1160,7 @@ extern "js" fn js_appender_append_null(
   appender : Appender,
 ) -> Result[Unit, String] =
   #|(appender) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendNull();
@@ -1146,6 +1178,7 @@ extern "js" fn js_appender_append_blob(
   data : Bytes,
 ) -> Result[Unit, String] =
   #|(appender, data) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      const uint8Array = new Uint8Array(data.byteLength);
@@ -1170,6 +1203,7 @@ extern "js" fn js_appender_append_decimal(
   upper : Int64,
 ) -> Result[Unit, String] =
   #|(appender, width, scale, lower, upper) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  const value = BigInt.asIntN(128, (BigInt(upper) << 64n) | BigInt.asUintN(64, lower));
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
@@ -1190,6 +1224,7 @@ extern "js" fn js_appender_append_interval(
   micros : Int64,
 ) -> Result[Unit, String] =
   #|(appender, months, days, micros) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.appendInterval({ months, days, micros: BigInt(micros) });
@@ -1204,6 +1239,7 @@ extern "js" fn js_appender_append_interval(
 ///|
 extern "js" fn js_appender_end_row(appender : Appender) -> Result[Unit, String] =
   #|(appender) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.endRow();
@@ -1218,6 +1254,7 @@ extern "js" fn js_appender_end_row(appender : Appender) -> Result[Unit, String] 
 ///|
 extern "js" fn js_appender_flush(appender : Appender) -> Result[Unit, String] =
   #|(appender) => {
+  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
   #|  if (appender && appender.kind === "appender" && appender.appender) {
   #|    try {
   #|      appender.appender.flushSync();
@@ -1238,9 +1275,11 @@ extern "js" fn js_appender_close(
   #|(appender, on_ok, on_err) => {
   #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const run = async () => {
+  #|    if (appender && appender.closed) { on_err("ERR_CLOSED:appender"); return; }
   #|    if (appender && appender.kind === "appender" && appender.appender) {
   #|      try {
   #|        appender.appender.closeSync();
+  #|    appender.closed = true;
   #|        on_ok();
   #|        return;
   #|      } catch (e) {
@@ -1360,6 +1399,7 @@ extern "js" fn js_execute_prepared_ffi(
   #|    return params;
   #|  };
   #|  const run = async () => {
+  #|    if (stmt && stmt.closed) { on_err("ERR_CLOSED:statement"); return; }
   #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
   #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
   #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
@@ -1493,6 +1533,7 @@ extern "js" fn js_execute_prepared_stream(
   #|    return params;
   #|  };
   #|  const run = async () => {
+  #|    if (stmt && stmt.closed) { on_err("ERR_CLOSED:statement"); return; }
   #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
   #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
   #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
@@ -1543,12 +1584,14 @@ extern "js" fn js_close_prepared(
 ) -> Unit =
   #|(stmt, on_ok, on_err) => {
   #|  const run = async () => {
+  #|    if (stmt && stmt.closed) { on_err("ERR_CLOSED:statement"); return; }
   #|    const backend = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
   #|    const inferred = backend || (stmt && stmt.statement && typeof stmt.statement.query === "function" ? "wasm" : null);
   #|    const kind = inferred || (stmt && stmt.statement && typeof stmt.statement.run === "function" ? "node" : null);
   #|    if (kind === "node" && stmt && stmt.kind === "prepared" && stmt.statement) {
   #|      try {
   #|        // Node-api statements are automatically cleaned up
+  #|    stmt.closed = true;
   #|        on_ok();
   #|        return;
   #|      } catch (e) {
@@ -1562,6 +1605,7 @@ extern "js" fn js_close_prepared(
   #|          await stmt.statement.close();
   #|        }
   #|        stmt.params = {};
+  #|    stmt.closed = true;
   #|        on_ok();
   #|        return;
   #|      } catch (e) {
@@ -1585,7 +1629,7 @@ pub fn Connection::prepare(
   on_done~ : (Result[PreparedStatement, DuckDBError]) -> Unit,
 ) -> Unit {
   js_prepare(self, sql, fn(stmt) { on_done(Ok(stmt)) }, fn(message) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(prepare_error(message)))
   })
 }
 
@@ -1597,7 +1641,7 @@ pub fn PreparedStatement::bind_int(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_int(self, index, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1609,7 +1653,7 @@ pub fn PreparedStatement::bind_bigint(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_bigint(self, index, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1621,7 +1665,7 @@ pub fn PreparedStatement::bind_double(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_double(self, index, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1633,7 +1677,7 @@ pub fn PreparedStatement::bind_varchar(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_varchar(self, index, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1645,7 +1689,7 @@ pub fn PreparedStatement::bind_bool(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_bool(self, index, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1656,7 +1700,7 @@ pub fn PreparedStatement::bind_null(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_null(self, index) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1666,7 +1710,7 @@ pub fn PreparedStatement::clear_bindings(
 ) -> Result[Unit, DuckDBError] {
   match js_clear_bindings(self) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1685,7 +1729,7 @@ pub fn PreparedStatement::bind_date(
   let date_str = "\{year}-\{String::pad_start(month.to_string(), 2, '0')}-\{String::pad_start(day.to_string(), 2, '0')}"
   match js_bind_date(self, index, date_str) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1702,7 +1746,7 @@ pub fn PreparedStatement::bind_timestamp(
   let timestamp_str = "\{date_str} \{time_str}"
   match js_bind_timestamp(self, index, timestamp_str) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(bind_error(message))
   }
 }
 
@@ -1714,7 +1758,7 @@ pub fn Appender::append_date(
   let _ = self
   let _ = days
   // Appender not supported in JS backend
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  Err(unsupported_error("appender append_date", "js"))
 }
 
 ///|
@@ -1725,7 +1769,7 @@ pub fn Appender::append_timestamp(
   let _ = self
   let _ = micros
   // Appender not supported in JS backend
-  Err(DuckDBError::Message("Appender not yet supported for JS backend"))
+  Err(unsupported_error("appender append_timestamp", "js"))
 }
 
 ///|
@@ -1864,7 +1908,7 @@ pub fn PreparedStatement::execute(
       let column_types = column_types_from_ids(columns, type_ids)
       on_done(Ok({ columns, column_types, rows, nulls, }))
     },
-    fn(message) { on_done(Err(DuckDBError::Message(message))) },
+    fn(message) { on_done(Err(query_error(message))) },
   )
 }
 
@@ -1876,7 +1920,7 @@ pub fn PreparedStatement::execute_stream(
   js_execute_prepared_stream(self, fn(stream) { on_done(Ok(stream)) }, fn(
     message,
   ) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(query_error(message)))
   })
 }
 
@@ -1886,7 +1930,7 @@ pub fn PreparedStatement::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   js_close_prepared(self, fn() { on_done(Ok(())) }, fn(message) {
-    on_done(Err(DuckDBError::Message(message)))
+    on_done(Err(backend_error("js", message)))
   })
 }
 
@@ -1982,7 +2026,7 @@ pub fn Config::set(
 ) -> Result[Unit, DuckDBError] {
   match js_config_set(self, key, value) {
     Ok(_) => Ok(())
-    Err(message) => Err(DuckDBError::Message(message))
+    Err(message) => Err(backend_error("js", message))
   }
 }
 
@@ -2001,12 +2045,12 @@ pub fn connect_with_config(
         cfg,
         backend,
         fn(conn) { on_ready(Ok(conn)) },
-        fn(message) { on_ready(Err(DuckDBError::Message(message))) },
+        fn(message) { on_ready(Err(backend_error("js", message))) },
       )
     None =>
       // Call the original connect function - need to create a wrapper
       js_connect(path, backend, fn(conn) { on_ready(Ok(conn)) }, fn(message) {
-        on_ready(Err(DuckDBError::Message(message)))
+        on_ready(Err(backend_error("js", message)))
       })
   }
 }
@@ -2025,7 +2069,7 @@ pub fn Connection::create_appender(
   // Note: schema parameter is ignored for Node API (uses table name only)
   let _ = schema
   js_create_appender(self, table, fn(a) { on_done(Ok(a)) }, fn(e) {
-    on_done(Err(DuckDBError::Message(e)))
+    on_done(Err(append_error(e)))
   })
 }
 
@@ -2033,7 +2077,7 @@ pub fn Connection::create_appender(
 pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
   match js_appender_begin_row(self) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2044,7 +2088,7 @@ pub fn Appender::append_int(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_int(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2055,7 +2099,7 @@ pub fn Appender::append_bigint(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_bigint(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2066,7 +2110,7 @@ pub fn Appender::append_double(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_double(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2077,7 +2121,7 @@ pub fn Appender::append_varchar(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_varchar(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2088,7 +2132,7 @@ pub fn Appender::append_bool(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_bool(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2096,7 +2140,7 @@ pub fn Appender::append_bool(
 pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
   match js_appender_append_null(self) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2104,7 +2148,7 @@ pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
 pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
   match js_appender_end_row(self) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2112,7 +2156,7 @@ pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
 pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   match js_appender_flush(self) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2122,7 +2166,7 @@ pub fn Appender::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   js_appender_close(self, fn() { on_done(Ok(())) }, fn(e) {
-    on_done(Err(DuckDBError::Message(e)))
+    on_done(Err(backend_error("js", e)))
   })
 }
 
@@ -2142,7 +2186,7 @@ pub fn PreparedStatement::bind_blob(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_blob(self, index, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 
@@ -2153,7 +2197,7 @@ pub fn Appender::append_blob(
 ) -> Result[Unit, DuckDBError] {
   match js_appender_append_blob(self, value) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2179,7 +2223,7 @@ pub fn PreparedStatement::bind_decimal(
       value.upper,
     ) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 
@@ -2197,7 +2241,7 @@ pub fn Appender::append_decimal(
       value.upper,
     ) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2283,7 +2327,7 @@ pub fn PreparedStatement::bind_interval(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_interval(self, index, value.months, value.days, value.micros) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 
@@ -2295,7 +2339,7 @@ pub fn Appender::append_interval(
   match
     js_appender_append_interval(self, value.months, value.days, value.micros) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(append_error(e))
   }
 }
 
@@ -2354,7 +2398,7 @@ pub fn PreparedStatement::bind_list_varchar(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_list_varchar(self, index, values) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 
@@ -2389,7 +2433,7 @@ pub fn PreparedStatement::bind_struct(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_struct(self, index, value.fields, value.values) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 
@@ -2448,7 +2492,7 @@ pub fn PreparedStatement::bind_map(
 ) -> Result[Unit, DuckDBError] {
   match js_bind_map(self, index, map.keys, map.values) {
     Ok(_) => Ok(())
-    Err(e) => Err(DuckDBError::Message(e))
+    Err(e) => Err(bind_error(e))
   }
 }
 

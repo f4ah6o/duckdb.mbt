@@ -8,20 +8,17 @@ fn run_native_query(sql : String) -> Result[QueryResult, String] {
         conn.query(sql, on_done=fn(query_result) {
           match query_result {
             Ok(result) => result_ref.val = Some(result)
-            Err(DuckDBError::Message(message)) =>
-              error_ref.val = Some("query failed: \{message}")
+            Err(err) => error_ref.val = Some("query failed: \{err.message()}")
           }
         })
         conn.close(on_done=fn(closed) {
           match closed {
             Ok(_) => ()
-            Err(DuckDBError::Message(message)) =>
-              error_ref.val = Some("close failed: \{message}")
+            Err(err) => error_ref.val = Some("close failed: \{err.message()}")
           }
         })
       }
-      Err(DuckDBError::Message(message)) =>
-        error_ref.val = Some("connect failed: \{message}")
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
     }
   })
   match error_ref.val {
@@ -55,8 +52,8 @@ fn run_native_stream_count(
                     Ok(Some(chunk)) =>
                       count_ref.val = count_ref.val + chunk.row_count()
                     Ok(None) => done_ref.val = true
-                    Err(DuckDBError::Message(message)) => {
-                      error_ref.val = Some("stream failed: \{message}")
+                    Err(err) => {
+                      error_ref.val = Some("stream failed: \{err.message()}")
                       done_ref.val = true
                     }
                   }
@@ -65,12 +62,10 @@ fn run_native_stream_count(
               stream.close(on_done=fn(_) { () })
               conn.close(on_done=fn(_) { () })
             }
-            Err(DuckDBError::Message(message)) =>
-              error_ref.val = Some("stream failed: \{message}")
+            Err(err) => error_ref.val = Some("stream failed: \{err.message()}")
           }
         })
-      Err(DuckDBError::Message(message)) =>
-        error_ref.val = Some("connect failed: \{message}")
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
     }
   })
   match error_ref.val {
@@ -89,7 +84,7 @@ test "native fixtures" {
     let result = run_native_query(case.sql)
     match result {
       Ok(value) => expect_query_result(case, value)
-      Err(message) => fail("fixture '\{case.name}' failed: \{message}")
+      Err(err) => fail("fixture '\{case.name}' failed: \{err}")
     }
   } nobreak {
     ()
@@ -108,7 +103,7 @@ test "native stream large range" {
       } else {
         ()
       }
-    Err(message) => fail("stream query failed: \{message}")
+    Err(err) => fail("stream query failed: \{err}")
   }
 }
 
@@ -134,22 +129,20 @@ fn run_native_prepare_query(
                   stmt.execute(on_done=fn(exec_result) {
                     match exec_result {
                       Ok(query_result) => result_ref.val = Some(query_result)
-                      Err(DuckDBError::Message(message)) =>
-                        error_ref.val = Some("execute failed: \{message}")
+                      Err(err) =>
+                        error_ref.val = Some("execute failed: \{err.message()}")
                     }
                     stmt.close(on_done=fn(_) { () })
                   })
                   conn.close(on_done=fn(_) { () })
                 }
-                Err(DuckDBError::Message(message)) =>
-                  error_ref.val = Some("bind failed: \{message}")
+                Err(err) =>
+                  error_ref.val = Some("bind failed: \{err.message()}")
               }
-            Err(DuckDBError::Message(message)) =>
-              error_ref.val = Some("prepare failed: \{message}")
+            Err(err) => error_ref.val = Some("prepare failed: \{err.message()}")
           }
         })
-      Err(DuckDBError::Message(message)) =>
-        error_ref.val = Some("connect failed: \{message}")
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
     }
   })
   match error_ref.val {
@@ -182,7 +175,7 @@ test "native prepare simple select" {
           None => fail("expected non-null value")
         }
       }
-    Err(message) => fail("prepare query failed: \{message}")
+    Err(err) => fail("prepare query failed: \{err}")
   }
 }
 
@@ -202,7 +195,7 @@ test "native prepare bind int" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind int failed: \{message}")
+    Err(err) => fail("bind int failed: \{err}")
   }
 }
 
@@ -222,7 +215,7 @@ test "native prepare bind bigint" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind bigint failed: \{message}")
+    Err(err) => fail("bind bigint failed: \{err}")
   }
 }
 
@@ -242,7 +235,7 @@ test "native prepare bind double" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind double failed: \{message}")
+    Err(err) => fail("bind double failed: \{err}")
   }
 }
 
@@ -264,7 +257,7 @@ test "native prepare bind varchar" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind varchar failed: \{message}")
+    Err(err) => fail("bind varchar failed: \{err}")
   }
 }
 
@@ -284,7 +277,7 @@ test "native prepare bind bool" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind bool failed: \{message}")
+    Err(err) => fail("bind bool failed: \{err}")
   }
 }
 
@@ -304,7 +297,7 @@ test "native prepare bind null" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("bind null failed: \{message}")
+    Err(err) => fail("bind null failed: \{err}")
   }
 }
 
@@ -333,7 +326,7 @@ test "native prepare multiple params" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("multiple params failed: \{message}")
+    Err(err) => fail("multiple params failed: \{err}")
   }
 }
 
@@ -374,7 +367,7 @@ test "native prepare multiple rows" {
           ()
         }
       }
-    Err(message) => fail("multiple rows failed: \{message}")
+    Err(err) => fail("multiple rows failed: \{err}")
   }
 }
 
@@ -398,7 +391,7 @@ test "native prepare clear bindings" {
         None => () // Expected to be null after clear_bindings + bind_null
         Some(v) => fail("expected null after clear_bindings, got '\{v}'")
       }
-    Err(message) => fail("clear bindings failed: \{message}")
+    Err(err) => fail("clear bindings failed: \{err}")
   }
 }
 
@@ -441,27 +434,32 @@ fn run_native_appender_test(
                                     result_ref.val = Some(result)
                                     conn.close(on_done=fn(_) { () })
                                   }
-                                  Err(DuckDBError::Message(msg)) =>
-                                    error_ref.val = Some("query failed: \{msg}")
+                                  Err(err) =>
+                                    error_ref.val = Some(
+                                      "query failed: \{err.message()}",
+                                    )
                                 }
                               })
-                            Err(DuckDBError::Message(msg)) =>
-                              error_ref.val = Some("close failed: \{msg}")
+                            Err(err) =>
+                              error_ref.val = Some(
+                                "close failed: \{err.message()}",
+                              )
                           }
                         })
-                      Err(DuckDBError::Message(msg)) =>
-                        error_ref.val = Some("append failed: \{msg}")
+                      Err(err) =>
+                        error_ref.val = Some("append failed: \{err.message()}")
                     }
-                  Err(DuckDBError::Message(msg)) =>
-                    error_ref.val = Some("create_appender failed: \{msg}")
+                  Err(err) =>
+                    error_ref.val = Some(
+                      "create_appender failed: \{err.message()}",
+                    )
                 }
               })
-            Err(DuckDBError::Message(msg)) =>
-              error_ref.val = Some("setup query failed: \{msg}")
+            Err(err) =>
+              error_ref.val = Some("setup query failed: \{err.message()}")
           }
         })
-      Err(DuckDBError::Message(msg)) =>
-        error_ref.val = Some("connect failed: \{msg}")
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
     }
   })
   match error_ref.val {
@@ -518,7 +516,7 @@ test "native appender basic int" {
           None => fail("expected non-null value")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -557,7 +555,7 @@ test "native appender varchar" {
           None => fail("expected non-null name")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -596,7 +594,7 @@ test "native appender double" {
           None => fail("expected non-null value")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -635,7 +633,7 @@ test "native appender bool" {
           None => fail("expected non-null flag")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -669,7 +667,7 @@ test "native appender null" {
           Some(v) => fail("expected null, got '\{v}'")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -755,7 +753,7 @@ test "native appender multiple rows" {
           None => fail("row 1 value: expected non-null")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -794,7 +792,7 @@ test "native appender bigint" {
           None => fail("expected non-null value")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -832,7 +830,7 @@ test "native prepare bind date" {
         }
         None => fail("expected non-null date value")
       }
-    Err(message) => fail("bind date test failed: \{message}")
+    Err(err) => fail("bind date test failed: \{err}")
   }
 }
 
@@ -861,7 +859,7 @@ test "native prepare bind timestamp" {
           }
         None => fail("expected non-null timestamp value")
       }
-    Err(message) => fail("bind timestamp test failed: \{message}")
+    Err(err) => fail("bind timestamp test failed: \{err}")
   }
 }
 
@@ -902,7 +900,7 @@ test "native appender append date" {
           None => fail("expected non-null date value")
         }
       }
-    Err(message) => fail("appender date test failed: \{message}")
+    Err(err) => fail("appender date test failed: \{err}")
   }
 }
 
@@ -943,7 +941,7 @@ test "native appender append timestamp" {
           None => fail("expected non-null timestamp value")
         }
       }
-    Err(message) => fail("appender timestamp test failed: \{message}")
+    Err(err) => fail("appender timestamp test failed: \{err}")
   }
 }
 
@@ -1066,7 +1064,7 @@ test "typed result basic types" {
         None => fail("expected Some('hello'), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1103,7 +1101,7 @@ test "typed result varchar stays string" {
         None => fail("expected Some value for float_str")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1132,7 +1130,7 @@ test "typed result null values" {
         None => fail("expected Some(2), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1167,7 +1165,7 @@ test "typed result date and timestamp" {
         None => fail("expected Some(timestamp), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1190,7 +1188,7 @@ test "typed result timestamp fractional seconds" {
         None => fail("expected Some(timestamp), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1243,7 +1241,7 @@ test "typed result columnar access" {
         None => fail("expected Some(column), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1282,7 +1280,7 @@ test "typed result bigint extremes" {
         None => fail("expected Some(min bigint)")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1311,7 +1309,7 @@ test "typed result get_value" {
         None => fail("expected Some(value), got None")
       }
     }
-    Err(message) => fail("query failed: \{message}")
+    Err(err) => fail("query failed: \{err}")
   }
 }
 
@@ -1485,7 +1483,7 @@ test "native prepare bind decimal 128-bit" {
             }
           None => fail("expected non-null value")
         }
-      Err(message) => fail("bind decimal failed: \{message}")
+      Err(err) => fail("bind decimal failed: \{err}")
     }
   }
 }
@@ -1518,7 +1516,7 @@ test "native appender decimal 128-bit" {
           }
         None => fail("expected non-null value")
       }
-    Err(message) => fail("append decimal failed: \{message}")
+    Err(err) => fail("append decimal failed: \{err}")
   }
 }
 
@@ -1556,7 +1554,7 @@ test "native appender list varchar" {
           None => fail("expected non-null list value")
         }
       }
-    Err(message) => fail("appender test failed: \{message}")
+    Err(err) => fail("appender test failed: \{err}")
   }
 }
 
@@ -1595,7 +1593,7 @@ test "native appender struct" {
           None => fail("expected non-null struct value")
         }
       }
-    Err(message) => fail("appender struct test failed: \{message}")
+    Err(err) => fail("appender struct test failed: \{err}")
   }
 }
 
@@ -1635,6 +1633,399 @@ test "native appender map" {
           None => fail("expected non-null map value")
         }
       }
-    Err(message) => fail("appender map test failed: \{message}")
+    Err(err) => fail("appender map test failed: \{err}")
+  }
+}
+
+///|
+test "structured error: native query carries engine classification" {
+  let error_ref : Ref[DuckDBError?] = Ref::new(None)
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.query("SELEC 1", on_done=fn(query_result) {
+          match query_result {
+            Ok(_) => unexpected_ref.val = Some("expected query to fail")
+            Err(err) => error_ref.val = Some(err)
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  match error_ref.val {
+    Some(err) =>
+      match err {
+        DuckDB(error_type~, message~) => {
+          // DuckDB reports syntax errors as parser errors.
+          inspect(error_type, content="parser")
+          // The original engine diagnostic is preserved verbatim.
+          if !message.contains("SELEC") {
+            fail("expected original message, got '\{message}'")
+          }
+          inspect(err.error_type(), content="Some(parser)")
+        }
+        err => fail("expected DuckDB variant, got \{err.message()}")
+      }
+    None => fail("expected query error")
+  }
+}
+
+///|
+test "structured error: unsupported stream column type" {
+  let error_ref : Ref[DuckDBError?] = Ref::new(None)
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.query_stream("SELECT 1.5::DECIMAL(10,2) AS d", on_done=fn(
+          stream_result,
+        ) {
+          match stream_result {
+            Ok(stream) => stream.close(on_done=fn(_) { () })
+            Err(err) => error_ref.val = Some(err)
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  match error_ref.val {
+    // Unsupported carries the feature, the backend that rejected it, and
+    // the backend's original diagnostic verbatim.
+    Some(Unsupported(feature~, backend~, message~)) => {
+      inspect(feature, content="streamed query results with this column type")
+      inspect(backend, content="native")
+      if !message.contains("unsupported column type") {
+        fail("expected original diagnostic, got '\{message}'")
+      }
+    }
+    Some(err) => fail("expected Unsupported variant, got \{err.message()}")
+    None => fail("expected streaming DECIMAL column to be rejected")
+  }
+}
+
+///|
+test "structured error: bounds-checked cell access" {
+  match run_native_query("SELECT 42 AS answer") {
+    Ok(result) => {
+      inspect(result.cell(0, 0), content="Some(42)")
+      inspect(result.cell(1, 0), content="None")
+      inspect(result.cell(0, 1), content="None")
+      inspect(result.cell(-1, 0), content="None")
+      inspect(result.cell(0, -1), content="None")
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "structured error: native prepare keeps the original diagnostic" {
+  let error_ref : Ref[DuckDBError?] = Ref::new(None)
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.prepare("SELEC FROM nothing", on_done=fn(prepare_result) {
+          match prepare_result {
+            Ok(stmt) => {
+              unexpected_ref.val = Some("expected prepare to fail")
+              stmt.close(on_done=fn(_) { () })
+            }
+            Err(err) => error_ref.val = Some(err)
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  match error_ref.val {
+    Some(DuckDB(error_type~, message~)) => {
+      // The engine classifies invalid SQL as a parser error and the
+      // original diagnostic must survive statement teardown verbatim.
+      inspect(error_type, content="parser")
+      if !message.contains("SELEC") {
+        fail("expected original diagnostic, got '\{message}'")
+      }
+    }
+    Some(err) => fail("expected DuckDB variant, got \{err.message()}")
+    None => fail("expected prepare error")
+  }
+}
+
+///|
+test "structured error: appender create on missing table keeps diagnostic" {
+  let error_ref : Ref[DuckDBError?] = Ref::new(None)
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.create_appender("main", "no_such_table_xyz", on_done=fn(
+          appender_result,
+        ) {
+          match appender_result {
+            Ok(appender) => {
+              unexpected_ref.val = Some("expected create_appender to fail")
+              appender.close(on_done=fn(_) { () })
+            }
+            Err(err) => error_ref.val = Some(err)
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  match error_ref.val {
+    // Engine-classified (catalog) or binding-side Append; never the generic
+    // "create_appender failed" fallback.
+    Some(DuckDB(message~, ..)) | Some(Append(message)) => {
+      match error_ref.val {
+        Some(DuckDB(error_type~, ..)) => inspect(error_type, content="catalog")
+        _ => ()
+      }
+      if message == "create_appender failed" {
+        fail("generic fallback message leaked through")
+      }
+      if !message.contains("no_such_table_xyz") {
+        fail("expected original diagnostic, got '\{message}'")
+      }
+    }
+    Some(err) => fail("expected DuckDB or Append variant, got \{err.message()}")
+    None => fail("expected create_appender error")
+  }
+}
+
+///|
+test "closed connection reports Closed on query and second close" {
+  let errors : Ref[Array[DuckDBError]] = Ref::new([])
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) =>
+        conn.close(on_done=fn(first_close) {
+          match first_close {
+            Ok(_) => {
+              conn.query("SELECT 1", on_done=fn(query_result) {
+                match query_result {
+                  Ok(_) => unexpected_ref.val = Some("query on closed conn")
+                  Err(err) => errors.val.push(err)
+                }
+              })
+              conn.close(on_done=fn(second_close) {
+                match second_close {
+                  Ok(_) => unexpected_ref.val = Some("second close succeeded")
+                  Err(err) => errors.val.push(err)
+                }
+              })
+            }
+            Err(err) =>
+              unexpected_ref.val = Some("first close: \{err.message()}")
+          }
+        })
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  inspect(errors.val.length(), content="2")
+  for err in errors.val {
+    match err {
+      Closed(resource~) => inspect(resource, content="connection")
+      _ => fail("expected Closed variant, got \{err.message()}")
+    }
+  } nobreak {
+    ()
+  }
+}
+
+///|
+test "closed statement reports Closed on bind, execute and second close" {
+  let errors : Ref[Array[DuckDBError]] = Ref::new([])
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.prepare("SELECT ?::INTEGER AS x", on_done=fn(prepare_result) {
+          match prepare_result {
+            Ok(stmt) =>
+              stmt.close(on_done=fn(first_close) {
+                match first_close {
+                  Ok(_) => {
+                    match stmt.bind_int(1, 42) {
+                      Ok(_) => unexpected_ref.val = Some("bind on closed stmt")
+                      Err(err) => errors.val.push(err)
+                    }
+                    stmt.close(on_done=fn(second_close) {
+                      match second_close {
+                        Ok(_) =>
+                          unexpected_ref.val = Some("second close succeeded")
+                        Err(err) => errors.val.push(err)
+                      }
+                    })
+                  }
+                  Err(err) =>
+                    unexpected_ref.val = Some("first close: \{err.message()}")
+                }
+              })
+            Err(err) => unexpected_ref.val = Some("prepare: \{err.message()}")
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  inspect(errors.val.length(), content="2")
+  for err in errors.val {
+    match err {
+      Closed(resource~) => inspect(resource, content="statement")
+      _ => fail("expected Closed variant, got \{err.message()}")
+    }
+  } nobreak {
+    ()
+  }
+}
+
+///|
+test "closed stream reports Closed on next and second close" {
+  let errors : Ref[Array[DuckDBError]] = Ref::new([])
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.query_stream("SELECT 1 AS x", on_done=fn(stream_result) {
+          match stream_result {
+            Ok(stream) =>
+              stream.close(on_done=fn(first_close) {
+                match first_close {
+                  Ok(_) => {
+                    stream.next(on_done=fn(next_result) {
+                      match next_result {
+                        Ok(_) =>
+                          unexpected_ref.val = Some("next on closed stream")
+                        Err(err) => errors.val.push(err)
+                      }
+                    })
+                    stream.close(on_done=fn(second_close) {
+                      match second_close {
+                        Ok(_) =>
+                          unexpected_ref.val = Some("second close succeeded")
+                        Err(err) => errors.val.push(err)
+                      }
+                    })
+                  }
+                  Err(err) =>
+                    unexpected_ref.val = Some("first close: \{err.message()}")
+                }
+              })
+            Err(err) => unexpected_ref.val = Some("stream: \{err.message()}")
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  inspect(errors.val.length(), content="2")
+  for err in errors.val {
+    match err {
+      Closed(resource~) => inspect(resource, content="stream")
+      _ => fail("expected Closed variant, got \{err.message()}")
+    }
+  } nobreak {
+    ()
+  }
+}
+
+///|
+test "closed appender reports Closed on append and second close" {
+  let errors : Ref[Array[DuckDBError]] = Ref::new([])
+  let unexpected_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.query("CREATE TABLE closed_app_t (a INTEGER)", on_done=fn(
+          setup_result,
+        ) {
+          match setup_result {
+            Ok(_) =>
+              conn.create_appender("main", "closed_app_t", on_done=fn(
+                appender_result,
+              ) {
+                match appender_result {
+                  Ok(appender) =>
+                    appender.close(on_done=fn(first_close) {
+                      match first_close {
+                        Ok(_) => {
+                          match appender.append_int(7) {
+                            Ok(_) =>
+                              unexpected_ref.val = Some(
+                                "append on closed appender",
+                              )
+                            Err(err) => errors.val.push(err)
+                          }
+                          appender.close(on_done=fn(second_close) {
+                            match second_close {
+                              Ok(_) =>
+                                unexpected_ref.val = Some(
+                                  "second close succeeded",
+                                )
+                              Err(err) => errors.val.push(err)
+                            }
+                          })
+                        }
+                        Err(err) =>
+                          unexpected_ref.val = Some(
+                            "first close: \{err.message()}",
+                          )
+                      }
+                    })
+                  Err(err) =>
+                    unexpected_ref.val = Some("appender: \{err.message()}")
+                }
+              })
+            Err(err) => unexpected_ref.val = Some("setup: \{err.message()}")
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => unexpected_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  if unexpected_ref.val is Some(message) {
+    fail(message)
+  }
+  inspect(errors.val.length(), content="2")
+  for err in errors.val {
+    match err {
+      Closed(resource~) => inspect(resource, content="appender")
+      _ => fail("expected Closed variant, got \{err.message()}")
+    }
+  } nobreak {
+    ()
   }
 }
