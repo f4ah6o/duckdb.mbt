@@ -99,6 +99,8 @@ pub fn struct_from_pairs(Array[(String, String)]) -> Struct
 
 pub fn struct_get(Struct, String) -> String?
 
+pub fn support_matrix_markdown() -> String
+
 pub fn timestamp_from_ymd_hms(Int, Int, Int, Int, Int, Int) -> Int64
 
 pub fn timestamp_to_ymd_hms(Int64) -> (Int, Int, Int, Int, Int, Int)
@@ -133,7 +135,9 @@ pub fn Appender::append_interval(Self, Interval) -> Result[Unit, DuckDBError]
 pub fn Appender::append_null(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::append_timestamp(Self, Int64) -> Result[Unit, DuckDBError]
 pub fn Appender::append_varchar(Self, String) -> Result[Unit, DuckDBError]
+pub fn Appender::backend(Self) -> Backend
 pub fn Appender::begin_row(Self) -> Result[Unit, DuckDBError]
+pub fn Appender::capabilities(Self) -> BackendCapabilities
 pub fn Appender::end_row(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::flush(Self) -> Result[Unit, DuckDBError]
 
@@ -157,6 +161,65 @@ pub fn ArrowResult::row_count(Self) -> Int
 pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]
 }
+
+pub(all) enum Backend {
+  Native
+  Node
+  Wasm
+  Unsupported
+} derive(Compare, Eq, Show)
+pub fn Backend::all() -> Array[Self]
+pub fn Backend::capabilities(Self) -> BackendCapabilities
+pub fn Backend::name(Self) -> String
+
+pub struct BackendCapabilities {
+  backend : Backend
+  connect : Bool
+  prepared_statements : Bool
+  streaming : Bool
+  appender : Bool
+  appender_date_timestamp : Bool
+  arrow : Bool
+  persistent_storage : Bool
+  quack : Bool
+  decimal_bind : Bool
+  decimal_append : Bool
+  interval_bind : Bool
+  interval_append : Bool
+  blob_bind : Bool
+  blob_append : Bool
+  nested_bind : Bool
+  nested_append : Bool
+  nested_typed : Bool
+}
+pub fn BackendCapabilities::require(Self, BackendFeature) -> Result[Unit, DuckDBError]
+pub fn BackendCapabilities::supports(Self, BackendFeature) -> Bool
+pub fn BackendCapabilities::unsupported(Self, String) -> DuckDBError
+pub fn BackendCapabilities::unsupported_error(Self, BackendFeature) -> DuckDBError
+
+pub(all) enum BackendFeature {
+  Connect
+  PreparedStatements
+  Streaming
+  Appender
+  AppenderDateTimestamp
+  Arrow
+  PersistentStorage
+  Quack
+  DecimalBind
+  DecimalAppend
+  IntervalBind
+  IntervalAppend
+  BlobBind
+  BlobAppend
+  ListBind
+  StructBind
+  MapBind
+  NestedAppend
+  NestedTyped
+} derive(Compare, Eq, Show)
+pub fn BackendFeature::all() -> Array[Self]
+pub fn BackendFeature::name(Self) -> String
 
 pub enum ColumnType {
   Invalid
@@ -207,6 +270,8 @@ pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
 
 pub type Connection
 pub fn Connection::attach_quack(Self, String, String, token? : String, disable_ssl? : Bool, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
+pub fn Connection::backend(Self) -> Backend
+pub fn Connection::capabilities(Self) -> BackendCapabilities
 pub fn Connection::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::create_appender(Self, String, String, on_done~ : (Result[Appender, DuckDBError]) -> Unit) -> Unit
 pub fn Connection::create_quack_secret(Self, String, scope? : String, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
@@ -272,6 +337,7 @@ pub struct Map {
 pub type NativeDataChunk
 
 pub type PreparedStatement
+pub fn PreparedStatement::backend(Self) -> Backend
 pub fn PreparedStatement::bind_bigint(Self, Int, Int) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_blob(Self, Int, Bytes) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_bool(Self, Int, Bool) -> Result[Unit, DuckDBError]
@@ -286,6 +352,7 @@ pub fn PreparedStatement::bind_null(Self, Int) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_struct(Self, Int, Struct) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_timestamp(Self, Int, Int64) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::bind_varchar(Self, Int, String) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::capabilities(Self) -> BackendCapabilities
 pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn PreparedStatement::execute(Self, on_done~ : (Result[QueryResult, DuckDBError]) -> Unit) -> Unit

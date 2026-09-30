@@ -47,6 +47,54 @@ extern "js" fn js_connect(
   #|}
 
 ///|
+extern "js" fn js_connection_backend_kind(conn : Connection) -> Int =
+  #|(conn) => conn && conn.kind === "wasm" ? 2 : conn && conn.kind === "node" ? 1 : 0
+
+///|
+extern "js" fn js_statement_backend_kind(stmt : PreparedStatement) -> Int =
+  #|(stmt) => {
+  #|  const kind = stmt && (stmt.backend || (stmt.connection && stmt.connection.kind));
+  #|  return kind === "wasm" ? 2 : kind === "node" ? 1 : 0;
+  #|}
+
+///|
+extern "js" fn js_appender_backend_kind(appender : Appender) -> Int =
+  #|(appender) => {
+  #|  const kind = appender && appender.connection && appender.connection.kind;
+  #|  return kind === "wasm" ? 2 : kind === "node" ? 1 : 0;
+  #|}
+
+///|
+fn backend_from_kind(kind : Int) -> Backend {
+  if kind == 2 {
+    Backend::Wasm
+  } else if kind == 1 {
+    Backend::Node
+  } else {
+    Backend::Unsupported
+  }
+}
+
+///|
+/// The backend this connection runs on ("node" or "wasm" as resolved at
+/// connect time).
+pub fn Connection::backend(self : Connection) -> Backend {
+  backend_from_kind(js_connection_backend_kind(self))
+}
+
+///|
+/// The backend this statement was prepared on.
+pub fn PreparedStatement::backend(self : PreparedStatement) -> Backend {
+  backend_from_kind(js_statement_backend_kind(self))
+}
+
+///|
+/// The backend this appender writes to.
+pub fn Appender::backend(self : Appender) -> Backend {
+  backend_from_kind(js_appender_backend_kind(self))
+}
+
+///|
 extern "js" fn js_query_ffi(
   conn : Connection,
   sql : String,
@@ -1755,10 +1803,8 @@ pub fn Appender::append_date(
   self : Appender,
   days : Int,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
   let _ = days
-  // Appender not supported in JS backend
-  Err(unsupported_error("appender append_date", "js"))
+  Err(self.capabilities().unsupported("appender append_date"))
 }
 
 ///|
@@ -1766,10 +1812,8 @@ pub fn Appender::append_timestamp(
   self : Appender,
   micros : Int64,
 ) -> Result[Unit, DuckDBError] {
-  let _ = self
   let _ = micros
-  // Appender not supported in JS backend
-  Err(unsupported_error("appender append_timestamp", "js"))
+  Err(self.capabilities().unsupported("appender append_timestamp"))
 }
 
 ///|
@@ -2066,11 +2110,16 @@ pub fn Connection::create_appender(
   table : String,
   on_done~ : (Result[Appender, DuckDBError]) -> Unit,
 ) -> Unit {
-  // Note: schema parameter is ignored for Node API (uses table name only)
-  let _ = schema
-  js_create_appender(self, table, fn(a) { on_done(Ok(a)) }, fn(e) {
-    on_done(Err(append_error(e)))
-  })
+  match self.capabilities().require(BackendFeature::Appender) {
+    Ok(_) => {
+      // Note: schema parameter is ignored for Node API (uses table name only)
+      let _ = schema
+      js_create_appender(self, table, fn(a) { on_done(Ok(a)) }, fn(e) {
+        on_done(Err(append_error(e)))
+      })
+    }
+    Err(err) => on_done(Err(err))
+  }
 }
 
 ///|
@@ -2184,9 +2233,13 @@ pub fn PreparedStatement::bind_blob(
   index : Int,
   value : Bytes,
 ) -> Result[Unit, DuckDBError] {
-  match js_bind_blob(self, index, value) {
-    Ok(_) => Ok(())
-    Err(e) => Err(bind_error(e))
+  match self.capabilities().require(BackendFeature::BlobBind) {
+    Err(err) => Err(err)
+    Ok(_) =>
+      match js_bind_blob(self, index, value) {
+        Ok(_) => Ok(())
+        Err(e) => Err(bind_error(e))
+      }
   }
 }
 
@@ -2396,9 +2449,13 @@ pub fn PreparedStatement::bind_list_varchar(
   index : Int,
   values : Array[String],
 ) -> Result[Unit, DuckDBError] {
-  match js_bind_list_varchar(self, index, values) {
-    Ok(_) => Ok(())
-    Err(e) => Err(bind_error(e))
+  match self.capabilities().require(BackendFeature::ListBind) {
+    Err(err) => Err(err)
+    Ok(_) =>
+      match js_bind_list_varchar(self, index, values) {
+        Ok(_) => Ok(())
+        Err(e) => Err(bind_error(e))
+      }
   }
 }
 
@@ -2431,9 +2488,13 @@ pub fn PreparedStatement::bind_struct(
   index : Int,
   value : Struct,
 ) -> Result[Unit, DuckDBError] {
-  match js_bind_struct(self, index, value.fields, value.values) {
-    Ok(_) => Ok(())
-    Err(e) => Err(bind_error(e))
+  match self.capabilities().require(BackendFeature::StructBind) {
+    Err(err) => Err(err)
+    Ok(_) =>
+      match js_bind_struct(self, index, value.fields, value.values) {
+        Ok(_) => Ok(())
+        Err(e) => Err(bind_error(e))
+      }
   }
 }
 
@@ -2490,9 +2551,13 @@ pub fn PreparedStatement::bind_map(
   index : Int,
   map : Map,
 ) -> Result[Unit, DuckDBError] {
-  match js_bind_map(self, index, map.keys, map.values) {
-    Ok(_) => Ok(())
-    Err(e) => Err(bind_error(e))
+  match self.capabilities().require(BackendFeature::MapBind) {
+    Err(err) => Err(err)
+    Ok(_) =>
+      match js_bind_map(self, index, map.keys, map.values) {
+        Ok(_) => Ok(())
+        Err(e) => Err(bind_error(e))
+      }
   }
 }
 

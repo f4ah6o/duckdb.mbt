@@ -13,6 +13,12 @@ pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]
 }
 
+///|
+/// An Unsupported error for `feature` on this stub-only target.
+fn unsupported_target_error_feature(feature : String) -> DuckDBError {
+  Backend::Unsupported.capabilities().unsupported(feature)
+}
+
 // ============================================================================
 // Arrow Stubs (for unsupported targets)
 // ============================================================================
@@ -25,7 +31,7 @@ pub fn Connection::query_arrow(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(Err(unsupported_error("arrow integration", "unsupported target")))
+  on_done(Err(unsupported_target_error_feature("arrow integration")))
 }
 
 ///|
@@ -48,7 +54,7 @@ pub fn ArrowResult::get_schema(
   let _ = ArrowSchemaInfo::{
     fields: [ArrowField::{ name: "", nullable: false, type_id: "", }],
   }
-  Err(unsupported_error("arrow integration", "unsupported target"))
+  Err(unsupported_target_error_feature("arrow integration"))
 }
 
 ///|
@@ -107,5 +113,5 @@ pub fn ArrowResult::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("arrow integration", "unsupported target")))
+  on_done(Err(unsupported_target_error_feature("arrow integration")))
 }

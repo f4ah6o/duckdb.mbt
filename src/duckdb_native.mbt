@@ -470,6 +470,27 @@ pub fn connect(
 }
 
 ///|
+/// The backend this connection runs on.
+pub fn Connection::backend(self : Connection) -> Backend {
+  let _ = self
+  Backend::Native
+}
+
+///|
+/// The backend this statement was prepared on.
+pub fn PreparedStatement::backend(self : PreparedStatement) -> Backend {
+  let _ = self
+  Backend::Native
+}
+
+///|
+/// The backend this appender writes to.
+pub fn Appender::backend(self : Appender) -> Backend {
+  let _ = self
+  Backend::Native
+}
+
+///|
 pub fn Connection::close(
   self : Connection,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,

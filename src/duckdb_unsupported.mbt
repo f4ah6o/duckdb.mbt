@@ -1,4 +1,31 @@
 ///|
+/// The all-false capability set every stub on this target reports.
+fn unsupported_target_error() -> DuckDBError {
+  Backend::Unsupported.capabilities().unsupported("duckdb bindings")
+}
+
+///|
+/// The backend this connection runs on — always `Backend::Unsupported` here.
+pub fn Connection::backend(self : Connection) -> Backend {
+  let _ = self
+  Backend::Unsupported
+}
+
+///|
+/// The backend this statement was prepared on.
+pub fn PreparedStatement::backend(self : PreparedStatement) -> Backend {
+  let _ = self
+  Backend::Unsupported
+}
+
+///|
+/// The backend this appender writes to.
+pub fn Appender::backend(self : Appender) -> Backend {
+  let _ = self
+  Backend::Unsupported
+}
+
+///|
 pub fn connect(
   on_ready~ : (Result[Connection, DuckDBError]) -> Unit,
   path? : String = ":memory:",
@@ -6,7 +33,7 @@ pub fn connect(
 ) -> Unit {
   let _ = path
   touch_public_types(backend)
-  on_ready(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_ready(Err(unsupported_target_error()))
 }
 
 ///|
@@ -15,7 +42,7 @@ pub fn Connection::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -26,7 +53,7 @@ pub fn Connection::query(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -37,7 +64,7 @@ pub fn Connection::query_stream(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -58,7 +85,7 @@ pub fn ResultStream::next(
   on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -67,7 +94,7 @@ pub fn ResultStream::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 // ============================================================================
@@ -82,7 +109,7 @@ pub fn Connection::prepare(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -94,7 +121,7 @@ pub fn PreparedStatement::bind_int(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -106,7 +133,7 @@ pub fn PreparedStatement::bind_bigint(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -118,7 +145,7 @@ pub fn PreparedStatement::bind_double(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -130,7 +157,7 @@ pub fn PreparedStatement::bind_varchar(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -142,7 +169,7 @@ pub fn PreparedStatement::bind_bool(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -152,7 +179,7 @@ pub fn PreparedStatement::bind_null(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = index
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -160,7 +187,7 @@ pub fn PreparedStatement::clear_bindings(
   self : PreparedStatement,
 ) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -169,7 +196,7 @@ pub fn PreparedStatement::execute(
   on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -178,7 +205,7 @@ pub fn PreparedStatement::execute_stream(
   on_done~ : (Result[ResultStream, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
@@ -187,7 +214,7 @@ pub fn PreparedStatement::close(
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   let _ = self
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 // ============================================================================
@@ -207,7 +234,7 @@ pub fn Config::set(
   let _ = self
   let _ = key
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 // ============================================================================
@@ -224,13 +251,13 @@ pub fn Connection::create_appender(
   let _ = self
   let _ = schema
   let _ = table
-  on_done(Err(unsupported_error("duckdb bindings", "unsupported target")))
+  on_done(Err(unsupported_target_error()))
 }
 
 ///|
 pub fn Appender::begin_row(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -240,7 +267,7 @@ pub fn Appender::append_int(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -250,7 +277,7 @@ pub fn Appender::append_bigint(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -260,7 +287,7 @@ pub fn Appender::append_double(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -270,7 +297,7 @@ pub fn Appender::append_varchar(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -280,25 +307,25 @@ pub fn Appender::append_bool(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
 pub fn Appender::append_null(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
 pub fn Appender::end_row(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
 pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   let _ = self
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 // Note: Appender::close() is not provided here to avoid conflict with Connection::close()
@@ -317,7 +344,7 @@ pub fn PreparedStatement::bind_date(
   let _ = self
   let _ = index
   let _ = days
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -329,7 +356,7 @@ pub fn PreparedStatement::bind_timestamp(
   let _ = self
   let _ = index
   let _ = micros
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -339,7 +366,7 @@ pub fn Appender::append_date(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = days
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -349,7 +376,7 @@ pub fn Appender::append_timestamp(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = micros
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -479,7 +506,7 @@ pub fn PreparedStatement::bind_blob(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -489,7 +516,7 @@ pub fn Appender::append_blob(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 // ----------------------------------------------------------------------------
@@ -505,7 +532,7 @@ pub fn PreparedStatement::bind_decimal(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -515,7 +542,7 @@ pub fn Appender::append_decimal(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -584,7 +611,7 @@ pub fn PreparedStatement::bind_interval(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -594,7 +621,7 @@ pub fn Appender::append_interval(
 ) -> Result[Unit, DuckDBError] {
   let _ = self
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -653,7 +680,7 @@ pub fn PreparedStatement::bind_list_varchar(
   let _ = self
   let _ = index
   let _ = values
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -688,7 +715,7 @@ pub fn PreparedStatement::bind_struct(
   let _ = self
   let _ = index
   let _ = value
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
@@ -745,7 +772,7 @@ pub fn PreparedStatement::bind_map(
   let _ = self
   let _ = index
   let _ = map
-  Err(unsupported_error("duckdb bindings", "unsupported target"))
+  Err(unsupported_target_error())
 }
 
 ///|
