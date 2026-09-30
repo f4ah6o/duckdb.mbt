@@ -1,6 +1,6 @@
 name = "f4ah6o/duckdb"
 
-version = "0.6.4"
+version = "0.7.0"
 
 import {
   "moonbitlang/quickcheck@0.14.0",
