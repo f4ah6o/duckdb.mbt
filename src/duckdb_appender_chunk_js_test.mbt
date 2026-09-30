@@ -105,6 +105,205 @@ extern "js" fn js_run_append_chunk_test(
   #|}
 
 ///|
+// End-to-end coverage through the public `Appender::append_chunk` wrapper:
+// a fake "node" appender object drives the real capability check, spec
+// validation, pooling, FFI boundary, and Result decoding. The fake
+// `appendDataChunk` records rendered column values so the test can assert
+// what the MoonBit side actually produced — including the canonical-micros
+// conversion for TIMESTAMP_S/TIMESTAMP_MS and the >2048-row slicing.
+
+///|
+extern "js" fn js_make_fake_node_appender() -> Appender =
+  #|() => {
+  #|  const repr = (v) => {
+  #|    if (v === null || v === undefined) return "";
+  #|    if (v && v.__tag) return v.__tag + ":" + String(v.value);
+  #|    return String(v);
+  #|  };
+  #|  const fakeAppender = {
+  #|    appended: [],
+  #|    appendDataChunk(chunk) {
+  #|      this.appended.push(chunk.columns.map((col) => col.map(repr)));
+  #|    },
+  #|  };
+  #|  const T = () => class {};
+  #|  const api = {
+  #|    DuckDBDataChunk: {
+  #|      create: (types) => ({
+  #|        types,
+  #|        columns: null,
+  #|        setColumns(c) {
+  #|          this.columns = c;
+  #|        },
+  #|      }),
+  #|    },
+  #|    DuckDBBooleanType: T(),
+  #|    DuckDBIntegerType: T(),
+  #|    DuckDBBigIntType: T(),
+  #|    DuckDBVarCharType: T(),
+  #|    DuckDBTimestampSecondsType: T(),
+  #|    DuckDBTimestampMillisecondsType: T(),
+  #|    DuckDBTimestampSecondsValue: class {
+  #|      constructor(seconds) {
+  #|        this.__tag = "ts_s";
+  #|        this.value = seconds;
+  #|      }
+  #|    },
+  #|    DuckDBTimestampMillisecondsValue: class {
+  #|      constructor(millis) {
+  #|        this.__tag = "ts_ms";
+  #|        this.value = millis;
+  #|      }
+  #|    },
+  #|  };
+  #|  return {
+  #|    kind: "appender",
+  #|    connection: { kind: "node" },
+  #|    appender: fakeAppender,
+  #|    api,
+  #|  };
+  #|}
+
+///|
+extern "js" fn js_make_closed_node_appender() -> Appender =
+  #|() => ({
+  #|    kind: "appender",
+  #|    closed: true,
+  #|    connection: { kind: "node" },
+  #|    appender: {},
+  #|    api: {},
+  #|  })
+
+///|
+/// Appended rows across all `appendDataChunk` calls, in the
+/// `decode_query_result` payload shape.
+extern "js" fn js_fake_appended_json(appender : Appender) -> String =
+  #|(appender) => {
+  #|  const appended = appender.appender.appended;
+  #|  const ncols = appended.length ? appended[0].length : 0;
+  #|  const rows = [];
+  #|  const nulls = [];
+  #|  for (const columns of appended) {
+  #|    const nrows = ncols ? columns[0].length : 0;
+  #|    for (let r = 0; r < nrows; r++) {
+  #|      const row = [];
+  #|      const rowNulls = [];
+  #|      for (let c = 0; c < ncols; c++) {
+  #|        row.push(columns[c][r]);
+  #|        rowNulls.push(columns[c][r] === "");
+  #|      }
+  #|      rows.push(row);
+  #|      nulls.push(rowNulls);
+  #|    }
+  #|  }
+  #|  const columns = [];
+  #|  for (let c = 0; c < ncols; c++) columns.push("c" + c);
+  #|  return JSON.stringify({ ok: true, columns, rows, nulls });
+  #|}
+
+///|
+/// Row count passed to each `appendDataChunk` call, comma-joined.
+extern "js" fn js_fake_call_rows(appender : Appender) -> String =
+  #|(appender) =>
+  #|    appender.appender.appended
+  #|      .map((columns) => String(columns.length ? columns[0].length : 0))
+  #|      .join(",")
+
+///|
+test "js append_chunk end-to-end through the MoonBit wrapper" {
+  let appender = js_make_fake_node_appender()
+  let chunk : VectorChunk = {
+    columns: ["i", "s", "tss", "tsms"],
+    vectors: [
+      Vector::all_valid(
+        ColumnType::Integer,
+        VectorData::Int32(FixedArray::from_array([1, 2, 3])),
+      ),
+      Vector::all_valid(
+        ColumnType::Varchar,
+        VectorData::Varchar(["a", "b", "c"]),
+      ),
+      Vector::all_valid(
+        ColumnType::TimestampS,
+        VectorData::Int64(
+          FixedArray::from_array([1000000L, 2000000L, 3600000000L]),
+        ),
+      ),
+      Vector::all_valid(
+        ColumnType::TimestampMs,
+        VectorData::Int64(
+          FixedArray::from_array([1500000L, 2000000L, 3600123000L]),
+        ),
+      ),
+    ],
+  }
+  match appender.append_chunk(chunk) {
+    Ok(_) => ()
+    Err(err) => fail("append_chunk failed: \{err.message()}")
+  }
+  match decode_query_result(js_fake_appended_json(appender)) {
+    Ok((_columns, rows, _nulls)) => {
+      if rows.length() != 3 {
+        fail("expected 3 appended rows, got \{rows.length()}")
+      }
+      inspect(rows[0][0], content="1")
+      inspect(rows[0][1], content="a")
+      // Canonical micros converted to each variant's native unit.
+      inspect(rows[0][2], content="ts_s:1")
+      inspect(rows[1][2], content="ts_s:2")
+      inspect(rows[2][2], content="ts_s:3600")
+      inspect(rows[0][3], content="ts_ms:1500")
+      inspect(rows[1][3], content="ts_ms:2000")
+      inspect(rows[2][3], content="ts_ms:3600123")
+    }
+    Err(message) => fail("decode failed: \{message}")
+  }
+}
+
+///|
+test "js append_chunk slices oversized input across appendDataChunk calls" {
+  let appender = js_make_fake_node_appender()
+  let rows = 5000
+  let ids : Array[Int] = []
+  for i in 0..<rows {
+    ids.push(i)
+  }
+  let chunk : VectorChunk = {
+    columns: ["id"],
+    vectors: [
+      Vector::all_valid(
+        ColumnType::Integer,
+        VectorData::Int32(FixedArray::from_array(ids)),
+      ),
+    ],
+  }
+  match appender.append_chunk(chunk) {
+    Ok(_) => ()
+    Err(err) => fail("append_chunk failed: \{err.message()}")
+  }
+  // 5000 rows split at the 2048-row data chunk capacity.
+  inspect(js_fake_call_rows(appender), content="2048,2048,904")
+}
+
+///|
+test "js append_chunk on a closed appender reports Closed" {
+  let appender = js_make_closed_node_appender()
+  let chunk : VectorChunk = {
+    columns: ["id"],
+    vectors: [
+      Vector::all_valid(
+        ColumnType::Integer,
+        VectorData::Int32(FixedArray::from_array([1])),
+      ),
+    ],
+  }
+  match appender.append_chunk(chunk) {
+    Ok(_) => fail("expected append_chunk on closed appender to fail")
+    Err(err) => inspect(err.message(), content="appender is closed")
+  }
+}
+
+///|
 test "js node appendDataChunk contract" {
   let result = match
     js_run_append_chunk_test(

@@ -18,6 +18,12 @@
 /// pools (same tags as `js_stream_next_vectors_ffi`); `null_flags` is a
 /// `row * ncols + col` grid where 1 = NULL. All parameters are `FixedArray`
 /// per the JS FFI boundary rules.
+///
+/// The result is delivered through `on_ok`/`on_err` callbacks rather than a
+/// returned object: MoonBit's JS backend expects its tagged `Result`
+/// representation, so a plain `{ ok, error }` object would not decode.
+/// `appendDataChunk` is synchronous, so exactly one callback fires before
+/// this call returns.
 extern "js" fn js_appender_append_chunk_ffi(
   appender : Appender,
   type_ids : FixedArray[Int],
@@ -31,15 +37,17 @@ extern "js" fn js_appender_append_chunk_ffi(
   pool_f64 : FixedArray[Double],
   pool_str : FixedArray[String],
   pool_bytes : FixedArray[Bytes],
-) -> Result[Unit, String] =
-  #|(appender, type_ids, metas, kinds, offsets, rows, null_flags, pool_i32, pool_i64, pool_f64, pool_str, pool_bytes) => {
-  #|    if (appender && appender.closed) return { ok: false, error: "ERR_CLOSED:appender" };
+  on_ok : () -> Unit,
+  on_err : (String) -> Unit,
+) -> Unit =
+  #|(appender, type_ids, metas, kinds, offsets, rows, null_flags, pool_i32, pool_i64, pool_f64, pool_str, pool_bytes, on_ok, on_err) => {
+  #|    if (appender && appender.closed) { on_err("ERR_CLOSED:appender"); return; }
   #|    if (!(appender && appender.kind === "appender" && appender.appender)) {
-  #|      return { ok: false, error: "invalid appender" };
+  #|      on_err("invalid appender"); return;
   #|    }
   #|    const api = appender.api;
   #|    if (!api) {
-  #|      return { ok: false, error: "WASM backend does not support append_chunk" };
+  #|      on_err("WASM backend does not support append_chunk"); return;
   #|    }
   #|    try {
   #|      const U64 = (v) => BigInt.asUintN(64, v);
@@ -182,9 +190,9 @@ extern "js" fn js_appender_append_chunk_ffi(
   #|      const chunk = api.DuckDBDataChunk.create(types);
   #|      chunk.setColumns(columns);
   #|      appender.appender.appendDataChunk(chunk);
-  #|      return { ok: true };
+  #|      on_ok();
   #|    } catch (e) {
-  #|      return { ok: false, error: e.message || String(e) };
+  #|      on_err(e.message || String(e));
   #|    }
   #|  }
 
@@ -324,13 +332,29 @@ pub fn Appender::append_chunk(
       pool_str,
       pool_bytes,
     ) = js_pack_chunk(chunk, offset, slice_rows)
-    match
-      js_appender_append_chunk_ffi(
-        self, type_ids, aux, kinds, offsets, slice_rows, null_flags, pool_i32, pool_i64,
-        pool_f64, pool_str, pool_bytes,
-      ) {
-      Ok(_) => ()
-      Err(e) => return Err(append_error(e))
+    // The JS body invokes exactly one callback synchronously.
+    let result_ref : Ref[Result[Unit, String]?] = Ref::new(None)
+    js_appender_append_chunk_ffi(
+      self,
+      type_ids,
+      aux,
+      kinds,
+      offsets,
+      slice_rows,
+      null_flags,
+      pool_i32,
+      pool_i64,
+      pool_f64,
+      pool_str,
+      pool_bytes,
+      fn() { result_ref.val = Some(Ok(())) },
+      fn(e) { result_ref.val = Some(Err(e)) },
+    )
+    match result_ref.val {
+      Some(Ok(_)) => ()
+      Some(Err(e)) => return Err(append_error(e))
+      None =>
+        return Err(append_error("append_chunk: no result callback received"))
     }
   } nobreak {
     ()
