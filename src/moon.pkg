@@ -42,7 +42,6 @@ options(
     "duckdb_vector_test.mbt": [ "native" ],
     "duckdb_pbt_test.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_quack_wbtest.mbt": [ "or", "native", "js" ],
-    "duckdb_vector_wbtest.mbt": [ "or", "native", "js" ],
     "duckdb_test.mbt": [ "native" ],
     "duckdb_unsupported.mbt": [ "or", "wasm", "wasm-gc" ],
     "pbt/generators.mbt": [ "and", "native", "wasm-gc" ],
