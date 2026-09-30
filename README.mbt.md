@@ -72,10 +72,11 @@ Basic support is available on all targets:
   `ColumnType` coverage through the typed vectors)
 
 **Note:** Nested columns (List, Struct, Map) decode logically on every
-backend — `Vector::value_at(row)` yields `Value::List`/`Struct`/`Map`. On
-JS they arrive as `VectorData::Any` (tagged-JSON) cells, so the typed
-nested accessors (`list_parts`/`struct_parts`/`map_parts`) return `None`
-there; `conn.capabilities()` reports `nested_typed = false` for JS.
+backend — `Vector::value_at(row)` yields `Value::List`/`Struct`/`Map`,
+and the typed accessors (`list_parts`/`struct_parts`/`map_parts`) work
+because real `VectorData::List`/`Struct`/`Map` is produced. A tagged-JSON
+`Any` cell fallback remains only for genuinely unsupported types
+(UNION/BIT/TIME_TZ/BIGNUM).
 
 ## CI Coverage
 
