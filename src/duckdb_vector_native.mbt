@@ -543,7 +543,7 @@ pub fn Connection::query_chunks(
 ) -> Unit {
   let result = native_query(self, @encoding/utf8.encode(sql))
   if native_is_null_result(result) {
-    on_done(Err(native_typed_error("duckdb_query failed")))
+    on_done(Err(native_typed_error(query_error, "duckdb_query failed")))
   } else {
     on_done(Ok(native_result_to_vector_chunks(result)))
   }
@@ -557,7 +557,7 @@ pub fn PreparedStatement::execute_chunks(
 ) -> Unit {
   let result = native_execute_prepared(self)
   if native_is_null_result(result) {
-    on_done(Err(native_typed_error("execute_prepared failed")))
+    on_done(Err(native_typed_error(query_error, "execute_prepared failed")))
   } else {
     on_done(Ok(native_result_to_vector_chunks(result)))
   }
@@ -577,7 +577,7 @@ pub fn ResultStream::next_chunk(
     if msg is "" {
       on_done(Ok(None))
     } else {
-      on_done(Err(native_typed_error("stream fetch failed")))
+      on_done(Err(native_typed_error(query_error, "stream fetch failed")))
     }
   } else {
     let vector_chunk = vector_chunk_from_native_with_names(
