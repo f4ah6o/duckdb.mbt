@@ -9,6 +9,10 @@
 // call per chunk instead of one per cell, while NULLs and typed payloads are
 // preserved exactly (the C writers are symmetric with the streamed readers
 // in `duckdb_vector_native.mbt`).
+//
+// A `duckdb_data_chunk` vector has a fixed row capacity
+// (`duckdb_vector_size()`, normally 2048), so `append_chunk` slices inputs
+// larger than the capacity into consecutive sub-chunks before writing.
 
 // ----------------------------------------------------------------------------
 // DataChunk FFI declarations
@@ -23,6 +27,10 @@ extern "C" fn native_create_data_chunk_typed(
   aux : FixedArray[Int],
   ncols : Int,
 ) -> NativeDataChunk = "duckdb_mb_create_data_chunk_typed"
+
+///|
+/// Row capacity of vectors inside a created data chunk.
+extern "C" fn native_vector_size() -> Int = "duckdb_mb_vector_size"
 
 ///|
 #borrow(chunk)
@@ -55,6 +63,9 @@ extern "C" fn native_appender_append_data_chunk(
 // ----------------------------------------------------------------------------
 // Vector writer FFI declarations
 // ----------------------------------------------------------------------------
+//
+// Every writer copies `rows` source elements starting at `offset` into the
+// vector buffer, so a caller can feed it a slice of a larger payload array.
 
 ///|
 /// Write 1=valid/0=null flags into the vector's validity mask.
@@ -62,6 +73,7 @@ extern "C" fn native_appender_append_data_chunk(
 extern "C" fn native_vector_write_validity(
   vector : NativeVector,
   flags : FixedArray[Int],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_validity"
 
@@ -70,6 +82,7 @@ extern "C" fn native_vector_write_validity(
 extern "C" fn native_vector_write_bool(
   vector : NativeVector,
   flags : FixedArray[Int],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_bool"
 
@@ -81,6 +94,7 @@ extern "C" fn native_vector_write_i32(
   vector : NativeVector,
   type_id : Int,
   values : FixedArray[Int],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_i32"
 
@@ -92,6 +106,7 @@ extern "C" fn native_vector_write_i64(
   vector : NativeVector,
   type_id : Int,
   values : FixedArray[Int64],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_i64"
 
@@ -101,6 +116,7 @@ extern "C" fn native_vector_write_i64(
 extern "C" fn native_vector_write_u64(
   vector : NativeVector,
   values : FixedArray[UInt64],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_u64"
 
@@ -109,6 +125,7 @@ extern "C" fn native_vector_write_u64(
 extern "C" fn native_vector_write_f32(
   vector : NativeVector,
   values : FixedArray[Float],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_f32"
 
@@ -117,6 +134,7 @@ extern "C" fn native_vector_write_f32(
 extern "C" fn native_vector_write_f64(
   vector : NativeVector,
   values : FixedArray[Double],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_f64"
 
@@ -127,6 +145,7 @@ extern "C" fn native_vector_write_f64(
 extern "C" fn native_vector_write_strings(
   vector : NativeVector,
   values : FixedArray[Bytes],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_strings"
 
@@ -139,6 +158,7 @@ extern "C" fn native_vector_write_i128(
   type_id : Int,
   upper : FixedArray[Int64],
   lower : FixedArray[UInt64],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_i128"
 
@@ -150,6 +170,7 @@ extern "C" fn native_vector_write_decimal(
   vector : NativeVector,
   upper : FixedArray[Int64],
   lower : FixedArray[UInt64],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_decimal"
 
@@ -160,6 +181,7 @@ extern "C" fn native_vector_write_interval(
   vector : NativeVector,
   months_days : FixedArray[Int],
   micros : FixedArray[Int64],
+  offset : Int,
   rows : Int,
 ) -> Bool = "duckdb_mb_vector_write_interval"
 
@@ -168,10 +190,15 @@ extern "C" fn native_vector_write_interval(
 // ----------------------------------------------------------------------------
 
 ///|
-/// 1=valid/0=null flags for the C validity writer.
-fn native_validity_flags(vector : Vector) -> FixedArray[Int] {
-  FixedArray::makei(vector.validity.length(), fn(i) {
-    if vector.validity[i] {
+/// 1=valid/0=null flags for the `rows`-element slice at `offset`, for the C
+/// validity writer.
+fn native_validity_flags(
+  vector : Vector,
+  offset : Int,
+  rows : Int,
+) -> FixedArray[Int] {
+  FixedArray::makei(rows, fn(i) {
+    if vector.validity[offset + i] {
       1
     } else {
       0
@@ -180,61 +207,78 @@ fn native_validity_flags(vector : Vector) -> FixedArray[Int] {
 }
 
 ///|
-/// Copy one `Vector`'s validity mask and payload into the borrowed
-/// `duckdb_vector` `target`. `type_id` is the column's DuckDB type id from
-/// `append_chunk_specs`.
+/// Copy the `rows`-element slice at `offset` of one `Vector`'s validity mask
+/// and payload into the borrowed `duckdb_vector` `target`. `type_id` is the
+/// column's DuckDB type id from `append_chunk_specs`.
 fn write_column_native(
   vector : Vector,
   target : NativeVector,
   type_id : Int,
+  offset : Int,
   rows : Int,
 ) -> Result[Unit, DuckDBError] {
   let write_error = fn() {
     append_error("append_chunk: failed to write column data")
   }
-  if !native_vector_write_validity(target, native_validity_flags(vector), rows) {
+  if !native_vector_write_validity(
+      target,
+      native_validity_flags(vector, offset, rows),
+      0,
+      rows,
+    ) {
     return Err(write_error())
   }
   let ok = match vector.data {
     Bool(values) =>
       native_vector_write_bool(
         target,
-        FixedArray::makei(rows, fn(i) { if values[i] { 1 } else { 0 } }),
+        FixedArray::makei(rows, fn(i) { if values[offset + i] { 1 } else { 0 } }),
+        0,
         rows,
       )
-    Int32(values) => native_vector_write_i32(target, type_id, values, rows)
-    Int64(values) => native_vector_write_i64(target, type_id, values, rows)
-    UInt64(values) => native_vector_write_u64(target, values, rows)
-    Float(values) => native_vector_write_f32(target, values, rows)
-    Double(values) => native_vector_write_f64(target, values, rows)
+    Int32(values) =>
+      native_vector_write_i32(target, type_id, values, offset, rows)
+    Int64(values) =>
+      native_vector_write_i64(target, type_id, values, offset, rows)
+    UInt64(values) => native_vector_write_u64(target, values, offset, rows)
+    Float(values) => native_vector_write_f32(target, values, offset, rows)
+    Double(values) => native_vector_write_f64(target, values, offset, rows)
     Varchar(values) =>
       native_vector_write_strings(
         target,
-        FixedArray::makei(rows, fn(i) { @encoding/utf8.encode(values[i]) }),
+        FixedArray::makei(rows, fn(i) {
+          @encoding/utf8.encode(values[offset + i])
+        }),
+        0,
         rows,
       )
     Blob(values) =>
-      native_vector_write_strings(target, FixedArray::from_array(values), rows)
+      native_vector_write_strings(
+        target,
+        FixedArray::makei(rows, fn(i) { values[offset + i] }),
+        0,
+        rows,
+      )
     HugeInt(lower~, upper~) =>
-      native_vector_write_i128(target, type_id, upper, lower, rows)
+      native_vector_write_i128(target, type_id, upper, lower, offset, rows)
     Decimal(cells) => {
       let upper = FixedArray::make(rows, 0L)
       let lower = FixedArray::make(rows, 0UL)
       for i in 0..<rows {
-        upper[i] = cells[i].upper
-        lower[i] = cells[i].lower
+        upper[i] = cells[offset + i].upper
+        lower[i] = cells[offset + i].lower
       }
-      native_vector_write_decimal(target, upper, lower, rows)
+      native_vector_write_decimal(target, upper, lower, 0, rows)
     }
     Interval(cells) => {
       let months_days = FixedArray::make(rows * 2, 0)
       let micros = FixedArray::make(rows, 0L)
       for i in 0..<rows {
-        months_days[i * 2] = cells[i].months
-        months_days[i * 2 + 1] = cells[i].days
-        micros[i] = cells[i].micros
+        months_days[i * 2] = cells[offset + i].months
+        months_days[i * 2 + 1] = cells[offset + i].days
+        micros[i] = cells[offset + i].micros
       }
-      native_vector_write_interval(target, months_days, micros, rows)
+      native_vector_write_interval(target, months_days, micros, 0, rows)
     }
     // Rejected by `append_chunk_specs` before any vector is written.
     List(..) | Struct(..) | Map(..) | Any(_) => false
@@ -249,7 +293,9 @@ fn write_column_native(
 ///|
 /// Bulk-append a canonical `VectorChunk` in one shot: each column's payload
 /// array is copied straight into a DuckDB data chunk and the whole chunk is
-/// appended with `duckdb_append_data_chunk` — no per-cell FFI calls.
+/// appended with `duckdb_append_data_chunk` — no per-cell FFI calls. Inputs
+/// larger than the vector capacity (`duckdb_vector_size()`, normally 2048
+/// rows) are appended as consecutive capacity-sized slices.
 ///
 /// Supported payloads mirror the streamed-reader set: BOOLEAN, all integer
 /// widths, DATE, TIME/TIME_NS, every TIMESTAMP variant, FLOAT/DOUBLE,
@@ -274,30 +320,46 @@ pub fn Appender::append_chunk(
     Err(err) => return Err(err)
   }
   let ncols = type_ids.length()
-  let data_chunk = native_create_data_chunk_typed(type_ids, aux, ncols)
-  if native_is_null_data_chunk(data_chunk) {
-    return Err(
-      append_error(last_error("append_chunk: failed to create data chunk")),
-    )
-  }
-  for col = 0; col < ncols; col = col + 1 {
-    let target = native_data_chunk_get_vector(data_chunk, col)
-    match write_column_native(chunk.vectors[col], target, type_ids[col], rows) {
-      Err(err) => {
-        native_destroy_data_chunk(data_chunk)
-        return Err(err)
+  let capacity = native_vector_size()
+  for offset = 0; offset < rows; offset = offset + capacity {
+    let slice_rows = if rows - offset < capacity {
+      rows - offset
+    } else {
+      capacity
+    }
+    let data_chunk = native_create_data_chunk_typed(type_ids, aux, ncols)
+    if native_is_null_data_chunk(data_chunk) {
+      return Err(
+        append_error(last_error("append_chunk: failed to create data chunk")),
+      )
+    }
+    for col = 0; col < ncols; col = col + 1 {
+      let target = native_data_chunk_get_vector(data_chunk, col)
+      match
+        write_column_native(
+          chunk.vectors[col],
+          target,
+          type_ids[col],
+          offset,
+          slice_rows,
+        ) {
+        Err(err) => {
+          native_destroy_data_chunk(data_chunk)
+          return Err(err)
+        }
+        Ok(_) => ()
       }
-      Ok(_) => ()
+    } nobreak {
+      ()
+    }
+    native_data_chunk_set_size(data_chunk, slice_rows.to_int64())
+    let ok = native_appender_append_data_chunk(self, data_chunk)
+    native_destroy_data_chunk(data_chunk)
+    if !ok {
+      return Err(append_error(appender_error(self, "append_chunk failed")))
     }
   } nobreak {
     ()
   }
-  native_data_chunk_set_size(data_chunk, rows.to_int64())
-  let ok = native_appender_append_data_chunk(self, data_chunk)
-  native_destroy_data_chunk(data_chunk)
-  if ok {
-    Ok(())
-  } else {
-    Err(append_error(appender_error(self, "append_chunk failed")))
-  }
+  Ok(())
 }

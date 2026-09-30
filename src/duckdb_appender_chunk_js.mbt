@@ -111,9 +111,13 @@ extern "js" fn js_appender_append_chunk_ffi(
   #|              if (tid === 14) column[r] = new api.DuckDBTimeValue(v);
   #|              else if (tid === 12) column[r] = new api.DuckDBTimestampValue(v);
   #|              else if (tid === 20)
-  #|                column[r] = new api.DuckDBTimestampSecondsValue(v);
+  #|                // Canonical Int64 payloads carry microseconds; the
+  #|                // per-variant constructors take their native unit.
+  #|                column[r] = new api.DuckDBTimestampSecondsValue(v / 1000000n);
   #|              else if (tid === 21)
-  #|                column[r] = new api.DuckDBTimestampMillisecondsValue(v);
+  #|                column[r] = new api.DuckDBTimestampMillisecondsValue(
+  #|                  v / 1000n,
+  #|                );
   #|              else if (tid === 22)
   #|                column[r] = new api.DuckDBTimestampNanosecondsValue(v);
   #|              else if (tid === 31)
@@ -191,6 +195,7 @@ extern "js" fn js_appender_append_chunk_ffi(
 /// payloads never reach here — `append_chunk_specs` rejects them first.
 fn js_pack_chunk(
   chunk : VectorChunk,
+  offset : Int,
   rows : Int,
 ) -> (
   FixedArray[Int],
@@ -226,7 +231,7 @@ fn js_pack_chunk(
       Interval(_) => 10
       List(..) | Struct(..) | Map(..) | Any(_) => 11
     }
-    let offset = match kind {
+    let pool_offset = match kind {
       0 | 1 => pool_i32.length()
       2 | 3 | 8 | 9 | 10 => pool_i64.length()
       4 | 5 => pool_f64.length()
@@ -235,32 +240,33 @@ fn js_pack_chunk(
       _ => 0
     }
     kinds[col] = kind
-    offsets[col] = offset
+    offsets[col] = pool_offset
     for row = 0; row < rows; row = row + 1 {
-      if !vector.validity[row] {
+      let src = offset + row
+      if !vector.validity[src] {
         null_flags[row * ncols + col] = 1
       }
       match vector.data {
-        Bool(values) => pool_i32.push(if values[row] { 1 } else { 0 })
-        Int32(values) => pool_i32.push(values[row])
-        Int64(values) => pool_i64.push(values[row])
-        UInt64(values) => pool_i64.push(values[row].reinterpret_as_int64())
-        Float(values) => pool_f64.push(values[row].to_double())
-        Double(values) => pool_f64.push(values[row])
-        Varchar(values) => pool_str.push(values[row])
-        Blob(values) => pool_bytes.push(values[row])
+        Bool(values) => pool_i32.push(if values[src] { 1 } else { 0 })
+        Int32(values) => pool_i32.push(values[src])
+        Int64(values) => pool_i64.push(values[src])
+        UInt64(values) => pool_i64.push(values[src].reinterpret_as_int64())
+        Float(values) => pool_f64.push(values[src].to_double())
+        Double(values) => pool_f64.push(values[src])
+        Varchar(values) => pool_str.push(values[src])
+        Blob(values) => pool_bytes.push(values[src])
         HugeInt(lower~, upper~) => {
-          pool_i64.push(upper[row])
-          pool_i64.push(lower[row].reinterpret_as_int64())
+          pool_i64.push(upper[src])
+          pool_i64.push(lower[src].reinterpret_as_int64())
         }
         Decimal(cells) => {
-          pool_i64.push(cells[row].upper)
-          pool_i64.push(cells[row].lower.reinterpret_as_int64())
+          pool_i64.push(cells[src].upper)
+          pool_i64.push(cells[src].lower.reinterpret_as_int64())
         }
         Interval(cells) => {
-          pool_i64.push(cells[row].months.to_int64())
-          pool_i64.push(cells[row].days.to_int64())
-          pool_i64.push(cells[row].micros)
+          pool_i64.push(cells[src].months.to_int64())
+          pool_i64.push(cells[src].days.to_int64())
+          pool_i64.push(cells[src].micros)
         }
         List(..) | Struct(..) | Map(..) | Any(_) => ()
       }
@@ -299,22 +305,35 @@ pub fn Appender::append_chunk(
     Ok(specs) => specs
     Err(err) => return Err(err)
   }
-  let (
-    kinds,
-    offsets,
-    null_flags,
-    pool_i32,
-    pool_i64,
-    pool_f64,
-    pool_str,
-    pool_bytes,
-  ) = js_pack_chunk(chunk, rows)
-  match
-    js_appender_append_chunk_ffi(
-      self, type_ids, aux, kinds, offsets, rows, null_flags, pool_i32, pool_i64,
-      pool_f64, pool_str, pool_bytes,
-    ) {
-    Ok(_) => Ok(())
-    Err(e) => Err(append_error(e))
+  // DuckDBDataChunk rejects more than `vector_size()` rows (normally 2048),
+  // so larger inputs are appended as consecutive capacity-sized slices.
+  let capacity = 2048
+  for offset = 0; offset < rows; offset = offset + capacity {
+    let slice_rows = if rows - offset < capacity {
+      rows - offset
+    } else {
+      capacity
+    }
+    let (
+      kinds,
+      offsets,
+      null_flags,
+      pool_i32,
+      pool_i64,
+      pool_f64,
+      pool_str,
+      pool_bytes,
+    ) = js_pack_chunk(chunk, offset, slice_rows)
+    match
+      js_appender_append_chunk_ffi(
+        self, type_ids, aux, kinds, offsets, slice_rows, null_flags, pool_i32, pool_i64,
+        pool_f64, pool_str, pool_bytes,
+      ) {
+      Ok(_) => ()
+      Err(e) => return Err(append_error(e))
+    }
+  } nobreak {
+    ()
   }
+  Ok(())
 }

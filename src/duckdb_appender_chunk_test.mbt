@@ -330,6 +330,52 @@ test "native append_chunk advanced typed values" {
 }
 
 ///|
+test "native append_chunk splits inputs larger than vector capacity" {
+  // A duckdb_data_chunk vector holds at most duckdb_vector_size() rows
+  // (normally 2048); larger VectorChunks must be appended as consecutive
+  // slices rather than overrunning the vector buffers.
+  let rows = 5000
+  let ids : Array[Int] = []
+  let names : Array[String] = []
+  for i in 0..<rows {
+    ids.push(i)
+    names.push("name_\{i}")
+  }
+  let chunk : VectorChunk = {
+    columns: ["id", "name"],
+    vectors: [int_vector(ids), varchar_vector(names)],
+  }
+  let result = run_native_chunk_append(
+    "CREATE TABLE test_table (id INTEGER, name VARCHAR)",
+    fn(app) { app.append_chunk(chunk) },
+    "SELECT * FROM test_table ORDER BY id",
+  )
+  match result {
+    Ok(value) => {
+      if value.row_count() != rows {
+        fail("expected \{rows} rows, got \{value.row_count()}")
+      }
+      // Spot-check the slice boundary (row 2048 starts the second chunk).
+      match value.cell(2048, 1) {
+        Some(v) =>
+          if v != "name_2048" {
+            fail("expected name_2048 at slice boundary, got '\{v}'")
+          }
+        None => fail("expected non-null name at slice boundary")
+      }
+      match value.cell(rows - 1, 0) {
+        Some(v) =>
+          if v != "\{rows - 1}" {
+            fail("expected last id='\{rows - 1}', got '\{v}'")
+          }
+        None => fail("expected non-null last id")
+      }
+    }
+    Err(err) => fail("oversized append_chunk failed: \{err}")
+  }
+}
+
+///|
 test "native append_chunk interoperates with row-wise appends" {
   let chunk : VectorChunk = {
     columns: ["id", "name"],

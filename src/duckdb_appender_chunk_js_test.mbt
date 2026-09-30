@@ -38,6 +38,8 @@ extern "js" fn js_run_append_chunk_test(
   #|    "    new api.DuckDBIntervalType(),",
   #|    "    new api.DuckDBHugeIntType(),",
   #|    "    new api.DuckDBUUIDType(),",
+  #|    "    new api.DuckDBTimestampSecondsType(),",
+  #|    "    new api.DuckDBTimestampMillisecondsType(),",
   #|    "  ]);",
   #|    "  chunk.setColumns([",
   #|    "    [1, 2, 3],",
@@ -54,12 +56,20 @@ extern "js" fn js_run_append_chunk_test(
   #|    "    [api.DuckDBUUIDValue.fromUint128(1n << 96n | 0x550e8400e29b41d4n << 32n | 0xa716446655440000n),",
   #|    "     api.DuckDBUUIDValue.fromUint128(0n),",
   #|    "     api.DuckDBUUIDValue.fromUint128((1n << 128n) - 1n)],",
+  #|    // Canonical Int64 payloads hold microseconds; the impl divides back
+  #|    // to each variant's native unit before constructing the value.
+  #|    "    [new api.DuckDBTimestampSecondsValue(1000000n / 1000000n),",
+  #|    "     new api.DuckDBTimestampSecondsValue(3600000000n / 1000000n),",
+  #|    "     new api.DuckDBTimestampSecondsValue(2000000n / 1000000n)],",
+  #|    "    [new api.DuckDBTimestampMillisecondsValue(1500000n / 1000n),",
+  #|    "     new api.DuckDBTimestampMillisecondsValue(3600123000n / 1000n),",
+  #|    "     new api.DuckDBTimestampMillisecondsValue(2000000n / 1000n)],",
   #|    "  ]);",
   #|    "  appender.appendDataChunk(chunk);",
   #|    "  appender.flushSync();",
   #|    "  appender.closeSync();",
   #|    "  const result = await connection.run(",
-  #|    "    'SELECT i, v, b, g, f, d::VARCHAR, ts::VARCHAR, blob::VARCHAR, dec::VARCHAR, iv::VARCHAR, h::VARCHAR, u::VARCHAR FROM ' + table + ' ORDER BY i');",
+  #|    "    'SELECT i, v, b, g, f, d::VARCHAR, ts::VARCHAR, blob::VARCHAR, dec::VARCHAR, iv::VARCHAR, h::VARCHAR, u::VARCHAR, tss::VARCHAR, tsms::VARCHAR FROM ' + table + ' ORDER BY i');",
   #|    "  const columns = result.columnNames();",
   #|    "  const rowsJson = await result.getRowsJson();",
   #|    "  const rows = []; const nulls = [];",
@@ -98,7 +108,7 @@ extern "js" fn js_run_append_chunk_test(
 test "js node appendDataChunk contract" {
   let result = match
     js_run_append_chunk_test(
-      "CREATE TABLE test_chunk (i INTEGER, v VARCHAR, b BOOLEAN, g BIGINT, f DOUBLE, d DATE, ts TIMESTAMP, blob BLOB, dec DECIMAL(10,2), iv INTERVAL, h HUGEINT, u UUID)",
+      "CREATE TABLE test_chunk (i INTEGER, v VARCHAR, b BOOLEAN, g BIGINT, f DOUBLE, d DATE, ts TIMESTAMP, blob BLOB, dec DECIMAL(10,2), iv INTERVAL, h HUGEINT, u UUID, tss TIMESTAMP_S, tsms TIMESTAMP_MS)",
       "test_chunk",
     ) {
     "" => return ()
@@ -125,6 +135,12 @@ test "js node appendDataChunk contract" {
       inspect(rows[0][10], content="5")
       inspect(rows[0][11], content="00000001-550e-8400-e79f-45f655440000")
       inspect(rows[2][11], content="ffffffff-ffff-ffff-ffff-ffffffffffff")
+      // TIMESTAMP_S: canonical 1000000us -> 1s -> 1970-01-01 00:00:01.
+      inspect(rows[0][12], content="1970-01-01 00:00:01")
+      inspect(rows[1][12], content="1970-01-01 01:00:00")
+      // TIMESTAMP_MS: canonical 1500000us -> 1500ms -> 00:00:01.5.
+      inspect(rows[0][13], content="1970-01-01 00:00:01.5")
+      inspect(rows[1][13], content="1970-01-01 01:00:00.123")
     }
     Err(message) =>
       if !message.contains("@duckdb/node-api") {

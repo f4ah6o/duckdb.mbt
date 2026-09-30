@@ -3659,11 +3659,18 @@ duckdb_mb_data_chunk *duckdb_mb_create_data_chunk_typed(
   return mb_chunk;
 }
 
+// Row capacity of vectors inside a `duckdb_create_data_chunk` chunk; the
+// writers assume inputs are pre-sliced to at most this many rows.
+int32_t duckdb_mb_vector_size(void) {
+  return (int32_t)duckdb_vector_size();
+}
+
 // 1=valid/0=null flags -> validity mask.
 int32_t duckdb_mb_vector_write_validity(duckdb_vector vector,
                                         const int32_t *flags,
+                                        int32_t offset,
                                         int32_t rows) {
-  if (!vector || !flags || rows < 0) {
+  if (!vector || !flags || offset < 0 || rows < 0) {
     return 0;
   }
   duckdb_vector_ensure_validity_writable(vector);
@@ -3671,14 +3678,15 @@ int32_t duckdb_mb_vector_write_validity(duckdb_vector vector,
   if (!validity) {
     // No mask means all rows are valid; only succeed if nothing to clear.
     for (int32_t row = 0; row < rows; row++) {
-      if (!flags[row]) {
+      if (!flags[offset + row]) {
         return 0;
       }
     }
     return 1;
   }
   for (int32_t row = 0; row < rows; row++) {
-    duckdb_validity_set_row_validity(validity, (idx_t)row, flags[row] != 0);
+    duckdb_validity_set_row_validity(validity, (idx_t)row,
+                                     flags[offset + row] != 0);
   }
   return 1;
 }
@@ -3686,8 +3694,9 @@ int32_t duckdb_mb_vector_write_validity(duckdb_vector vector,
 // int32 0/1 flags -> BOOLEAN column.
 int32_t duckdb_mb_vector_write_bool(duckdb_vector vector,
                                     const int32_t *flags,
+                                    int32_t offset,
                                     int32_t rows) {
-  if (!vector || !flags || rows < 0) {
+  if (!vector || !flags || offset < 0 || rows < 0) {
     return 0;
   }
   bool *data = (bool *)duckdb_vector_get_data(vector);
@@ -3695,7 +3704,7 @@ int32_t duckdb_mb_vector_write_bool(duckdb_vector vector,
     return 0;
   }
   for (int32_t row = 0; row < rows; row++) {
-    data[row] = flags[row] ? true : false;
+    data[row] = flags[offset + row] ? true : false;
   }
   return 1;
 }
@@ -3705,8 +3714,9 @@ int32_t duckdb_mb_vector_write_bool(duckdb_vector vector,
 int32_t duckdb_mb_vector_write_i32(duckdb_vector vector,
                                    duckdb_type type,
                                    const int32_t *values,
+                                   int32_t offset,
                                    int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
@@ -3717,33 +3727,33 @@ int32_t duckdb_mb_vector_write_i32(duckdb_vector vector,
   case DUCKDB_TYPE_TINYINT: {
     int8_t *dst = (int8_t *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row] = (int8_t)values[row];
+      dst[row] = (int8_t)values[offset + row];
     }
     break;
   }
   case DUCKDB_TYPE_SMALLINT: {
     int16_t *dst = (int16_t *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row] = (int16_t)values[row];
+      dst[row] = (int16_t)values[offset + row];
     }
     break;
   }
   case DUCKDB_TYPE_UTINYINT: {
     uint8_t *dst = (uint8_t *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row] = (uint8_t)values[row];
+      dst[row] = (uint8_t)values[offset + row];
     }
     break;
   }
   case DUCKDB_TYPE_USMALLINT: {
     uint16_t *dst = (uint16_t *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row] = (uint16_t)values[row];
+      dst[row] = (uint16_t)values[offset + row];
     }
     break;
   }
   default:
-    memcpy(data, values, sizeof(int32_t) * (size_t)rows);
+    memcpy(data, values + offset, sizeof(int32_t) * (size_t)rows);
     break;
   }
   return 1;
@@ -3756,8 +3766,9 @@ int32_t duckdb_mb_vector_write_i32(duckdb_vector vector,
 int32_t duckdb_mb_vector_write_i64(duckdb_vector vector,
                                    duckdb_type type,
                                    const int64_t *values,
+                                   int32_t offset,
                                    int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
@@ -3767,20 +3778,20 @@ int32_t duckdb_mb_vector_write_i64(duckdb_vector vector,
   if (type == DUCKDB_TYPE_UINTEGER) {
     uint32_t *dst = (uint32_t *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row] = (uint32_t)values[row];
+      dst[row] = (uint32_t)values[offset + row];
     }
   } else if (type == DUCKDB_TYPE_TIMESTAMP_S) {
     duckdb_timestamp *dst = (duckdb_timestamp *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row].micros = values[row] / 1000000;
+      dst[row].micros = values[offset + row] / 1000000;
     }
   } else if (type == DUCKDB_TYPE_TIMESTAMP_MS) {
     duckdb_timestamp *dst = (duckdb_timestamp *)data;
     for (int32_t row = 0; row < rows; row++) {
-      dst[row].micros = values[row] / 1000;
+      dst[row].micros = values[offset + row] / 1000;
     }
   } else {
-    memcpy(data, values, sizeof(int64_t) * (size_t)rows);
+    memcpy(data, values + offset, sizeof(int64_t) * (size_t)rows);
   }
   return 1;
 }
@@ -3788,45 +3799,48 @@ int32_t duckdb_mb_vector_write_i64(duckdb_vector vector,
 // Raw uint64 bits -> UBIGINT column.
 int32_t duckdb_mb_vector_write_u64(duckdb_vector vector,
                                    const int64_t *values,
+                                   int32_t offset,
                                    int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
   if (!data) {
     return 0;
   }
-  memcpy(data, values, sizeof(uint64_t) * (size_t)rows);
+  memcpy(data, values + offset, sizeof(uint64_t) * (size_t)rows);
   return 1;
 }
 
 // FLOAT column.
 int32_t duckdb_mb_vector_write_f32(duckdb_vector vector,
                                    const float *values,
+                                   int32_t offset,
                                    int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
   if (!data) {
     return 0;
   }
-  memcpy(data, values, sizeof(float) * (size_t)rows);
+  memcpy(data, values + offset, sizeof(float) * (size_t)rows);
   return 1;
 }
 
 // DOUBLE column.
 int32_t duckdb_mb_vector_write_f64(duckdb_vector vector,
                                    const double *values,
+                                   int32_t offset,
                                    int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
   if (!data) {
     return 0;
   }
-  memcpy(data, values, sizeof(double) * (size_t)rows);
+  memcpy(data, values + offset, sizeof(double) * (size_t)rows);
   return 1;
 }
 
@@ -3834,13 +3848,15 @@ int32_t duckdb_mb_vector_write_f64(duckdb_vector vector,
 // `duckdb_vector_assign_string_element_len`.
 int32_t duckdb_mb_vector_write_strings(duckdb_vector vector,
                                        moonbit_bytes_t *values,
+                                       int32_t offset,
                                        int32_t rows) {
-  if (!vector || !values || rows < 0) {
+  if (!vector || !values || offset < 0 || rows < 0) {
     return 0;
   }
   for (int32_t row = 0; row < rows; row++) {
-    int32_t len = values[row] ? Moonbit_array_length(values[row]) : 0;
-    const char *ptr = values[row] ? (const char *)values[row] : "";
+    moonbit_bytes_t cell = values[offset + row];
+    int32_t len = cell ? Moonbit_array_length(cell) : 0;
+    const char *ptr = cell ? (const char *)cell : "";
     duckdb_vector_assign_string_element_len(vector, (idx_t)row, ptr,
                                             (idx_t)len);
   }
@@ -3854,8 +3870,9 @@ int32_t duckdb_mb_vector_write_i128(duckdb_vector vector,
                                     duckdb_type type,
                                     const int64_t *upper,
                                     const int64_t *lower,
+                                    int32_t offset,
                                     int32_t rows) {
-  if (!vector || !upper || !lower || rows < 0) {
+  if (!vector || !upper || !lower || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
@@ -3864,15 +3881,15 @@ int32_t duckdb_mb_vector_write_i128(duckdb_vector vector,
   }
   for (int32_t row = 0; row < rows; row++) {
     if (type == DUCKDB_TYPE_UHUGEINT) {
-      ((duckdb_uhugeint *)data)[row].lower = (uint64_t)lower[row];
-      ((duckdb_uhugeint *)data)[row].upper = (uint64_t)upper[row];
+      ((duckdb_uhugeint *)data)[row].lower = (uint64_t)lower[offset + row];
+      ((duckdb_uhugeint *)data)[row].upper = (uint64_t)upper[offset + row];
     } else if (type == DUCKDB_TYPE_UUID) {
-      ((duckdb_uhugeint *)data)[row].lower = (uint64_t)lower[row];
+      ((duckdb_uhugeint *)data)[row].lower = (uint64_t)lower[offset + row];
       ((duckdb_uhugeint *)data)[row].upper =
-          (uint64_t)upper[row] ^ 0x8000000000000000ULL;
+          (uint64_t)upper[offset + row] ^ 0x8000000000000000ULL;
     } else {
-      ((duckdb_hugeint *)data)[row].lower = (uint64_t)lower[row];
-      ((duckdb_hugeint *)data)[row].upper = upper[row];
+      ((duckdb_hugeint *)data)[row].lower = (uint64_t)lower[offset + row];
+      ((duckdb_hugeint *)data)[row].upper = upper[offset + row];
     }
   }
   return 1;
@@ -3883,8 +3900,9 @@ int32_t duckdb_mb_vector_write_i128(duckdb_vector vector,
 int32_t duckdb_mb_vector_write_decimal(duckdb_vector vector,
                                        const int64_t *upper,
                                        const int64_t *lower,
+                                       int32_t offset,
                                        int32_t rows) {
-  if (!vector || !upper || !lower || rows < 0) {
+  if (!vector || !upper || !lower || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
@@ -3897,17 +3915,17 @@ int32_t duckdb_mb_vector_write_decimal(duckdb_vector vector,
   for (int32_t row = 0; row < rows; row++) {
     switch (internal) {
     case DUCKDB_TYPE_SMALLINT:
-      ((int16_t *)data)[row] = (int16_t)lower[row];
+      ((int16_t *)data)[row] = (int16_t)lower[offset + row];
       break;
     case DUCKDB_TYPE_INTEGER:
-      ((int32_t *)data)[row] = (int32_t)lower[row];
+      ((int32_t *)data)[row] = (int32_t)lower[offset + row];
       break;
     case DUCKDB_TYPE_BIGINT:
-      ((int64_t *)data)[row] = lower[row];
+      ((int64_t *)data)[row] = lower[offset + row];
       break;
     default:
-      ((duckdb_hugeint *)data)[row].lower = (uint64_t)lower[row];
-      ((duckdb_hugeint *)data)[row].upper = upper[row];
+      ((duckdb_hugeint *)data)[row].lower = (uint64_t)lower[offset + row];
+      ((duckdb_hugeint *)data)[row].upper = upper[offset + row];
       break;
     }
   }
@@ -3922,8 +3940,9 @@ int32_t duckdb_mb_vector_write_decimal(duckdb_vector vector,
 int32_t duckdb_mb_vector_write_interval(duckdb_vector vector,
                                         const int32_t *months_days,
                                         const int64_t *micros,
+                                        int32_t offset,
                                         int32_t rows) {
-  if (!vector || !months_days || !micros || rows < 0) {
+  if (!vector || !months_days || !micros || offset < 0 || rows < 0) {
     return 0;
   }
   void *data = duckdb_vector_get_data(vector);
@@ -3932,9 +3951,9 @@ int32_t duckdb_mb_vector_write_interval(duckdb_vector vector,
   }
   for (int32_t row = 0; row < rows; row++) {
     duckdb_interval *dst = &((duckdb_interval *)data)[row];
-    dst->months = months_days[row * 2];
-    dst->days = months_days[row * 2 + 1];
-    dst->micros = micros[row];
+    dst->months = months_days[(offset + row) * 2];
+    dst->days = months_days[(offset + row) * 2 + 1];
+    dst->micros = micros[offset + row];
   }
   return 1;
 }

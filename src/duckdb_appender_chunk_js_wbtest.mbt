@@ -33,7 +33,7 @@ test "js_pack_chunk pools flat columns" {
     pool_f64,
     pool_str,
     pool_bytes,
-  ) = js_pack_chunk(chunk, 2)
+  ) = js_pack_chunk(chunk, 0, 2)
   inspect(Array::from_fixed_array(kinds), content="[0, 1, 6, 2]")
   inspect(Array::from_fixed_array(offsets), content="[0, 2, 0, 0]")
   inspect(
@@ -80,7 +80,7 @@ test "js_pack_chunk packs 128-bit and structured payload columns" {
     _pool_f64,
     _pool_str,
     _pool_bytes,
-  ) = js_pack_chunk(chunk, 2)
+  ) = js_pack_chunk(chunk, 0, 2)
   inspect(Array::from_fixed_array(kinds), content="[9, 10, 8]")
   // Decimal pairs, interval triples, then hugeint pairs share pool_i64.
   inspect(Array::from_fixed_array(offsets), content="[0, 4, 10]")
@@ -88,4 +88,39 @@ test "js_pack_chunk packs 128-bit and structured payload columns" {
     Array::from_fixed_array(pool_i64),
     content="[-1, 10, 0, 5, 3, 4, 500, 0, 1, 0, 7, 9, 6, 8]",
   )
+}
+
+///|
+test "js_pack_chunk packs a row slice at an offset" {
+  // append_chunk slices inputs larger than the data-chunk capacity; each
+  // slice packs only rows [offset, offset + rows) of the source vectors.
+  let chunk : VectorChunk = {
+    columns: ["i", "s"],
+    vectors: [
+      Vector::all_valid(
+        ColumnType::Integer,
+        VectorData::Int32(FixedArray::from_array([10, 20, 30, 40])),
+      ),
+      Vector::{
+        logical_type: ColumnType::Varchar,
+        data: VectorData::Varchar(["a", "b", "c", "d"]),
+        validity: FixedArray::from_array([true, true, false, true]),
+      },
+    ],
+  }
+  let (
+    kinds,
+    offsets,
+    null_flags,
+    pool_i32,
+    _pool_i64,
+    _pool_f64,
+    pool_str,
+    _pool_bytes,
+  ) = js_pack_chunk(chunk, 2, 2)
+  inspect(Array::from_fixed_array(kinds), content="[1, 6]")
+  inspect(Array::from_fixed_array(offsets), content="[0, 0]")
+  inspect(Array::from_fixed_array(null_flags), content="[0, 1, 0, 0]")
+  inspect(Array::from_fixed_array(pool_i32), content="[30, 40]")
+  inspect(Array::from_fixed_array(pool_str), content="[c, d]")
 }
