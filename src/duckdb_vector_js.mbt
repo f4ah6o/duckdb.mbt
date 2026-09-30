@@ -566,37 +566,63 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      nested: null,
   #|    };
   #|    if (vector && typeof vector.getChildAt === "function") {
+  #|      // 0-row chunks carry no child data at all (`data.children` is
+  #|      // empty), so arrow's getChildAt throws while building a Vector;
+  #|      // fall back to a schema-only source then.
+  #|      const childSrc = (index, field) => {
+  #|        let v = null;
+  #|        try {
+  #|          v = vector.getChildAt(index);
+  #|        } catch (e) {
+  #|          v = null;
+  #|        }
+  #|        return v ? wasmSrc(v) : wasmSchemaSrc(field);
+  #|      };
+  #|      const typeChildren = (type && type.children) || [];
   #|      src.nested = {
   #|        // LIST/FixedSizeList: real offsets buffer, or synthesized
   #|        // r * listSize bounds for fixed arrays (their children are
   #|        // sliced to the parent window, so emitted indexes are
   #|        // child-relative).
   #|        list: () => {
-  #|          const child = vector.getChildAt(0);
+  #|          let childVec = null;
+  #|          try { childVec = vector.getChildAt(0); } catch (e) { childVec = null; }
+  #|          const child =
+  #|            childVec ? wasmSrc(childVec) : wasmSchemaSrc(typeChildren[0]);
   #|          const fixed = type && type.listSize !== undefined
   #|            ? type.listSize | 0 : -1;
   #|          const bounds = fixed >= 0
   #|            ? (r) => [r * fixed, fixed]
-  #|            : nestedBounds(vector, child);
-  #|          return { bounds, child: wasmSrc(child) };
+  #|            : childVec
+  #|              ? nestedBounds(vector, childVec)
+  #|              : (r) => [0, 0];
+  #|          return { bounds, child };
   #|        },
   #|        // STRUCT: child vectors align 1:1 with parent rows; field names
   #|        // come from type.children (arrow Field).
   #|        struct: () => {
-  #|          const fields = (type && type.children) || [];
-  #|          return fields.map((f, i) => ({
+  #|          return typeChildren.map((f, i) => ({
   #|            name: (f && f.name) || "",
-  #|            src: wasmSrc(vector.getChildAt(i)),
+  #|            src: childSrc(i, f),
   #|          }));
   #|        },
   #|        // MAP: list-of-entries; entries child is a struct vector whose
   #|        // children are keys/values.
   #|        map: () => {
-  #|          const entries = vector.getChildAt(0);
+  #|          let entries = null;
+  #|          try { entries = vector.getChildAt(0); } catch (e) { entries = null; }
+  #|          const entriesField = typeChildren[0] || null;
+  #|          const entryFields =
+  #|            (entriesField && entriesField.type && entriesField.type.children) || [];
+  #|          let keysVec = null, valuesVec = null;
+  #|          if (entries) {
+  #|            try { keysVec = entries.getChildAt(0); } catch (e) { keysVec = null; }
+  #|            try { valuesVec = entries.getChildAt(1); } catch (e) { valuesVec = null; }
+  #|          }
   #|          return {
-  #|            bounds: nestedBounds(vector, entries),
-  #|            keys: wasmSrc(entries && entries.getChildAt(0)),
-  #|            values: wasmSrc(entries && entries.getChildAt(1)),
+  #|            bounds: entries ? nestedBounds(vector, entries) : (r) => [0, 0],
+  #|            keys: keysVec ? wasmSrc(keysVec) : wasmSchemaSrc(entryFields[0]),
+  #|            values: valuesVec ? wasmSrc(valuesVec) : wasmSchemaSrc(entryFields[1]),
   #|          };
   #|        },
   #|      };
@@ -612,7 +638,8 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|  // the full nested shape/name descriptors.
   #|  const wasmSchemaSrc = (field) => {
   #|    const type = field && field.type;
-  #|    const children = (field && field.children) || [];
+  #|    // arrow keeps child Fields on the DataType, not on the Field.
+  #|    const children = (type && type.children) || [];
   #|    return {
   #|      rows: 0,
   #|      tid: tidForArrowType(type),
@@ -630,7 +657,8 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|          src: wasmSchemaSrc(cf),
   #|        })),
   #|        map: () => {
-  #|          const ek = (children[0] && children[0].children) || [];
+  #|          const ek =
+  #|            (children[0] && children[0].type && children[0].type.children) || [];
   #|          return {
   #|            bounds: () => [0, 0],
   #|            keys: wasmSchemaSrc(ek[0]),
@@ -810,12 +838,11 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|        // the stream schema so column names/types survive the drain.
   #|        const fields =
   #|          (stream.reader.schema && stream.reader.schema.fields) || [];
-  #|        const columns =
-  #|          (stream.columns && stream.columns.length > 0)
-  #|            ? stream.columns
-  #|            : fields.map((f) => f.name);
-  #|        emit(columns, fields.map(wasmSchemaSrc), 0);
-  #|        return;
+  #|        if (fields.length > 0) {
+  #|          emit(fields.map((f) => f.name),
+  #|               fields.map(wasmSchemaSrc), 0);
+  #|          return;
+  #|        }
   #|      }
   #|      emptyOk();
   #|      return;
