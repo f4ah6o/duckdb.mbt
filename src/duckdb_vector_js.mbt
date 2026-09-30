@@ -594,12 +594,50 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|        },
   #|      };
   #|    }
+  #|    if (vector && type && (type.typeId | 0) === 11) {
+  #|      src.get = intervalGet(vector, type);
+  #|    }
   #|    return src;
+  #|  };
+  #|
+  #|  // Schema-only source for empty results: mirrors wasmSrc but walks the
+  #|  // arrow field tree instead of vectors, so a 0-row emit still carries
+  #|  // the full nested shape/name descriptors.
+  #|  const wasmSchemaSrc = (field) => {
+  #|    const type = field && field.type;
+  #|    const children = (field && field.children) || [];
+  #|    return {
+  #|      rows: 0,
+  #|      tid: tidForArrowType(type),
+  #|      dtype: null,
+  #|      atype: type,
+  #|      get: () => null,
+  #|      isValid: () => true,
+  #|      nested: {
+  #|        list: () => ({
+  #|          bounds: () => [0, 0],
+  #|          child: wasmSchemaSrc(children[0]),
+  #|        }),
+  #|        struct: () => children.map((cf) => ({
+  #|          name: (cf && cf.name) || "",
+  #|          src: wasmSchemaSrc(cf),
+  #|        })),
+  #|        map: () => {
+  #|          const ek = (children[0] && children[0].children) || [];
+  #|          return {
+  #|            bounds: () => [0, 0],
+  #|            keys: wasmSchemaSrc(ek[0]),
+  #|            values: wasmSchemaSrc(ek[1]),
+  #|          };
+  #|        },
+  #|      },
+  #|    };
   #|  };
   #|
   #|  // ---- pooled emission --------------------------------------------------
   #|  // Appends one slot per logical column, recursing into nested children.
-  #|  const emit = (columns, typeIds, sources, rowCount) => {
+  #|  const emit = (columns, sources, rowCount) => {
+  #|    stream.emitted = true;
   #|    const tids = [], kinds = [], metas = [], offsets = [], slotRows = [];
   #|    const flagSegs = [];
   #|    const shapes = [], shapeOffsets = [];
@@ -724,8 +762,12 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      throw new Error("fetchChunk failed");
   #|    }
   #|    if (chunk.rowCount <= 0) {
-  #|      emptyOk();
-  #|      return;
+  #|      if (stream.emitted) {
+  #|        emptyOk();
+  #|        return;
+  #|      }
+  #|      // First read on an empty result: fall through and emit a 0-row
+  #|      // slot table so callers still see the column schema.
   #|    }
   #|    const columns = stream.columns || [];
   #|    const typeIds = stream.typeIds || [];
@@ -745,7 +787,7 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      }
   #|      sources.push(src);
   #|    }
-  #|    emit(columns, typeIds, sources, chunk.rowCount);
+  #|    emit(columns, sources, chunk.rowCount);
   #|  };
   #|
   #|  const runWasm = async () => {
@@ -756,6 +798,18 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    const next = await stream.reader.next();
   #|    if (!next || next.done || !next.value) {
   #|      stream.done = true;
+  #|      if (!stream.emitted) {
+  #|        // Empty result (e.g. WHERE false): emit a 0-row slot table from
+  #|        // the stream schema so column names/types survive the drain.
+  #|        const fields =
+  #|          (stream.reader.schema && stream.reader.schema.fields) || [];
+  #|        const columns =
+  #|          (stream.columns && stream.columns.length > 0)
+  #|            ? stream.columns
+  #|            : fields.map((f) => f.name);
+  #|        emit(columns, fields.map(wasmSchemaSrc), 0);
+  #|        return;
+  #|      }
   #|      emptyOk();
   #|      return;
   #|    }
@@ -771,15 +825,13 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      columns = fields.map((f) => f.name);
   #|      stream.columns = columns;
   #|    }
-  #|    const typeIds = [];
   #|    const sources = [];
   #|    for (let c = 0; c < ncols; c++) {
   #|      const field = fields[c];
-  #|      typeIds.push(tidForArrowType(field && field.type));
   #|      const vector = batch.getChildAt ? batch.getChildAt(c) : batch.getChild(c);
   #|      sources.push(wasmSrc(vector, field && field.type));
   #|    }
-  #|    emit(columns, typeIds, sources, rowCount);
+  #|    emit(columns, sources, rowCount);
   #|  };
   #|
   #|  const run = async () => {
@@ -1046,7 +1098,9 @@ fn js_stream_next_vector_chunk(
       pool_str,
       pool_bytes,
     ) {
-      if row_count <= 0 || columns.length() == 0 {
+      // A schema-only emit (0 rows but named columns) still materializes
+      // a real chunk so drained queries keep their column names/types.
+      if columns.length() == 0 {
         on_ok(None)
         return
       }
