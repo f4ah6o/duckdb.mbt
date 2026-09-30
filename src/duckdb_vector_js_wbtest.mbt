@@ -624,33 +624,72 @@ test "js stream vectors: nested-in-nested decodes recursively" {
           )
         _ => fail("expected List of Struct")
       }
-      // STRUCT with LIST and MAP fields
+      // STRUCT with LIST and MAP fields: children must resolve to their
+      // own slots — the parent descriptor is emitted after its children,
+      // so interleaved emission decodes the wrong slot ids.
       match chunk.column(1).unwrap().data {
         VectorData::Struct(fields~, children~) => {
           inspect(fields, content="[list, map]")
-          inspect(
-            children[0].data is VectorData::List(..),
-            content=(
-              #|false
-            ),
-          )
-          inspect(
-            children[1].data is VectorData::Map(..),
-            content=(
-              #|false
-            ),
-          )
+          match children[0].data {
+            VectorData::List(child~, offsets~, lengths~) => {
+              inspect(Array::from_fixed_array(offsets), content="[0]")
+              inspect(Array::from_fixed_array(lengths), content="[2]")
+              inspect(child.len(), content="2")
+            }
+            _ => fail("expected List child vector")
+          }
+          match children[1].data {
+            VectorData::Map(offsets~, lengths~, keys~, ..) => {
+              inspect(Array::from_fixed_array(offsets), content="[0]")
+              inspect(Array::from_fixed_array(lengths), content="[1]")
+              inspect(keys.len(), content="1")
+            }
+            _ => fail("expected Map child vector")
+          }
         }
         _ => fail("expected Struct vector data")
       }
       match chunk.get_value(0, 1) {
-        Some(Value::Struct(values~, ..)) =>
-          inspect(
-            values.map(fn(v) { v.to_string() }),
-            content=(
-              #|[{a: 1, b: x}, 7]
-            ),
-          )
+        Some(value) =>
+          inspect(value.to_string(), content="{list: [7, 8], map: {k=9}}")
+        _ => fail("expected Struct")
+      }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: struct-in-struct keeps field names aligned" {
+  // Nested STRUCT field names interleave with the parent's names when
+  // the parent's name segment is written before children are emitted —
+  // fields would decode as ["inner", "x"] instead of ["inner", "b"].
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT {'inner': {'x': 1, 'y': 2}, 'b': 3} AS s",
+    ) {
+    Ok(chunks) => {
+      let chunk = chunks[0]
+      match chunk.column(0).unwrap().data {
+        VectorData::Struct(fields~, children~) => {
+          inspect(fields, content="[inner, b]")
+          match children[0].data {
+            VectorData::Struct(fields=inner_fields, ..) =>
+              inspect(inner_fields, content="[x, y]")
+            _ => fail("expected inner Struct child vector")
+          }
+        }
+        _ => fail("expected Struct vector data")
+      }
+      match chunk.get_value(0, 0) {
+        Some(value) =>
+          inspect(value.to_string(), content="{inner: {x: 1, y: 2}, b: 3}")
         _ => fail("expected Struct")
       }
     }
