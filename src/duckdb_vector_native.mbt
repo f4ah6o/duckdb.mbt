@@ -298,7 +298,7 @@ fn vector_from_native(
     rows,
   )
   let logical_type = column_type_from_id(type_id)
-  let data = vector_data_from_native(vector, type_id, logical_type, rows)
+  let data = vector_data_from_native(vector, type_id, rows)
   { logical_type, data, validity, }
 }
 
@@ -306,7 +306,6 @@ fn vector_from_native(
 fn vector_data_from_native(
   vector : NativeVector,
   type_id : Int,
-  logical_type : ColumnType,
   rows : Int,
 ) -> VectorData {
   match type_id {

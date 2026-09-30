@@ -433,6 +433,7 @@ pub(all) enum Value {
   String(String)
   Date(Int)
   Timestamp(Int64)
+  TimestampNs(Int64)
   Decimal(Decimal)
   Interval(Interval)
   HugeInt(lower~ : UInt64, upper~ : Int64)
@@ -450,6 +451,7 @@ pub fn Value::as_double(Self) -> Double?
 pub fn Value::as_int(Self) -> Int?
 pub fn Value::as_string(Self) -> String?
 pub fn Value::as_timestamp(Self) -> Int64?
+pub fn Value::as_timestamp_ns(Self) -> Int64?
 pub fn Value::is_null(Self) -> Bool
 pub fn Value::to_string(Self) -> String
 

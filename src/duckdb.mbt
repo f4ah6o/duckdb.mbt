@@ -393,8 +393,9 @@ fn touch_public_types(backend : JsBackend) -> Unit {
   let _ : Value = Value::HugeInt(lower=0UL, upper=0L)
   let _ : Value = Value::List([])
   let _ : Value = Value::Struct(fields=[], values=[])
+  let _ : Value = Value::TimestampNs(0L)
   let _ : Value = Value::Map(keys=[], values=[])
-  let _ : Value = Value::Blob(Bytes::default())
+  let _ : Value = Value::Blob(Default::default())
   let _ : Value = Value::Null
   let _ : VectorChunk = { columns: [], vectors: [], }
   let _ : Vector = {
@@ -516,6 +517,7 @@ pub(all) enum Value {
   String(String)
   Date(Int) // Days since 1970-01-01
   Timestamp(Int64) // Microseconds since 1970-01-01
+  TimestampNs(Int64) // Nanoseconds since 1970-01-01 (TIMESTAMP_NS)
   Decimal(Decimal)
   Interval(Interval)
   HugeInt(lower~ : UInt64, upper~ : Int64)

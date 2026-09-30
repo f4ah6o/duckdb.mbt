@@ -57,9 +57,6 @@ const JS_KIND_DECIMAL = 9
 const JS_KIND_INTERVAL = 10
 
 ///|
-const JS_KIND_JSON = 11
-
-///|
 /// Fetch the next result chunk of `stream` as pooled columnar data.
 /// `on_ok` receives, in order: column names, duckdb type ids (0 when the
 /// backend cannot supply one), per-column kind tags, per-column meta ints
@@ -127,8 +124,11 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      case 6: return 1;                               // Bool
   #|      case 7: return 19;                              // Decimal
   #|      case 8: return 13;                              // Date
-  #|      case 9: return 14;                              // Time
-  #|      case 10: return 12;                             // Timestamp
+  #|      case 9: return (t.unit | 0) === 3 ? 39 : 14;    // Time (ns -> TIME_NS)
+  #|      case 10: {                                     // Timestamp
+  #|        const u = t.unit | 0;
+  #|        return u === 0 ? 20 : u === 1 ? 21 : u === 3 ? 22 : 12;
+  #|      }
   #|      case 11: return 15;                             // Interval
   #|      case 12: case 21: case 25: case 26: return 24;    // *List*
   #|      case 13: return 25;                             // Struct
@@ -180,8 +180,8 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      if ("offset" in v && "micros" in v) { // DuckDBTimeTZValue
   #|        return { "$kind": "str", "v": String(v) };
   #|      }
-  #|      if ("nanos" in v) {
-  #|        return { "$kind": "ts", "micros": String(BigInt(v.nanos) / 1000n) };
+  #|      if ("nanos" in v) { // DuckDBTimestampNsValue — keep raw nanos
+  #|        return { "$kind": "tsns", "nanos": String(BigInt(v.nanos)) };
   #|      }
   #|      if ("millis" in v) {
   #|        return { "$kind": "ts", "micros": String(BigInt(v.millis) * 1000n) };
@@ -242,7 +242,7 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    return v;
   #|  };
   #|
-  #|  const pushCell = (kind, tid, v, pools, flags, r, ncols, c) => {
+  #|  const pushCell = (kind, tid, meta, v, pools, flags, r, ncols, c) => {
   #|    const { i32, i64, f64, str, bytes } = pools;
   #|    const isNull = v === null || v === undefined;
   #|    const vt = typeof v;
@@ -259,7 +259,14 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|        break;
   #|      case K_I64:
   #|        if (isNull) { i64.push(0n); break; }
-  #|        if (vt === "bigint" || vt === "number") { i64.push(BigInt(v)); break; }
+  #|        if (vt === "bigint" || vt === "number") {
+  #|          // Raw scalars (Arrow values): normalize S/MS to micros, NS stays raw.
+  #|          const raw = BigInt(v);
+  #|          if (tid === 20) { i64.push(raw * 1000000n); break; }
+  #|          if (tid === 21) { i64.push(raw * 1000n); break; }
+  #|          if (tid === 14 && meta > 0) { i64.push(raw * (10n ** BigInt(meta))); break; }
+  #|          i64.push(raw); break;
+  #|        }
   #|        if (tid === 20 && v && v.seconds !== undefined) { i64.push(BigInt(v.seconds) * 1000000n); break; }
   #|        if (tid === 21 && v && v.millis !== undefined) { i64.push(BigInt(v.millis) * 1000n); break; }
   #|        if ((tid === 22 || tid === 39) && v && v.nanos !== undefined) { i64.push(BigInt(v.nanos)); break; }
@@ -341,6 +348,11 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      kinds.push(kind);
   #|      offsets.push(0);
   #|      let meta = 0;
+  #|      if (tid === 14 && arrowTypes && arrowTypes[c]) {
+  #|        // Arrow Time32 carries s/ms; store the 10^meta scale to micros.
+  #|        const u = arrowTypes[c].unit | 0;
+  #|        meta = u === 0 ? 6 : u === 1 ? 3 : 0;
+  #|      }
   #|      if (kind === K_DEC) {
   #|        const f = arrowTypes && arrowTypes[c];
   #|        if (f && f.scale !== undefined) {
@@ -369,7 +381,7 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|        : pools.bytes;
   #|      offsets[c] = pool.length;
   #|      for (let r = 0; r < rowCount; r++) {
-  #|        pushCell(kind, tid, colValues[c][r], pools, flags, r, ncols, c);
+  #|        pushCell(kind, tid, metas[c], colValues[c][r], pools, flags, r, ncols, c);
   #|      }
   #|    }
   #|    on_ok(columns, typeIds, kinds, metas, offsets, rowCount, flags,
@@ -479,7 +491,9 @@ fn js_vector_from_pools(
       )
     JS_KIND_F32 =>
       VectorData::Float(
-        FixedArray::makei(rows, fn(i) { pool_f64[offset + i].to_float() }),
+        FixedArray::makei(rows, fn(i) {
+          Float::from_double(pool_f64[offset + i])
+        }),
       )
     JS_KIND_F64 =>
       VectorData::Double(
@@ -679,7 +693,10 @@ pub fn ResultStream::next_chunk(
 /// tagged via `$kind` (`date`, `ts`, `iv`, `dec`, `hi`, `list`, `struct`,
 /// `map`, `blob`, `str`). Plain scalars map to the natural `Value`.
 fn value_from_any_json(json : String) -> Value {
-  match (try? @json.parse(json)) {
+  match
+    (try @json.parse(json) |> Ok catch {
+      e => Err(e)
+    }) {
     Ok(parsed) => any_json_to_value(parsed)
     Err(_) => Value::String(json)
   }
@@ -724,6 +741,11 @@ fn any_json_to_value(json : Json) -> Value {
         "ts" =>
           match obj.get("micros") {
             Some(Json::String(s)) => Value::Timestamp(parse_int64_digits(s))
+            _ => Value::String(json.stringify())
+          }
+        "tsns" =>
+          match obj.get("nanos") {
+            Some(Json::String(s)) => Value::TimestampNs(parse_int64_digits(s))
             _ => Value::String(json.stringify())
           }
         "iv" =>

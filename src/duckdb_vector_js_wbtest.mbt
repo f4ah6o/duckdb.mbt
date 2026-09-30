@@ -102,7 +102,10 @@ fn js_stream_vector_chunks(
 /// Parse the child process's JSON output back into `VectorChunk`s via the
 /// real pooled decoder.
 fn parse_chunks_json(json : String) -> Result[Array[VectorChunk], String] {
-  match (try? @json.parse(json)) {
+  match
+    (try @json.parse(json) |> Ok catch {
+      e => Err(e)
+    }) {
     Err(_) => Err("child output not json: " + json)
     Ok(Json::Object(top)) =>
       match top.get("ok") {
@@ -177,7 +180,10 @@ fn json_f64_array(json : Json?) -> FixedArray[Double] {
         match items[i] {
           Json::Number(n, ..) => n
           Json::String(s) =>
-            match (try? @json.parse(s)) {
+            match
+              (try @json.parse(s) |> Ok catch {
+                e => Err(e)
+              }) {
               Ok(Json::Number(n, ..)) => n
               _ => 0.0
             }
@@ -201,7 +207,7 @@ fn json_bytes_array(json : Json?) -> FixedArray[Bytes] {
             }
             Bytes::from_array(out)
           }
-          _ => Bytes::default()
+          _ => Default::default()
         }
       })
     _ => []

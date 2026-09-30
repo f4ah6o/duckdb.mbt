@@ -257,6 +257,42 @@ test "query_chunks decodes date/time/timestamp" {
 }
 
 ///|
+test "query_chunks timestamp_ns keeps nanoseconds typed" {
+  match
+    run_query_chunks(
+      "SELECT TIMESTAMP_NS '1969-12-31 23:59:59.999999999' AS pre, TIMESTAMP_NS '2024-01-01 00:00:00.123456789' AS post",
+    ) {
+    Ok(chunks) => {
+      let chunk = first_chunk(chunks)
+      match chunk.get_value(0, 0) {
+        Some(Value::TimestampNs(nanos)) => inspect(nanos, content="-1")
+        _ => fail("expected TimestampNs")
+      }
+      match chunk.get_value(0, 1) {
+        Some(Value::TimestampNs(nanos)) =>
+          inspect(nanos, content="1704067200123456789")
+        _ => fail("expected TimestampNs")
+      }
+      // Compat rendering must match duckdb_value_varchar output, including
+      // pre-epoch nanosecond fractions.
+      match
+        run_query_result(
+          "SELECT TIMESTAMP_NS '1969-12-31 23:59:59.999999999' AS pre, TIMESTAMP_NS '2024-01-01 00:00:00.123456789' AS post",
+        ) {
+        Ok(qr) => {
+          let vector = chunk.column(0).unwrap()
+          inspect(vector.string_at(0), content="\{qr.rows[0][0]}")
+          let vector2 = chunk.column(1).unwrap()
+          inspect(vector2.string_at(0), content="\{qr.rows[0][1]}")
+        }
+        Err(err) => fail(err)
+      }
+    }
+    Err(err) => fail(err)
+  }
+}
+
+///|
 test "query_chunks decodes nested list/struct/map without strings" {
   match
     run_query_chunks(

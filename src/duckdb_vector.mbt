@@ -428,10 +428,12 @@ pub fn Vector::value_at(self : Vector, row : Int) -> Value {
         ColumnType::Timestamp
         | ColumnType::TimestampS
         | ColumnType::TimestampMs
-        | ColumnType::TimestampNs
         | ColumnType::TimestampTz =>
           // Stored as microseconds since epoch (see backend materializers).
           Value::Timestamp(values[row])
+        ColumnType::TimestampNs =>
+          // Stored as nanoseconds since epoch.
+          Value::TimestampNs(values[row])
         _ => Value::Int64(values[row])
       }
     UInt64(values) => Value::UInt64(values[row])
@@ -555,6 +557,7 @@ fn value_to_duckdb_string(value : Value) -> String {
     Value::String(s) => s
     Value::Date(days) => date_render(days)
     Value::Timestamp(micros) => timestamp_micros_render(micros)
+    Value::TimestampNs(nanos) => timestamp_nanos_render(nanos)
     Value::Decimal(dec) => decimal_render(dec)
     Value::Interval(iv) => interval_render(iv)
     Value::HugeInt(lower~, upper~) => hugeint_render(lower, upper)
@@ -738,8 +741,13 @@ fn timestamp_micros_render(micros : Int64) -> String {
 ///|
 /// `YYYY-MM-DD HH:MM:SS[.fffffffff]` for nanoseconds since epoch.
 fn timestamp_nanos_render(nanos : Int64) -> String {
-  let micros = nanos / 1000L
-  let extra = nanos % 1000L
+  let mut micros = nanos / 1000L
+  let mut extra = nanos % 1000L
+  if extra < 0L {
+    // Floor-divide so pre-epoch nanofracs stay non-negative.
+    micros = micros - 1L
+    extra = extra + 1000L
+  }
   let (year, month, day, hour, minute, second, frac) = split_micros(micros)
   let nanofrac = frac * 1000L + extra
   let base = "\{year}-\{pad2(month)}-\{pad2(day)} \{pad2(hour)}:\{pad2(minute)}:\{pad2(second)}"
