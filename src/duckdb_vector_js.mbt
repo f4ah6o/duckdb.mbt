@@ -497,6 +497,49 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    };
   #|  };
   #|
+  #|  // Arrow interval cells: vector.get is wrong for MONTH_DAY_NANO
+  #|  // (arrow's visitInterval only special-cases DAY_TIME, so MDN values
+  #|  // decode through the YearMonth path as garbage) and returns raw
+  #|  // Int32Array tuples otherwise. Decode per `type.unit` from the
+  #|  // chunk-local `values` buffers, converting to the node-api
+  #|  // {months, days, micros} shape: YEAR_MONTH total months;
+  #|  // DAY_TIME [days, ms] pairs; MONTH_DAY_NANO 16-byte
+  #|  // [months:i32, days:i32, nanos:i64] records.
+  #|  const intervalGet = (vector, type) => {
+  #|    const chunks = dataChunks(vector);
+  #|    const unit = type && type.unit !== undefined && type.unit !== null
+  #|      ? type.unit | 0 : 2;
+  #|    const stride = unit === 0 ? 4 : unit === 1 ? 8 : 16;
+  #|    const rowBase = [];
+  #|    let rAcc = 0;
+  #|    for (const d of chunks) { rowBase.push(rAcc); rAcc += d.length; }
+  #|    return (r) => {
+  #|      if (vector && typeof vector.isValid === "function" &&
+  #|          !vector.isValid(r)) {
+  #|        return null;
+  #|      }
+  #|      let c = 0;
+  #|      while (c + 1 < chunks.length && r >= rowBase[c] + chunks[c].length) {
+  #|        c++;
+  #|      }
+  #|      const d = chunks[c];
+  #|      const vals = d && d.values;
+  #|      if (!vals || !vals.buffer) return null;
+  #|      const i = r - rowBase[c];
+  #|      const dv = new DataView(vals.buffer, vals.byteOffset, vals.byteLength);
+  #|      const at = stride * i;
+  #|      if (unit === 0) {
+  #|        return { months: dv.getInt32(at, true), days: 0, micros: 0n };
+  #|      }
+  #|      if (unit === 1) {
+  #|        return { months: 0, days: dv.getInt32(at, true),
+  #|                 micros: BigInt(dv.getInt32(at + 4, true)) * 1000n };
+  #|      }
+  #|      return { months: dv.getInt32(at, true), days: dv.getInt32(at + 4, true),
+  #|               micros: dv.getBigInt64(at + 8, true) / 1000n };
+  #|    };
+  #|  };
+  #|
   #|  const wasmSrc = (vector, atype) => {
   #|    const type = (vector && vector.type) || atype || null;
   #|    const src = {
