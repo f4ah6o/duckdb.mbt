@@ -33,8 +33,17 @@ fn is_sql_identifier_char(c : Char) -> Bool {
 }
 
 ///|
+/// Whether `c` may start a bare SQL identifier (letter or underscore —
+/// leading digits are only legal inside a quoted identifier).
+fn is_sql_identifier_start_char(c : Char) -> Bool {
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+}
+
+///|
 /// Validate `value` as a non-empty SQL identifier made of
 /// `is_sql_identifier_char` characters, returning it verbatim on success.
+/// Usable for double-quoted contexts (e.g. ATTACH aliases); bare
+/// identifiers additionally need `bare_sql_identifier`.
 fn sql_identifier(
   value : String,
   argument~ : String,
@@ -57,6 +66,36 @@ fn sql_identifier(
 }
 
 ///|
+/// Validate `value` as a bare SQL identifier rendered unquoted (extension
+/// names, repositories): `sql_identifier` plus a letter/underscore first
+/// character, since a leading digit is not valid bare.
+fn bare_sql_identifier(
+  value : String,
+  argument~ : String,
+) -> Result[String, DuckDBError] {
+  match sql_identifier(value, argument~) {
+    Err(err) => Err(err)
+    Ok(value) => {
+      let mut start_ok = false
+      for c in value {
+        start_ok = is_sql_identifier_start_char(c)
+        break
+      }
+      if start_ok {
+        Ok(value)
+      } else {
+        Err(
+          DuckDBError::InvalidArgument(
+            argument~,
+            reason="must start with a letter or underscore",
+          ),
+        )
+      }
+    }
+  }
+}
+
+///|
 /// Adapt a `QueryResult` callback into a `Unit` callback, discarding rows.
 fn unit_done(
   result : Result[QueryResult, DuckDBError],
@@ -75,13 +114,13 @@ fn install_extension_sql(
   repository : String,
   force : Bool,
 ) -> Result[String, DuckDBError] {
-  match sql_identifier(name, argument="name") {
+  match bare_sql_identifier(name, argument="name") {
     Err(err) => Err(err)
     Ok(name) =>
       if repository == "" {
         Ok((if force { "FORCE " } else { "" }) + "INSTALL " + name)
       } else {
-        match sql_identifier(repository, argument="repository") {
+        match bare_sql_identifier(repository, argument="repository") {
           Err(err) => Err(err)
           Ok(repository) =>
             Ok(
@@ -140,17 +179,24 @@ pub fn Connection::install_extension(
 }
 
 ///|
+/// SQL for `LOAD name`.
+fn load_extension_sql(name : String) -> Result[String, DuckDBError] {
+  match bare_sql_identifier(name, argument="name") {
+    Ok(name) => Ok("LOAD " + name)
+    Err(err) => Err(err)
+  }
+}
+
+///|
 /// Load an installed DuckDB extension into this connection (`LOAD name`).
 pub fn Connection::load_extension(
   self : Connection,
   name : String,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
-  match sql_identifier(name, argument="name") {
-    Ok(name) =>
-      self.query("LOAD " + name, on_done=fn(result) {
-        unit_done(result, on_done)
-      })
+  match load_extension_sql(name) {
+    Ok(sql) =>
+      self.query(sql, on_done=fn(result) { unit_done(result, on_done) })
     Err(err) => on_done(Err(err))
   }
 }

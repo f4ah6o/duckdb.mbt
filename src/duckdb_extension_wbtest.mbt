@@ -15,6 +15,54 @@ test "install extension SQL" {
 }
 
 ///|
+test "bare extension identifiers reject leading digits" {
+  // `install_extension` / `load_extension` render names bare, so a leading
+  // digit (legal only inside a quoted identifier) must be rejected.
+  match install_extension_sql("123x", "", false) {
+    Ok(sql) => fail("expected leading-digit extension name error, got \{sql}")
+    Err(err) =>
+      inspect(
+        err.message(),
+        content=(
+          #|invalid argument name: must start with a letter or underscore
+        ),
+      )
+  }
+  match install_extension_sql("httpfs", "1repo", false) {
+    Ok(sql) => fail("expected leading-digit repository error, got \{sql}")
+    Err(err) =>
+      inspect(
+        err.message(),
+        content=(
+          #|invalid argument repository: must start with a letter or underscore
+        ),
+      )
+  }
+  match load_extension_sql("9lives") {
+    Ok(sql) => fail("expected leading-digit extension name error, got \{sql}")
+    Err(err) =>
+      inspect(
+        err.message(),
+        content=(
+          #|invalid argument name: must start with a letter or underscore
+        ),
+      )
+  }
+}
+
+///|
+test "load extension SQL" {
+  match load_extension_sql("quack") {
+    Ok(sql) => inspect(sql, content="LOAD quack")
+    Err(err) => fail("unexpected load SQL error: \{err.message()}")
+  }
+  match load_extension_sql("_v2_ext") {
+    Ok(sql) => inspect(sql, content="LOAD _v2_ext")
+    Err(err) => fail("unexpected load SQL error: \{err.message()}")
+  }
+}
+
+///|
 test "install extension rejects unsafe names" {
   match install_extension_sql("httpfs; DROP TABLE t", "", false) {
     Ok(sql) => fail("expected unsafe extension name error, got \{sql}")
