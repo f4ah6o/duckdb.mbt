@@ -1,6 +1,7 @@
 import {
   "f4ah6o/duckdb" @lib,
   "moonbitlang/core/bench",
+  "moonbitlang/core/env",
 }
 
 pkgtype(kind: "executable")
@@ -10,5 +11,9 @@ options(
     "native": {
       "cc-link-flags": "-L/opt/homebrew/lib -Wl,-rpath,/opt/homebrew/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L/usr/lib -lduckdb",
     },
+  },
+  targets: {
+    "rss_native.mbt": [ "native" ],
+    "rss_stub.mbt": [ "or", "wasm", "wasm-gc", "js" ],
   },
 )

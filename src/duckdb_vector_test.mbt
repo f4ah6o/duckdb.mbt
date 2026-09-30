@@ -58,6 +58,87 @@ fn run_query_result(sql : String) -> Result[QueryResult, String] {
 }
 
 ///|
+/// Prepare `sql`, execute it via `PreparedStatement::execute_chunks`, and
+/// close the statement.
+fn run_execute_chunks(sql : String) -> Result[Array[VectorChunk], String] {
+  let result_ref : Ref[Array[VectorChunk]?] = Ref::new(None)
+  let error_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) => {
+        conn.prepare(sql, on_done=fn(stmt_result) {
+          match stmt_result {
+            Ok(stmt) => {
+              stmt.execute_chunks(on_done=fn(chunks_result) {
+                match chunks_result {
+                  Ok(chunks) => result_ref.val = Some(chunks)
+                  Err(err) =>
+                    error_ref.val = Some("execute failed: \{err.message()}")
+                }
+              })
+              stmt.close(on_done=fn(_) { () })
+            }
+            Err(err) => error_ref.val = Some("prepare failed: \{err.message()}")
+          }
+        })
+        conn.close(on_done=fn(_) { () })
+      }
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  match error_ref.val {
+    Some(message) => Err(message)
+    None =>
+      match result_ref.val {
+        Some(chunks) => Ok(chunks)
+        None => Err("execute_chunks returned no result")
+      }
+  }
+}
+
+///|
+/// Drain `ResultStream::next_chunk`, labeling each call "some", "none", or
+/// "err", until the stream ends or fails.
+fn run_stream_outcomes(sql : String) -> Result[Array[String], String] {
+  let outcomes_ref : Ref[Array[String]] = Ref::new([])
+  let error_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) =>
+        conn.query_stream(sql, on_done=fn(stream_result) {
+          match stream_result {
+            Ok(stream) => {
+              let done_ref : Ref[Bool] = Ref::new(false)
+              while !done_ref.val {
+                stream.next_chunk(on_done=fn(chunk_result) {
+                  match chunk_result {
+                    Ok(Some(_)) => outcomes_ref.val.push("some")
+                    Ok(None) => {
+                      outcomes_ref.val.push("none")
+                      done_ref.val = true
+                    }
+                    Err(_) => {
+                      outcomes_ref.val.push("err")
+                      done_ref.val = true
+                    }
+                  }
+                })
+              }
+              stream.close(on_done=fn(_) { () })
+            }
+            Err(err) => error_ref.val = Some("stream failed: \{err.message()}")
+          }
+        })
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  match error_ref.val {
+    Some(message) => Err(message)
+    None => Ok(outcomes_ref.val)
+  }
+}
+
+///|
 /// First chunk convenience for tests asserting on single-result queries.
 fn first_chunk(chunks : Array[VectorChunk]) -> VectorChunk {
   if chunks.length() == 0 {
@@ -499,5 +580,207 @@ test "query_chunks error propagation" {
   match run_query_chunks("SELECT * FROM nonexistent_table") {
     Ok(_) => fail("expected error for missing table")
     Err(_) => ()
+  }
+}
+
+///|
+/// INTERVAL payloads arrive as flat `[months, days, micros]` triples; more
+/// than one row is required to pin the `i * 3` / `+1` / `+2` indexing.
+test "query_chunks decodes multi-row interval triples" {
+  match
+    run_query_chunks(
+      "SELECT * FROM (VALUES (INTERVAL '1 day'), (INTERVAL '2 months 3 days'), (INTERVAL '10 hours')) t(iv)",
+    ) {
+    Ok(chunks) => {
+      let chunk = first_chunk(chunks)
+      inspect(chunk.row_count(), content="3")
+      match chunk.column(0) {
+        Some(vector) => {
+          match vector.logical_type {
+            ColumnType::Interval => ()
+            _ => fail("expected Interval column type")
+          }
+          match vector.intervals() {
+            Some(values) => {
+              inspect(values.length(), content="3")
+              let got : Array[String] = []
+              for iv in values {
+                got.push("\{iv.months}/\{iv.days}/\{iv.micros}")
+              }
+              assert_eq(got, ["0/1/0", "2/3/0", "0/0/36000000000"])
+            }
+            None => fail("expected Interval vector")
+          }
+        }
+        None => fail("missing column 0")
+      }
+      // Per-row typed access agrees with the raw triples.
+      match chunk.get_value(1, 0) {
+        Some(Value::Interval(iv)) => {
+          inspect(iv.months, content="2")
+          inspect(iv.days, content="3")
+          inspect(iv.micros, content="0")
+        }
+        other => fail("expected Interval at row 1")
+      }
+      match chunk.get_value(2, 0) {
+        Some(Value::Interval(iv)) => {
+          inspect(iv.months, content="0")
+          inspect(iv.days, content="0")
+          inspect(iv.micros, content="36000000000")
+        }
+        other => fail("expected Interval at row 2")
+      }
+    }
+    Err(err) => fail(err)
+  }
+}
+
+///|
+/// Fixed-size ARRAY columns (DuckDB type 33) decode through the `List`
+/// layout with computed offsets `i * array_size` and a dense child of
+/// `rows * array_size` elements; NULL parents keep their slots but flag
+/// invalidity.
+test "query_chunks decodes fixed-size arrays" {
+  match
+    run_query_chunks(
+      "SELECT * FROM (VALUES ([1,2,3]::INTEGER[3]), ([4,5,6]::INTEGER[3]), (NULL::INTEGER[3])) t(a)",
+    ) {
+    Ok(chunks) => {
+      let chunk = first_chunk(chunks)
+      inspect(chunk.row_count(), content="3")
+      match chunk.column(0) {
+        Some(vector) => {
+          match vector.logical_type {
+            ColumnType::Array => ()
+            _ => fail("expected Array column type")
+          }
+          match vector.list_parts() {
+            Some((child, offsets, lengths)) => {
+              let got_offsets : Array[Int] = []
+              let got_lengths : Array[Int] = []
+              for i in 0..<offsets.length() {
+                got_offsets.push(offsets[i].to_int())
+                got_lengths.push(lengths[i].to_int())
+              }
+              assert_eq(got_offsets, [0, 3, 6])
+              assert_eq(got_lengths, [3, 3, 3])
+              // Dense child carries rows * array_size elements.
+              inspect(child.len(), content="9")
+              match child.ints() {
+                Some(xs) => {
+                  inspect(xs.length(), content="9")
+                  let flat : Array[Int] = []
+                  for i in 0..<6 {
+                    flat.push(xs[i])
+                  }
+                  assert_eq(flat, [1, 2, 3, 4, 5, 6])
+                }
+                None => fail("expected Int32 child")
+              }
+            }
+            None => fail("expected List payload for ARRAY")
+          }
+        }
+        None => fail("missing column 0")
+      }
+      match chunk.get_value(1, 0) {
+        Some(Value::List(items)) =>
+          inspect(items.map(fn(v) { v.to_string() }), content="[4, 5, 6]")
+        other => fail("expected List at row 1")
+      }
+      inspect(chunk.is_null(2, 0), content="true")
+      match chunk.get_value(2, 0) {
+        None => ()
+        other => fail("expected None for NULL array row")
+      }
+    }
+    Err(err) => fail(err)
+  }
+}
+
+///|
+/// `PreparedStatement::execute_chunks` materializes canonical chunks on
+/// success and surfaces execute-time failures as `Err`.
+test "PreparedStatement::execute_chunks success and execute-time error" {
+  match run_execute_chunks("SELECT 42::INTEGER AS i") {
+    Ok(chunks) => {
+      let chunk = first_chunk(chunks)
+      inspect(chunk.row_count(), content="1")
+      match chunk.get_value(0, 0) {
+        Some(Value::Int(42)) => ()
+        other => fail("expected Int(42)")
+      }
+    }
+    Err(err) => fail(err)
+  }
+  // Prepare succeeds; execution fails (conversion error at execute time).
+  match
+    run_execute_chunks("SELECT CAST(x AS INTEGER) FROM (VALUES ('abc')) t(x)") {
+    Ok(_) => fail("expected execute error for bad cast")
+    Err(_) => ()
+  }
+}
+
+///|
+/// An empty stream is already at end-of-stream: first fetch must yield
+/// `Ok(None)`, not an error or a phantom chunk.
+test "ResultStream::next_chunk yields Ok(None) for empty results" {
+  match run_stream_outcomes("SELECT i FROM range(10) t(i) WHERE false") {
+    Ok(outcomes) => assert_eq(outcomes, ["none"])
+    Err(err) => fail(err)
+  }
+  match run_stream_outcomes("SELECT i FROM range(3) t(i)") {
+    Ok(outcomes) => assert_eq(outcomes, ["some", "none"])
+    Err(err) => fail(err)
+  }
+}
+
+///|
+/// Fetching from a closed stream surfaces the native "stream is null"
+/// message as `Err`, exercising the non-empty-error branch of `next_chunk`.
+test "ResultStream::next_chunk errors after close" {
+  let outcome_ref : Ref[String] = Ref::new("")
+  let error_ref : Ref[String?] = Ref::new(None)
+  connect(on_ready=fn(result) {
+    match result {
+      Ok(conn) =>
+        conn.query_stream("SELECT 1::INTEGER AS i", on_done=fn(stream_result) {
+          match stream_result {
+            Ok(stream) => {
+              stream.close(on_done=fn(_) { () })
+              stream.next_chunk(on_done=fn(chunk_result) {
+                match chunk_result {
+                  Ok(_) => outcome_ref.val = "ok"
+                  Err(_) => outcome_ref.val = "err"
+                }
+              })
+            }
+            Err(err) => error_ref.val = Some("stream failed: \{err.message()}")
+          }
+        })
+      Err(err) => error_ref.val = Some("connect failed: \{err.message()}")
+    }
+  })
+  match error_ref.val {
+    Some(message) => fail(message)
+    None => inspect(outcome_ref.val, content="err")
+  }
+}
+
+///|
+/// The compat `query()` path renders cells via `native_chunk_string_rows`;
+/// NULL cells must produce `""` plus a `true` null flag, non-NULL cells the
+/// rendered value, for every column type.
+test "query compat path renders NULL cells across types" {
+  match
+    run_query_result(
+      "SELECT NULL::INTEGER AS ni, 1.5::DOUBLE AS d, NULL::VARCHAR AS s, true AS b, NULL::BOOLEAN AS nb, 7::BIGINT AS bi",
+    ) {
+    Ok(qr) => {
+      inspect(qr.rows, content="[[, 1.5, , true, , 7]]")
+      inspect(qr.nulls, content="[[true, false, true, false, true, false]]")
+    }
+    Err(err) => fail(err)
   }
 }
