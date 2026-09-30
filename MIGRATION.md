@@ -24,7 +24,7 @@ published package.
 | `conn.install_quack(...)` etc. | `@quack.install(conn, ...)` etc. | deprecated facade (still compiles) |
 | `ArrowResult::get_column_int64 -> Array[Int]` | `-> Array[Int64]` | **breaking** (function is also deprecated) |
 | `ArrowResult::get_column_*` | `ArrowResult::to_chunks` + `Vector` accessors | deprecated facade (still compiles) |
-| JS `rows`/`column_types` payloads | DuckDB-style nested rendering, `5.0` integral doubles, real WASM `column_types`, `columns=[]` on zero chunks | **behavior change** (JS only) |
+| JS `rows`/`column_types` payloads | DuckDB-style nested rendering, `5.0` integral doubles, real WASM `column_types`, real `VectorData` for nested columns | **behavior change** (JS only) |
 | `pub enum Value` (9 variants) | `pub(all) enum Value` (17 variants) | **breaking** for exhaustive `match` |
 | `array_of`, `assert_check`, `check_with_stats`, `shrink_int`, `CheckConfig`, `CheckResult` | removed from the public interface | **breaking** |
 | `pub type LogicalType`, `pub type Vector` | `NativeLogicalType`, `NativeVector` (native FFI); `Vector` is now the public typed-vector struct | **breaking** if referenced |
@@ -159,7 +159,9 @@ let d = decimal_from_hugeint(lower, upper, 38, 2)
 ## Arrow results: typed vectors
 
 `query_arrow` now eagerly materializes results into canonical `VectorChunk`s
-on every backend — no JSON or packed-byte re-encoding. `ArrowResult` changed
+on every backend — no packed-byte re-encoding (on JS, genuinely unsupported
+column types still use a tagged-JSON `Any` cell encoding; see the JS section
+below). `ArrowResult` changed
 from `#external` to a struct with private fields, but it is still an opaque
 handle for callers: `close` releases it, and `to_chunks`/`get_schema` report
 `DuckDBError::Closed` afterwards.
@@ -242,9 +244,11 @@ string-compares cell output or inspects `column_types`:
 - **`QueryResult.column_types` on WASM** reports the real `ColumnType` per
   column (previously every column was `Unknown(-1)` — the WASM path
   carried no type IDs).
-- **Zero-chunk results**: a query that produces no result chunks returns
-  `columns=[]`, matching the native path (previously JS populated
-  `columns` from Arrow schema / `columnNames()` metadata).
+- **Empty results keep their schema**: a 0-row query (`SELECT ... WHERE
+  false`, empty range) still exposes real `columns`/`column_types` — the
+  JS stream emits a schema-only slot table, matching the native path, so
+  there is no user-facing schema loss vs 0.6.4 (and WASM `column_types`
+  are now real there too, consistent with the previous bullet).
 
 ```mbt nocheck
 // conn.query("SELECT [1,2] AS l, {'a': 1} AS s, 5.0::DOUBLE AS d", ...)
@@ -260,13 +264,16 @@ string-compares cell output or inspects `column_types`:
 ```
 
 The typed-chunk APIs benefit too: `query_chunks`, `execute_chunks`,
-`next_chunk`, and `ArrowResult::to_chunks` now produce real
-`VectorData::List`/`Struct`/`Map` on JS, so `vector.list_parts()`,
-`vector.struct_parts()`, `vector.map_parts()`, and nested
-`vector.value_at(row)` work on JS the same way they do on native.
-Previously nested columns fell into a tagged-JSON `Any` fallback per cell
-(it remains only for UNION/BIT/TIME_TZ/BIGNUM). `conn.execute` and
-`stream.columns`/`stream.column_types` are unchanged.
+`next_chunk`, and `ArrowResult::to_chunks` decode LIST/STRUCT/MAP/ARRAY
+columns into real `VectorData::List`/`Struct`/`Map` on JS, so
+`vector.list_parts()`/`struct_parts()`/`map_parts()` and nested
+`vector.value_at(row)` return structured data instead of `Any` cells.
+Two qualifications keep this short of full native parity: `nested_typed`
+in `conn.capabilities()` remains `false` on JS (the support matrix still
+reports partial advanced-type support), and genuinely unsupported column
+types (UNION/BIT/TIME_TZ/BIGNUM) keep the tagged-JSON `Any` fallback —
+`vector.value_at(row)` still decodes those cells into `Value`s.
+`conn.execute` and `stream.columns`/`stream.column_types` are unchanged.
 
 ## Quack: moved to `f4ah6o/duckdb/quack`
 

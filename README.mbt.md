@@ -71,7 +71,11 @@ Basic support is available on all targets:
 - Supported types: BOOLEAN, INTEGER, VARCHAR, DOUBLE, BIGINT (plus wider
   `ColumnType` coverage through the typed vectors)
 
-**Note:** Complex types (List, Struct, Map) are not yet supported.
+**Note:** Nested columns (List, Struct, Map) decode logically on every
+backend — `Vector::value_at(row)` yields `Value::List`/`Struct`/`Map`. On
+JS they arrive as `VectorData::Any` (tagged-JSON) cells, so the typed
+nested accessors (`list_parts`/`struct_parts`/`map_parts`) return `None`
+there; `conn.capabilities()` reports `nested_typed = false` for JS.
 
 ## CI Coverage
 
