@@ -3,9 +3,26 @@
 // JS backends (Node via @duckdb/node-api, browser via duckdb-wasm/Arrow):
 // adapt backend-native columnar chunks into the canonical `VectorChunk`
 // model (issue #61). Primitive columns move as parallel typed pools in a
-// single FFI call per chunk — no per-cell string conversion. Nested/exotic
-// cells (LIST/STRUCT/MAP/ARRAY/UNION/BIT/TIME_TZ/BIGNUM, ...) use a
-// tagged-JSON encoding decoded by `value_from_any_json`.
+// single FFI call per chunk — no per-cell string conversion. Nested
+// LIST/STRUCT/MAP/ARRAY columns are decomposed into extra pseudo-columns
+// ("slots") appended after the real columns; a small `shapes` pool describes
+// each nested column's child slot ids and a `names` pool carries struct
+// field names, so nested values decode into real `VectorData::List`/`Struct`/
+// `Map` without a string round-trip. Genuinely unsupported types
+// (UNION/BIT/TIME_TZ/BIGNUM, ...) keep the tagged-JSON encoding decoded by
+// `value_from_any_json`.
+//
+// Slot tables: every emitted column — real or nested child — gets one slot
+// i with its own `typeIds[i]`, `kinds[i]`, `metas[i]`, `offsets[i]` (into the
+// kind's pool), `slotRows[i]` (child slots differ from the parent row
+// count), and a validity segment inside the flat `flags` array starting at
+// the prefix sum of `slotRows[0..i)`. `shapeOffsets[i]` points into `shapes`
+// (-1 when the slot is not nested) and `nameOffsets[i]` into `names`.
+//
+// Shape tags in `shapes` at `shapeOffsets[i]`:
+//   1 LIST/ARRAY: [1, childSlot]
+//   2 STRUCT:     [2, nFields, childSlot..] with names[nameOffsets..+nFields]
+//   3 MAP:        [3, keysSlot, valuesSlot]
 //
 // Column payload kinds emitted by `js_stream_next_vectors_ffi`:
 //   0 BOOL      pool_i32 slot per row (0/1)
@@ -21,6 +38,9 @@
 //   9 DECIMAL   pool_i64 *2 per row + meta (width << 16 | scale)
 //  10 INTERVAL  pool_i64 *3 per row: months, days, micros
 //  11 JSON      pool_str slot per row: tagged JSON -> Any(Value)
+//  12 LIST      pool_i64 *2 per row: child offset, length (LIST and ARRAY)
+//  13 STRUCT    no payload; children via shapes pool + names pool
+//  14 MAP       pool_i64 *2 per row: entry offset, length
 // ============================================================================
 
 ///|
@@ -57,13 +77,37 @@ const JS_KIND_DECIMAL = 9
 const JS_KIND_INTERVAL = 10
 
 ///|
+const JS_KIND_JSON = 11
+
+///|
+const JS_KIND_LIST = 12
+
+///|
+const JS_KIND_STRUCT = 13
+
+///|
+const JS_KIND_MAP = 14
+
+///|
+// Shape descriptor tags inside the `shapes` pool (see the protocol comment
+// above `js_stream_next_vectors_ffi`).
+const JS_SHAPE_LIST = 1
+
+///|
+const JS_SHAPE_STRUCT = 2
+
+///|
+const JS_SHAPE_MAP = 3
+
+///|
 /// Fetch the next result chunk of `stream` as pooled columnar data.
-/// `on_ok` receives, in order: column names, duckdb type ids (0 when the
-/// backend cannot supply one), per-column kind tags, per-column meta ints
-/// (decimal `(width << 16) | scale`), per-column slot offsets into their
-/// kind's pool, the row count, per-cell null flags (`row * ncols + col`,
-/// `1` = NULL), then the value pools. All parameters are `FixedArray` per
-/// the JS FFI boundary rules.
+/// `on_ok` receives, in order: top-level column names; the per-slot tables
+/// (`typeIds`, `kinds`, `metas`, `offsets`, `slotRows`); the flat `flags`
+/// validity segments; the nested `shapes` descriptor pool plus per-slot
+/// `shapeOffsets`; the `names` pool plus per-slot `nameOffsets`; the top-level
+/// `rowCount`; then the value pools. Slots `0..<columns.length` are the real
+/// columns; nested children are appended as extra slots. All parameters are
+/// `FixedArray` per the JS FFI boundary rules.
 extern "js" fn js_stream_next_vectors_ffi(
   stream : ResultStream,
   on_ok : (
@@ -72,8 +116,13 @@ extern "js" fn js_stream_next_vectors_ffi(
     FixedArray[Int],
     FixedArray[Int],
     FixedArray[Int],
-    Int,
     FixedArray[Int],
+    FixedArray[Int],
+    FixedArray[Int],
+    FixedArray[Int],
+    FixedArray[String],
+    FixedArray[Int],
+    Int,
     FixedArray[Int],
     FixedArray[Int64],
     FixedArray[Double],
@@ -85,28 +134,13 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|(stream, on_ok, on_err) => {
   #|  const toError = (err) => err && err.message ? err.message : String(err);
   #|  const K_BOOL = 0, K_I32 = 1, K_I64 = 2, K_U64 = 3, K_F32 = 4, K_F64 = 5,
-  #|    K_STR = 6, K_BYTES = 7, K_I128 = 8, K_DEC = 9, K_IV = 10, K_JSON = 11;
+  #|    K_STR = 6, K_BYTES = 7, K_I128 = 8, K_DEC = 9, K_IV = 10, K_JSON = 11,
+  #|    K_LIST = 12, K_STRUCT = 13, K_MAP = 14;
+  #|  const S_LIST = 1, S_STRUCT = 2, S_MAP = 3;
   #|  const U64_MASK = (1n << 64n) - 1n;
   #|  const textDecoder = new TextDecoder();
-  #|
-  #|  // node-api DuckDBTypeId -> payload kind (ids match the C API enum).
-  #|  const kindForNodeType = (t) => {
-  #|    switch (t) {
-  #|      case 1: return K_BOOL;
-  #|      case 2: case 3: case 4: case 6: case 7: case 13: return K_I32;
-  #|      case 5: case 8: case 14: case 39: case 12: case 20: case 21:
-  #|      case 22: case 31: return K_I64;
-  #|      case 9: return K_U64;
-  #|      case 10: return K_F32;
-  #|      case 11: return K_F64;
-  #|      case 17: case 23: return K_STR;
-  #|      case 18: return K_BYTES;
-  #|      case 16: case 32: case 27: return K_I128;
-  #|      case 19: return K_DEC;
-  #|      case 15: return K_IV;
-  #|      default: return K_JSON;
-  #|    }
-  #|  };
+  #|  const emptyOk = () => on_ok([], [], [], [], [], [], [], [], [], [], [],
+  #|    0, [], [], [], [], []);
   #|
   #|  // apache-arrow type -> duckdb type id (best effort; 0 = unknown).
   #|  const tidForArrowType = (t) => {
@@ -141,6 +175,7 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    }
   #|  };
   #|
+  #|  // duckdb type id -> payload kind.
   #|  const kindForTid = (t) => {
   #|    switch (t) {
   #|      case 1: return K_BOOL;
@@ -155,6 +190,9 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      case 16: case 32: case 27: return K_I128;
   #|      case 19: return K_DEC;
   #|      case 15: return K_IV;
+  #|      case 24: case 33: return K_LIST;   // LIST / ARRAY
+  #|      case 25: return K_STRUCT;
+  #|      case 26: return K_MAP;
   #|      default: return K_JSON;
   #|    }
   #|  };
@@ -242,11 +280,13 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    return v;
   #|  };
   #|
-  #|  const pushCell = (kind, tid, meta, v, pools, flags, r, ncols, c) => {
+  #|  // Append one cell of a primitive/JSON slot; `flags` is the slot's own
+  #|  // validity segment (flags[r] = 1 means NULL).
+  #|  const pushCell = (kind, tid, meta, v, pools, flags, r) => {
   #|    const { i32, i64, f64, str, bytes } = pools;
   #|    const isNull = v === null || v === undefined;
+  #|    if (isNull) flags[r] = 1;
   #|    const vt = typeof v;
-  #|    if (isNull) flags[r * ncols + c] = 1;
   #|    switch (kind) {
   #|      case K_BOOL:
   #|        i32.push(isNull ? 0 : (v ? 1 : 0));
@@ -334,32 +374,196 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|    }
   #|  };
   #|
-  #|  // Shared packer: per-column JS value arrays -> pooled layout.
-  #|  const emit = (columns, typeIds, colValues, rowCount, arrowTypes) => {
-  #|    const ncols = columns.length;
-  #|    const kinds = [];
-  #|    const metas = [];
-  #|    const offsets = [];
-  #|    const flags = new Array(rowCount * ncols).fill(0);
+  #|  // ---- column sources -------------------------------------------------
+  #|  // A "source" abstracts one logical column (real or nested child):
+  #|  //   rows:      element count of this slot
+  #|  //   tid:       duckdb type id
+  #|  //   dtype:     node-api DuckDBType (or null)
+  #|  //   atype:     arrow DataType (or null)
+  #|  //   get(r):    JS cell value for row r (primitive payload + validity)
+  #|  //   isValid(r):row validity
+  #|  //   nested:    {list|struct|map} decomposers, or null when the backend
+  #|  //              cannot decompose this slot (falls back to tagged JSON)
+  #|
+  #|  const nodeSrc = (values, dtype) => {
+  #|    const src = {
+  #|      rows: values.length,
+  #|      tid: dtype && dtype.typeId !== undefined && dtype.typeId !== null
+  #|        ? dtype.typeId | 0 : 0,
+  #|      dtype: dtype || null,
+  #|      atype: null,
+  #|      get: (r) => values[r],
+  #|      isValid: (r) => values[r] !== null && values[r] !== undefined,
+  #|      nested: null,
+  #|    };
+  #|    src.nested = {
+  #|      // LIST/ARRAY: flatten per-row .items into one child source.
+  #|      list: () => {
+  #|        const flat = [], offs = [], lens = [];
+  #|        for (let r = 0; r < src.rows; r++) {
+  #|          const v = values[r];
+  #|          const items = v && Array.isArray(v.items) ? v.items : null;
+  #|          offs.push(flat.length);
+  #|          lens.push(items ? items.length : 0);
+  #|          if (items) for (const item of items) flat.push(item);
+  #|        }
+  #|        return {
+  #|          bounds: (r) => [offs[r], lens[r]],
+  #|          child: nodeSrc(flat, src.dtype && src.dtype.valueType),
+  #|        };
+  #|      },
+  #|      // STRUCT: one child source per field; names come from the declared
+  #|      // DuckDBStructType, falling back to the first non-null row's keys.
+  #|      struct: () => {
+  #|        const dtype = src.dtype;
+  #|        let fieldNames = (dtype && dtype.entryNames) || null;
+  #|        if (!fieldNames) {
+  #|          for (let r = 0; r < src.rows; r++) {
+  #|            const v = values[r];
+  #|            if (v && v.entries) { fieldNames = Object.keys(v.entries); break; }
+  #|          }
+  #|        }
+  #|        fieldNames = fieldNames || [];
+  #|        const entryTypes = (dtype && dtype.entryTypes) || [];
+  #|        return fieldNames.map((name, i) => ({
+  #|          name: String(name),
+  #|          src: nodeSrc(
+  #|            Array.from({ length: src.rows }, (_, r) => {
+  #|              const v = values[r];
+  #|              return v && v.entries ? v.entries[name] : null;
+  #|            }),
+  #|            entryTypes[i] || null,
+  #|          ),
+  #|        }));
+  #|      },
+  #|      // MAP: flatten per-row .entries [{key,value}] into keys/values.
+  #|      map: () => {
+  #|        const keys = [], vals = [], offs = [], lens = [];
+  #|        for (let r = 0; r < src.rows; r++) {
+  #|          const v = values[r];
+  #|          const entries = v && Array.isArray(v.entries) ? v.entries : null;
+  #|          offs.push(keys.length);
+  #|          lens.push(entries ? entries.length : 0);
+  #|          if (entries) {
+  #|            for (const e of entries) {
+  #|              keys.push(e ? e.key : null);
+  #|              vals.push(e ? e.value : null);
+  #|            }
+  #|          }
+  #|        }
+  #|        return {
+  #|          bounds: (r) => [offs[r], lens[r]],
+  #|          keys: nodeSrc(keys, src.dtype && src.dtype.keyType),
+  #|          values: nodeSrc(vals, src.dtype && src.dtype.valueType),
+  #|        };
+  #|      },
+  #|    };
+  #|    return src;
+  #|  };
+  #|
+  #|  const wasmSrc = (vector, atype) => {
+  #|    const type = (vector && vector.type) || atype || null;
+  #|    const src = {
+  #|      rows: vector ? vector.length : 0,
+  #|      tid: tidForArrowType(type),
+  #|      dtype: null,
+  #|      atype: type,
+  #|      vector: vector,
+  #|      get: (r) => vector.get(r),
+  #|      isValid: (r) => {
+  #|        if (vector && typeof vector.isValid === "function") {
+  #|          return !!vector.isValid(r);
+  #|        }
+  #|        const v = vector ? vector.get(r) : null;
+  #|        return v !== null && v !== undefined;
+  #|      },
+  #|      nested: null,
+  #|    };
+  #|    if (vector && typeof vector.getChildAt === "function") {
+  #|      src.nested = {
+  #|        // LIST/FixedSizeList: real offsets buffer, or synthesized
+  #|        // (offset + r) * listSize bounds for fixed arrays.
+  #|        list: () => {
+  #|          const data = vector.data;
+  #|          const base = data && data.offset ? data.offset | 0 : 0;
+  #|          const fixed = type && type.listSize !== undefined
+  #|            ? type.listSize | 0 : -1;
+  #|          const vo = data && data.valueOffsets;
+  #|          const bounds = (r) => {
+  #|            if (fixed >= 0) {
+  #|              const s = (base + r) * fixed;
+  #|              return [s, fixed];
+  #|            }
+  #|            const off = Number(vo[base + r]);
+  #|            return [off, Number(vo[base + r + 1]) - off];
+  #|          };
+  #|          return { bounds, child: wasmSrc(vector.getChildAt(0)) };
+  #|        },
+  #|        // STRUCT: child vectors align 1:1 with parent rows; field names
+  #|        // come from type.children (arrow Field).
+  #|        struct: () => {
+  #|          const fields = (type && type.children) || [];
+  #|          return fields.map((f, i) => ({
+  #|            name: (f && f.name) || "",
+  #|            src: wasmSrc(vector.getChildAt(i)),
+  #|          }));
+  #|        },
+  #|        // MAP: list-of-entries; entries child is a struct vector whose
+  #|        // children are keys/values.
+  #|        map: () => {
+  #|          const entries = vector.getChildAt(0);
+  #|          const data = vector.data;
+  #|          const base = data && data.offset ? data.offset | 0 : 0;
+  #|          const vo = data && data.valueOffsets;
+  #|          const bounds = (r) => {
+  #|            const off = Number(vo[base + r]);
+  #|            return [off, Number(vo[base + r + 1]) - off];
+  #|          };
+  #|          return {
+  #|            bounds,
+  #|            keys: wasmSrc(entries.getChildAt(0)),
+  #|            values: wasmSrc(entries.getChildAt(1)),
+  #|          };
+  #|        },
+  #|      };
+  #|    }
+  #|    return src;
+  #|  };
+  #|
+  #|  // ---- pooled emission --------------------------------------------------
+  #|  // Appends one slot per logical column, recursing into nested children.
+  #|  const emit = (columns, typeIds, sources, rowCount) => {
+  #|    const tids = [], kinds = [], metas = [], offsets = [], slotRows = [];
+  #|    const flagSegs = [];
+  #|    const shapes = [], shapeOffsets = [];
+  #|    const names = [], nameOffsets = [];
   #|    const pools = { i32: [], i64: [], f64: [], str: [], bytes: [] };
-  #|    for (let c = 0; c < ncols; c++) {
-  #|      const tid = typeIds[c] | 0;
-  #|      const kind = kindForTid(tid);
-  #|      kinds.push(kind);
-  #|      offsets.push(0);
+  #|
+  #|    const poolFor = (kind) =>
+  #|      kind === K_I128 || kind === K_DEC || kind === K_IV ||
+  #|      kind === K_LIST || kind === K_MAP ? pools.i64
+  #|      : kind === K_BOOL || kind === K_I32 ? pools.i32
+  #|      : kind === K_I64 || kind === K_U64 ? pools.i64
+  #|      : kind === K_F32 || kind === K_F64 ? pools.f64
+  #|      : kind === K_STR || kind === K_JSON ? pools.str
+  #|      : pools.bytes;
+  #|
+  #|    const metaFor = (kind, tid, src) => {
   #|      let meta = 0;
-  #|      if (tid === 14 && arrowTypes && arrowTypes[c]) {
+  #|      if (tid === 14 && src.atype) {
   #|        // Arrow Time32 carries s/ms; store the 10^meta scale to micros.
-  #|        const u = arrowTypes[c].unit | 0;
+  #|        const u = src.atype.unit | 0;
   #|        meta = u === 0 ? 6 : u === 1 ? 3 : 0;
   #|      }
   #|      if (kind === K_DEC) {
-  #|        const f = arrowTypes && arrowTypes[c];
-  #|        if (f && f.scale !== undefined) {
-  #|          meta = ((f.precision | 0) << 16) | (f.scale & 0xffff);
+  #|        const dt = src.dtype, at = src.atype;
+  #|        if (dt && dt.width !== undefined && dt.scale !== undefined) {
+  #|          meta = ((dt.width | 0) << 16) | (dt.scale & 0xffff);
+  #|        } else if (at && at.scale !== undefined) {
+  #|          meta = ((at.precision | 0) << 16) | (at.scale & 0xffff);
   #|        } else {
-  #|          for (let r = 0; r < rowCount; r++) {
-  #|            const v = colValues[c][r];
+  #|          for (let r = 0; r < src.rows; r++) {
+  #|            const v = src.get(r);
   #|            if (v && v.width !== undefined && v.scale !== undefined) {
   #|              meta = ((v.width | 0) << 16) | (v.scale & 0xffff);
   #|              break;
@@ -367,24 +571,85 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|          }
   #|        }
   #|      }
-  #|      metas.push(meta);
-  #|    }
-  #|    for (let c = 0; c < ncols; c++) {
-  #|      const kind = kinds[c];
-  #|      const tid = typeIds[c] | 0;
-  #|      const pool = kind === K_I128 || kind === K_DEC || kind === K_IV
-  #|        ? pools.i64
-  #|        : kind === K_BOOL || kind === K_I32 ? pools.i32
-  #|        : kind === K_I64 || kind === K_U64 ? pools.i64
-  #|        : kind === K_F32 || kind === K_F64 ? pools.f64
-  #|        : kind === K_STR || kind === K_JSON ? pools.str
-  #|        : pools.bytes;
-  #|      offsets[c] = pool.length;
-  #|      for (let r = 0; r < rowCount; r++) {
-  #|        pushCell(kind, tid, metas[c], colValues[c][r], pools, flags, r, ncols, c);
+  #|      return meta;
+  #|    };
+  #|
+  #|    const emitColumn = (src) => {
+  #|      const tid = src.tid | 0;
+  #|      let kind = kindForTid(tid);
+  #|      if ((kind === K_LIST || kind === K_STRUCT || kind === K_MAP) &&
+  #|          !src.nested) {
+  #|        kind = K_JSON;
   #|      }
+  #|      const s = kinds.length;
+  #|      const flags = new Array(src.rows).fill(0);
+  #|      flagSegs.push(flags);
+  #|      kinds.push(kind);
+  #|      tids.push(tid);
+  #|      slotRows.push(src.rows);
+  #|      shapeOffsets.push(-1);
+  #|      nameOffsets.push(0);
+  #|      metas.push(metaFor(kind, tid, src));
+  #|
+  #|      if (kind === K_LIST) {
+  #|        offsets.push(pools.i64.length);
+  #|        const nested = src.nested.list();
+  #|        for (let r = 0; r < src.rows; r++) {
+  #|          const b = nested.bounds(r);
+  #|          pools.i64.push(BigInt(b[0]));
+  #|          pools.i64.push(BigInt(b[1]));
+  #|          if (!src.isValid(r)) flags[r] = 1;
+  #|        }
+  #|        const childSlot = emitColumn(nested.child);
+  #|        shapeOffsets[s] = shapes.length;
+  #|        shapes.push(S_LIST, childSlot);
+  #|        return s;
+  #|      }
+  #|      if (kind === K_STRUCT) {
+  #|        offsets.push(0);
+  #|        for (let r = 0; r < src.rows; r++) {
+  #|          if (!src.isValid(r)) flags[r] = 1;
+  #|        }
+  #|        const fields = src.nested.struct();
+  #|        nameOffsets[s] = names.length;
+  #|        shapeOffsets[s] = shapes.length;
+  #|        shapes.push(S_STRUCT, fields.length);
+  #|        for (const f of fields) {
+  #|          names.push(f.name);
+  #|          shapes.push(emitColumn(f.src));
+  #|        }
+  #|        return s;
+  #|      }
+  #|      if (kind === K_MAP) {
+  #|        offsets.push(pools.i64.length);
+  #|        const nested = src.nested.map();
+  #|        for (let r = 0; r < src.rows; r++) {
+  #|          const b = nested.bounds(r);
+  #|          pools.i64.push(BigInt(b[0]));
+  #|          pools.i64.push(BigInt(b[1]));
+  #|          if (!src.isValid(r)) flags[r] = 1;
+  #|        }
+  #|        const keysSlot = emitColumn(nested.keys);
+  #|        const valuesSlot = emitColumn(nested.values);
+  #|        shapeOffsets[s] = shapes.length;
+  #|        shapes.push(S_MAP, keysSlot, valuesSlot);
+  #|        return s;
+  #|      }
+  #|      const pool = poolFor(kind);
+  #|      offsets.push(pool.length);
+  #|      for (let r = 0; r < src.rows; r++) {
+  #|        pushCell(kind, tid, metas[s], src.get(r), pools, flags, r);
+  #|      }
+  #|      return s;
+  #|    };
+  #|
+  #|    for (let c = 0; c < columns.length; c++) {
+  #|      emitColumn(sources[c]);
   #|    }
-  #|    on_ok(columns, typeIds, kinds, metas, offsets, rowCount, flags,
+  #|    const flags = [];
+  #|    for (const seg of flagSegs) for (const f of seg) flags.push(f);
+  #|    on_ok(columns, tids, kinds, metas, offsets, slotRows, flags,
+  #|          shapes, shapeOffsets, names, nameOffsets, rowCount,
   #|          pools.i32, pools.i64, pools.f64, pools.str, pools.bytes);
   #|  };
   #|
@@ -394,22 +659,39 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      throw new Error("fetchChunk failed");
   #|    }
   #|    if (chunk.rowCount <= 0) {
-  #|      on_ok([], [], [], [], [], 0, [], [], [], [], [], []);
+  #|      emptyOk();
   #|      return;
   #|    }
-  #|    emit(stream.columns, stream.typeIds || [], chunk.getColumns(),
-  #|         chunk.rowCount, null);
+  #|    const columns = stream.columns || [];
+  #|    const typeIds = stream.typeIds || [];
+  #|    const duckTypes = stream.duckTypes || (
+  #|      stream.result && typeof stream.result.columnType === "function"
+  #|        ? columns.map((_, i) => {
+  #|          try { return stream.result.columnType(i); } catch (e) { return null; }
+  #|        })
+  #|        : null
+  #|    );
+  #|    const colValues = chunk.getColumns();
+  #|    const sources = [];
+  #|    for (let c = 0; c < columns.length; c++) {
+  #|      const src = nodeSrc(colValues[c] || [], duckTypes ? duckTypes[c] : null);
+  #|      if (typeIds[c] !== undefined && typeIds[c] !== null) {
+  #|        src.tid = typeIds[c] | 0;
+  #|      }
+  #|      sources.push(src);
+  #|    }
+  #|    emit(columns, typeIds, sources, chunk.rowCount);
   #|  };
   #|
   #|  const runWasm = async () => {
   #|    if (stream.done) {
-  #|      on_ok([], [], [], [], [], 0, [], [], [], [], [], []);
+  #|      emptyOk();
   #|      return;
   #|    }
   #|    const next = await stream.reader.next();
   #|    if (!next || next.done || !next.value) {
   #|      stream.done = true;
-  #|      on_ok([], [], [], [], [], 0, [], [], [], [], [], []);
+  #|      emptyOk();
   #|      return;
   #|    }
   #|    const batch = next.value;
@@ -425,18 +707,14 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|      stream.columns = columns;
   #|    }
   #|    const typeIds = [];
-  #|    const colValues = [];
+  #|    const sources = [];
   #|    for (let c = 0; c < ncols; c++) {
   #|      const field = fields[c];
   #|      typeIds.push(tidForArrowType(field && field.type));
   #|      const vector = batch.getChildAt ? batch.getChildAt(c) : batch.getChild(c);
-  #|      const values = [];
-  #|      for (let r = 0; r < rowCount; r++) {
-  #|        values.push(vector ? vector.get(r) : null);
-  #|      }
-  #|      colValues.push(values);
+  #|      sources.push(wasmSrc(vector, field && field.type));
   #|    }
-  #|    emit(columns, typeIds, colValues, rowCount, fields.map((f) => f && f.type));
+  #|    emit(columns, typeIds, sources, rowCount);
   #|  };
   #|
   #|  const run = async () => {
@@ -449,65 +727,101 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|}
 
 ///|
-/// Decode one pooled column into an owned `Vector`.
-fn js_vector_from_pools(
-  kind : Int,
-  meta : Int,
-  offset : Int,
-  type_id : Int,
-  rows : Int,
-  ncols : Int,
-  null_flags : FixedArray[Int],
-  col : Int,
-  pool_i32 : FixedArray[Int],
-  pool_i64 : FixedArray[Int64],
-  pool_f64 : FixedArray[Double],
-  pool_str : FixedArray[String],
-  pool_bytes : FixedArray[Bytes],
-) -> Vector {
+/// All pooled slot tables for one emitted chunk. Slot `i` decodes column i
+/// (a real top-level column for `i < ncols`, a nested child slot beyond
+/// that). `flag_bases[i]` is the prefix sum of `slot_rows[0..i)` — the start
+/// of slot i's segment inside the flat `null_flags` array. Nested children
+/// are located through the `shapes`/`shape_offsets` descriptor pool; struct
+/// field names through `names`/`name_offsets`.
+priv struct JsVectorPools {
+  type_ids : FixedArray[Int]
+  kinds : FixedArray[Int]
+  metas : FixedArray[Int]
+  offsets : FixedArray[Int]
+  slot_rows : FixedArray[Int]
+  flag_bases : FixedArray[Int]
+  null_flags : FixedArray[Int]
+  shapes : FixedArray[Int]
+  shape_offsets : FixedArray[Int]
+  names : FixedArray[String]
+  name_offsets : FixedArray[Int]
+  pool_i32 : FixedArray[Int]
+  pool_i64 : FixedArray[Int64]
+  pool_f64 : FixedArray[Double]
+  pool_str : FixedArray[String]
+  pool_bytes : FixedArray[Bytes]
+}
+
+///|
+/// Decode one pooled slot (column or nested child) into an owned `Vector`,
+/// recursing into child slots described by the `shapes` pool.
+fn js_vector_from_pools(pools : JsVectorPools, slot : Int) -> Vector {
+  let rows = pools.slot_rows[slot]
+  let flag_base = pools.flag_bases[slot]
   let validity = FixedArray::makei(rows, fn(row) {
-    row * ncols + col < null_flags.length() &&
-    null_flags[row * ncols + col] == 0
+    flag_base + row < pools.null_flags.length() &&
+    pools.null_flags[flag_base + row] == 0
   })
+  let type_id = if slot < pools.type_ids.length() {
+    pools.type_ids[slot]
+  } else {
+    0
+  }
   let logical_type = if type_id > 0 {
     column_type_from_id(type_id)
   } else {
     ColumnType::Unknown(type_id)
   }
+  let kind = pools.kinds[slot]
+  let offset = pools.offsets[slot]
+  let meta = pools.metas[slot]
+  let shape_at = if slot < pools.shape_offsets.length() {
+    pools.shape_offsets[slot]
+  } else {
+    -1
+  }
   let data : VectorData = match kind {
     JS_KIND_BOOL =>
       VectorData::Bool(
-        FixedArray::makei(rows, fn(i) { pool_i32[offset + i] == 1 }),
+        FixedArray::makei(rows, fn(i) { pools.pool_i32[offset + i] == 1 }),
       )
     JS_KIND_I32 =>
-      VectorData::Int32(FixedArray::makei(rows, fn(i) { pool_i32[offset + i] }))
+      VectorData::Int32(
+        FixedArray::makei(rows, fn(i) { pools.pool_i32[offset + i] }),
+      )
     JS_KIND_I64 =>
-      VectorData::Int64(FixedArray::makei(rows, fn(i) { pool_i64[offset + i] }))
+      VectorData::Int64(
+        FixedArray::makei(rows, fn(i) { pools.pool_i64[offset + i] }),
+      )
     JS_KIND_U64 =>
       VectorData::UInt64(
         FixedArray::makei(rows, fn(i) {
-          pool_i64[offset + i].reinterpret_as_uint64()
+          pools.pool_i64[offset + i].reinterpret_as_uint64()
         }),
       )
     JS_KIND_F32 =>
       VectorData::Float(
         FixedArray::makei(rows, fn(i) {
-          Float::from_double(pool_f64[offset + i])
+          Float::from_double(pools.pool_f64[offset + i])
         }),
       )
     JS_KIND_F64 =>
       VectorData::Double(
-        FixedArray::makei(rows, fn(i) { pool_f64[offset + i] }),
+        FixedArray::makei(rows, fn(i) { pools.pool_f64[offset + i] }),
       )
     JS_KIND_STR =>
-      VectorData::Varchar(Array::makei(rows, fn(i) { pool_str[offset + i] }))
+      VectorData::Varchar(
+        Array::makei(rows, fn(i) { pools.pool_str[offset + i] }),
+      )
     JS_KIND_BYTES =>
-      VectorData::Blob(Array::makei(rows, fn(i) { pool_bytes[offset + i] }))
+      VectorData::Blob(
+        Array::makei(rows, fn(i) { pools.pool_bytes[offset + i] }),
+      )
     JS_KIND_I128 =>
       VectorData::HugeInt(
-        upper=FixedArray::makei(rows, fn(i) { pool_i64[offset + i * 2] }),
+        upper=FixedArray::makei(rows, fn(i) { pools.pool_i64[offset + i * 2] }),
         lower=FixedArray::makei(rows, fn(i) {
-          pool_i64[offset + i * 2 + 1].reinterpret_as_uint64()
+          pools.pool_i64[offset + i * 2 + 1].reinterpret_as_uint64()
         }),
       )
     JS_KIND_DECIMAL =>
@@ -516,8 +830,8 @@ fn js_vector_from_pools(
           {
             width: meta >> 16,
             scale: meta & 0xffff,
-            upper: pool_i64[offset + i * 2],
-            lower: pool_i64[offset + i * 2 + 1].reinterpret_as_uint64(),
+            upper: pools.pool_i64[offset + i * 2],
+            lower: pools.pool_i64[offset + i * 2 + 1].reinterpret_as_uint64(),
           }
         }),
       )
@@ -525,18 +839,116 @@ fn js_vector_from_pools(
       VectorData::Interval(
         FixedArray::makei(rows, fn(i) {
           {
-            months: pool_i64[offset + i * 3].to_int(),
-            days: pool_i64[offset + i * 3 + 1].to_int(),
-            micros: pool_i64[offset + i * 3 + 2],
+            months: pools.pool_i64[offset + i * 3].to_int(),
+            days: pools.pool_i64[offset + i * 3 + 1].to_int(),
+            micros: pools.pool_i64[offset + i * 3 + 2],
           }
         }),
       )
+    JS_KIND_LIST =>
+      if shape_at >= 0 && shape_at + 1 < pools.shapes.length() {
+        let child = js_vector_from_pools(pools, pools.shapes[shape_at + 1])
+        VectorData::List(
+          child~,
+          offsets=FixedArray::makei(rows, fn(i) {
+            pools.pool_i64[offset + i * 2].reinterpret_as_uint64()
+          }),
+          lengths=FixedArray::makei(rows, fn(i) {
+            pools.pool_i64[offset + i * 2 + 1].reinterpret_as_uint64()
+          }),
+        )
+      } else {
+        VectorData::Any(Array::make(rows, Value::Null))
+      }
+    JS_KIND_STRUCT =>
+      if shape_at >= 0 && shape_at + 1 < pools.shapes.length() {
+        let nfields = pools.shapes[shape_at + 1]
+        let name_base = if slot < pools.name_offsets.length() {
+          pools.name_offsets[slot]
+        } else {
+          0
+        }
+        let fields : Array[String] = []
+        let children : Array[Vector] = []
+        for i in 0..<nfields {
+          fields.push(
+            if name_base + i < pools.names.length() {
+              pools.names[name_base + i]
+            } else {
+              ""
+            },
+          )
+          children.push(
+            js_vector_from_pools(pools, pools.shapes[shape_at + 2 + i]),
+          )
+        }
+        VectorData::Struct(fields~, children~)
+      } else {
+        VectorData::Any(Array::make(rows, Value::Null))
+      }
+    JS_KIND_MAP =>
+      if shape_at >= 0 && shape_at + 2 < pools.shapes.length() {
+        VectorData::Map(
+          offsets=FixedArray::makei(rows, fn(i) {
+            pools.pool_i64[offset + i * 2].reinterpret_as_uint64()
+          }),
+          lengths=FixedArray::makei(rows, fn(i) {
+            pools.pool_i64[offset + i * 2 + 1].reinterpret_as_uint64()
+          }),
+          keys=js_vector_from_pools(pools, pools.shapes[shape_at + 1]),
+          values=js_vector_from_pools(pools, pools.shapes[shape_at + 2]),
+        )
+      } else {
+        VectorData::Any(Array::make(rows, Value::Null))
+      }
     _ =>
       VectorData::Any(
-        Array::makei(rows, fn(i) { value_from_any_json(pool_str[offset + i]) }),
+        Array::makei(rows, fn(i) {
+          value_from_any_json(pools.pool_str[offset + i])
+        }),
       )
   }
   { logical_type, data, validity, }
+}
+
+///|
+/// Slots of the real top-level columns, in column order. Nested children are
+/// appended to the slot table in DFS order as their parent is emitted, so
+/// top-level slots are not necessarily `0..<ncols`: a top-level slot is any
+/// slot no `shapes` descriptor references as a child.
+fn js_top_level_slots(pools : JsVectorPools) -> Array[Int] {
+  let nslots = pools.kinds.length()
+  let referenced = FixedArray::makei(nslots, fn(_) { false })
+  for slot in 0..<nslots {
+    let shape_at = if slot < pools.shape_offsets.length() {
+      pools.shape_offsets[slot]
+    } else {
+      -1
+    }
+    if shape_at >= 0 && shape_at < pools.shapes.length() {
+      let tag = pools.shapes[shape_at]
+      if tag == JS_SHAPE_LIST && shape_at + 1 < pools.shapes.length() {
+        referenced[pools.shapes[shape_at + 1]] = true
+      } else if tag == JS_SHAPE_STRUCT && shape_at + 1 < pools.shapes.length() {
+        let nfields = pools.shapes[shape_at + 1]
+        for i in 0..<nfields {
+          if shape_at + 2 + i < pools.shapes.length() {
+            referenced[pools.shapes[shape_at + 2 + i]] = true
+          }
+        }
+      } else if tag == JS_SHAPE_MAP && shape_at + 2 < pools.shapes.length() {
+        referenced[pools.shapes[shape_at + 1]] = true
+        referenced[pools.shapes[shape_at + 2]] = true
+      }
+    }
+  }
+  let out : Array[Int] = []
+  for slot in 0..<nslots {
+    if !referenced[slot] {
+      out.push(slot)
+    }
+  }
+  out
 }
 
 ///|
@@ -556,8 +968,13 @@ fn js_stream_next_vector_chunk(
       kinds,
       metas,
       offsets,
-      row_count,
+      slot_rows,
       null_flags,
+      shapes,
+      shape_offsets,
+      names,
+      name_offsets,
+      row_count,
       pool_i32,
       pool_i64,
       pool_f64,
@@ -568,26 +985,34 @@ fn js_stream_next_vector_chunk(
         on_ok(None)
         return
       }
+      let nslots = kinds.length()
+      let flag_bases = FixedArray::makei(nslots, fn(_) { 0 })
+      let mut base = 0
+      for s in 0..<nslots {
+        flag_bases[s] = base
+        base += if s < slot_rows.length() { slot_rows[s] } else { 0 }
+      }
+      let pools : JsVectorPools = {
+        type_ids,
+        kinds,
+        metas,
+        offsets,
+        slot_rows,
+        flag_bases,
+        null_flags,
+        shapes,
+        shape_offsets,
+        names,
+        name_offsets,
+        pool_i32,
+        pool_i64,
+        pool_f64,
+        pool_str,
+        pool_bytes,
+      }
       let vectors : Array[Vector] = []
-      let ncols = columns.length()
-      for col in 0..<ncols {
-        vectors.push(
-          js_vector_from_pools(
-            kinds[col],
-            metas[col],
-            offsets[col],
-            type_ids[col],
-            row_count,
-            ncols,
-            null_flags,
-            col,
-            pool_i32,
-            pool_i64,
-            pool_f64,
-            pool_str,
-            pool_bytes,
-          ),
-        )
+      for slot in js_top_level_slots(pools) {
+        vectors.push(js_vector_from_pools(pools, slot))
       }
       on_ok(Some({ columns: Array::from_fixed_array(columns), vectors, }))
     },
