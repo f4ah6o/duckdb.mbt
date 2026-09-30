@@ -83,6 +83,11 @@ extern "js" fn js_arrow_to_stream(result : ArrowHandle) -> ResultStream =
   #|      result: pseudo,
   #|      columns: columns,
   #|      typeIds: typeIds,
+  #|      // Full DuckDBType objects let the pooled decoder decompose
+  #|      // nested columns (the pseudo result has no columnType()).
+  #|      duckTypes: columns.map((_, i) => {
+  #|        try { return res.columnType(i); } catch (e) { return null; }
+  #|      }),
   #|      closed: !!result.closed,
   #|    };
   #|  }

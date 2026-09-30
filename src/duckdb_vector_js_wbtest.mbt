@@ -1,7 +1,7 @@
 ///|
 // Tests for the JS typed-vector chunk path (issue #61). The extern bodies
 // are exercised in a child node process (async APIs) by extracting them
-// from the source file — same pattern as `duckdb_js_test.mbt`.
+// from the source file — same pattern as `duckdb_js_wbtest.mbt`.
 
 ///|
 /// Run `sql` via `query_stream` + `js_stream_next_vectors_ffi` in a child
@@ -50,8 +50,8 @@ extern "js" fn js_run_stream_vectors(backend : Int, sql : String) -> String =
   #|    "});",
   #|    "const nextVectors = (stream) => new Promise((resolve, reject) => {",
   #|    "  js_stream_next_vectors_ffi(stream,",
-  #|    "    (columns, typeIds, kinds, metas, offsets, rowCount, flags, i32, i64, f64, str, bytes) => {",
-  #|    "      resolve({ columns, typeIds, kinds, metas, offsets, rowCount, flags, i32, i64, f64, str, bytes: bytes.map((b) => Array.from(b)) });",
+  #|    "    (columns, typeIds, kinds, metas, offsets, slotRows, flags, shapes, shapeOffsets, names, nameOffsets, rowCount, i32, i64, f64, str, bytes) => {",
+  #|    "      resolve({ columns, typeIds, kinds, metas, offsets, slotRows, flags, shapes, shapeOffsets, names, nameOffsets, rowCount, i32, i64, f64: f64.map((x) => Number.isNaN(x) ? 'NaN' : x === Infinity ? 'Inf' : x === -Infinity ? '-Inf' : x), str, bytes: bytes.map((b) => Array.from(b)) });",
   #|    "    }, reject);",
   #|    "});",
   #|    "const run = async () => {",
@@ -179,6 +179,10 @@ fn json_f64_array(json : Json?) -> FixedArray[Double] {
       FixedArray::makei(items.length(), fn(i) {
         match items[i] {
           Json::Number(n, ..) => n
+          // Tagged non-finite floats — JSON.stringify cannot carry them.
+          Json::String("NaN") => @double.not_a_number
+          Json::String("Inf") => @double.infinity
+          Json::String("-Inf") => @double.neg_infinity
           Json::String(s) =>
             match
               (try @json.parse(s) |> Ok catch {
@@ -221,45 +225,56 @@ fn chunk_from_json(json : Json) -> VectorChunk {
   match json {
     Json::Object(obj) => {
       let columns = json_str_array(obj.get("columns"))
-      let type_ids = json_int_array(obj.get("typeIds"))
-      let kinds = json_int_array(obj.get("kinds"))
-      let metas = json_int_array(obj.get("metas"))
-      let offsets = json_int_array(obj.get("offsets"))
-      let row_count = json_to_int(obj.get("rowCount"))
+      let type_ids = FixedArray::from_array(json_int_array(obj.get("typeIds")))
+      let kinds = FixedArray::from_array(json_int_array(obj.get("kinds")))
+      let metas = FixedArray::from_array(json_int_array(obj.get("metas")))
+      let offsets = FixedArray::from_array(json_int_array(obj.get("offsets")))
+      let slot_rows = FixedArray::from_array(
+        json_int_array(obj.get("slotRows")),
+      )
       let null_flags = FixedArray::from_array(json_int_array(obj.get("flags")))
+      let shapes = FixedArray::from_array(json_int_array(obj.get("shapes")))
+      let shape_offsets = FixedArray::from_array(
+        json_int_array(obj.get("shapeOffsets")),
+      )
+      let names = FixedArray::from_array(json_str_array(obj.get("names")))
+      let name_offsets = FixedArray::from_array(
+        json_int_array(obj.get("nameOffsets")),
+      )
       let pool_i32 = FixedArray::from_array(json_int_array(obj.get("i32")))
       let pool_i64 = json_i64_array(obj.get("i64"))
       let pool_f64 = json_f64_array(obj.get("f64"))
       let pool_str = FixedArray::from_array(json_str_array(obj.get("str")))
       let pool_bytes = json_bytes_array(obj.get("bytes"))
+      let nslots = kinds.length()
+      let flag_bases = FixedArray::makei(nslots, fn(_) { 0 })
+      let mut base = 0
+      for s in 0..<nslots {
+        flag_bases[s] = base
+        base += if s < slot_rows.length() { slot_rows[s] } else { 0 }
+      }
+      let pools : JsVectorPools = {
+        type_ids,
+        kinds,
+        metas,
+        offsets,
+        slot_rows,
+        flag_bases,
+        null_flags,
+        shapes,
+        shape_offsets,
+        names,
+        name_offsets,
+        pool_i32,
+        pool_i64,
+        pool_f64,
+        pool_str,
+        pool_bytes,
+      }
       let ncols = columns.length()
       let vectors : Array[Vector] = []
-      for col in 0..<ncols {
-        vectors.push(
-          js_vector_from_pools(
-            kinds[col],
-            if col < metas.length() {
-              metas[col]
-            } else {
-              0
-            },
-            offsets[col],
-            if col < type_ids.length() {
-              type_ids[col]
-            } else {
-              0
-            },
-            row_count,
-            ncols,
-            null_flags,
-            col,
-            pool_i32,
-            pool_i64,
-            pool_f64,
-            pool_str,
-            pool_bytes,
-          ),
-        )
+      for slot in js_top_level_slots(pools) {
+        vectors.push(js_vector_from_pools(pools, slot))
       }
       { columns, vectors, }
     }
@@ -400,10 +415,28 @@ test "js stream vectors: nested types decode without string round-trips" {
     ) {
     Ok(chunks) => {
       let chunk = chunks[0]
+      // Real pooled variants, not the tagged-JSON Any fallback.
+      match chunk.column(0).unwrap().data {
+        VectorData::List(child~, offsets~, lengths~) => {
+          inspect(Array::from_fixed_array(offsets), content="[0]")
+          inspect(Array::from_fixed_array(lengths), content="[3]")
+          inspect(child.data is VectorData::Int32(_), content="true")
+        }
+        _ => fail("expected List vector data")
+      }
       match chunk.get_value(0, 0) {
         Some(Value::List(items)) =>
           inspect(items.map(fn(v) { v.to_string() }), content="[1, 2, 3]")
         _ => fail("expected List")
+      }
+      match chunk.column(1).unwrap().data {
+        VectorData::Struct(fields~, children~) => {
+          inspect(fields, content="[a, b]")
+          inspect(children.length(), content="2")
+          inspect(children[0].data is VectorData::Int32(_), content="true")
+          inspect(children[1].data is VectorData::Varchar(_), content="true")
+        }
+        _ => fail("expected Struct vector data")
       }
       match chunk.get_value(0, 1) {
         Some(Value::Struct(fields~, values~)) => {
@@ -412,12 +445,213 @@ test "js stream vectors: nested types decode without string round-trips" {
         }
         _ => fail("expected Struct")
       }
+      match chunk.column(2).unwrap().data {
+        VectorData::Map(offsets~, lengths~, keys~, values~) => {
+          inspect(Array::from_fixed_array(offsets), content="[0]")
+          inspect(Array::from_fixed_array(lengths), content="[2]")
+          inspect(keys.data is VectorData::Varchar(_), content="true")
+          inspect(values.data is VectorData::Int32(_), content="true")
+        }
+        _ => fail("expected Map vector data")
+      }
       match chunk.get_value(0, 2) {
         Some(Value::Map(keys~, values~)) => {
           inspect(keys.map(fn(v) { v.to_string() }), content="[x, y]")
           inspect(values.map(fn(v) { v.to_string() }), content="[10, 20]")
         }
         _ => fail("expected Map")
+      }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: nested lists across rows and null cells" {
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT * FROM (VALUES ([1,2]), ([3]), (NULL), ([4,NULL,6]), ([])) t(xs)",
+    ) {
+    Ok(chunks) => {
+      let chunk = chunks[0]
+      inspect(chunk.row_count(), content="5")
+      match chunk.column(0).unwrap().data {
+        VectorData::List(child~, offsets~, lengths~) => {
+          inspect(Array::from_fixed_array(offsets), content="[0, 2, 3, 3, 6]")
+          inspect(Array::from_fixed_array(lengths), content="[2, 1, 0, 3, 0]")
+          inspect(child.len(), content="6")
+          inspect(
+            Array::from_fixed_array(child.validity),
+            content="[true, true, true, true, false, true]",
+          )
+        }
+        _ => fail("expected List vector data")
+      }
+      inspect(chunk.is_null(2, 0), content="true")
+      match chunk.get_value(2, 0) {
+        None => ()
+        _ => fail("expected None for NULL list")
+      }
+      match chunk.get_value(3, 0) {
+        Some(Value::List(items)) =>
+          inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|[4, NULL, 6]
+            ),
+          )
+        _ => fail("expected List with NULL element")
+      }
+      match chunk.get_value(4, 0) {
+        Some(Value::List(items)) => inspect(items.length(), content="0")
+        _ => fail("expected empty List")
+      }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: nested list across chunks" {
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT [i::INTEGER, i::INTEGER + 10] AS xs FROM RANGE(5000) t(i)",
+    ) {
+    Ok(chunks) => {
+      inspect(chunks.length() > 1, content="true")
+      inspect(
+        chunks.fold(init=0, fn(acc, c) { acc + c.row_count() }),
+        content="5000",
+      )
+      match chunks[0].get_value(0, 0) {
+        Some(Value::List(items)) =>
+          inspect(items.map(fn(v) { v.to_string() }), content="[0, 10]")
+        _ => fail("expected first List")
+      }
+      let last = chunks[chunks.length() - 1]
+      match last.get_value(last.row_count() - 1, 0) {
+        Some(Value::List(items)) =>
+          inspect(items.map(fn(v) { v.to_string() }), content="[4999, 5009]")
+        _ => fail("expected last List")
+      }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: fixed-size array decodes as list with array type" {
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT * FROM (VALUES ([1,2,3]::INTEGER[3]), ([4,5,NULL]::INTEGER[3]), (NULL)) t(xs)",
+    ) {
+    Ok(chunks) => {
+      let chunk = chunks[0]
+      let vector = chunk.column(0).unwrap()
+      inspect(vector.logical_type is ColumnType::Array, content="true")
+      match vector.data {
+        VectorData::List(child~, offsets~, lengths~) => {
+          inspect(Array::from_fixed_array(offsets), content="[0, 3, 6]")
+          inspect(Array::from_fixed_array(lengths), content="[3, 3, 0]")
+          inspect(child.len(), content="6")
+        }
+        _ => fail("expected List vector data for ARRAY")
+      }
+      inspect(chunk.is_null(2, 0), content="true")
+      match chunk.get_value(1, 0) {
+        Some(Value::List(items)) =>
+          inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|[4, 5, NULL]
+            ),
+          )
+        _ => fail("expected List")
+      }
+    }
+    Err(message) =>
+      if message.contains("@duckdb/node-api") {
+        ()
+      } else {
+        fail("node backend failed: \{message}")
+      }
+  }
+}
+
+///|
+test "js stream vectors: nested-in-nested decodes recursively" {
+  match
+    js_stream_vector_chunks(
+      JsBackend::Node,
+      "SELECT [{'a': 1, 'b': 'x'}, {'a': 2, 'b': 'y'}] AS structs, {'list': [7, 8], 'map': MAP {'k': 9}} AS st",
+    ) {
+    Ok(chunks) => {
+      let chunk = chunks[0]
+      // LIST<STRUCT>
+      match chunk.column(0).unwrap().data {
+        VectorData::List(child~, ..) =>
+          match child.data {
+            VectorData::Struct(fields~, ..) => inspect(fields, content="[a, b]")
+            _ => fail("expected Struct child vector")
+          }
+        _ => fail("expected List vector data")
+      }
+      match chunk.get_value(0, 0) {
+        Some(Value::List(items)) =>
+          inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|[{a: 1, b: x}, {a: 2, b: y}]
+            ),
+          )
+        _ => fail("expected List of Struct")
+      }
+      // STRUCT with LIST and MAP fields
+      match chunk.column(1).unwrap().data {
+        VectorData::Struct(fields~, children~) => {
+          inspect(fields, content="[list, map]")
+          inspect(
+            children[0].data is VectorData::List(..),
+            content=(
+              #|false
+            ),
+          )
+          inspect(
+            children[1].data is VectorData::Map(..),
+            content=(
+              #|false
+            ),
+          )
+        }
+        _ => fail("expected Struct vector data")
+      }
+      match chunk.get_value(0, 1) {
+        Some(Value::Struct(values~, ..)) =>
+          inspect(
+            values.map(fn(v) { v.to_string() }),
+            content=(
+              #|[{a: 1, b: x}, 7]
+            ),
+          )
+        _ => fail("expected Struct")
       }
     }
     Err(message) =>

@@ -18,7 +18,6 @@ options(
   "native-stub": [ "duckdb_native.c" ],
   targets: {
     "duckdb_appender_chunk_js.mbt": [ "js" ],
-    "duckdb_appender_chunk_js_test.mbt": [ "js" ],
     "duckdb_appender_chunk_js_wbtest.mbt": [ "js" ],
     "duckdb_appender_chunk_native.mbt": [ "native" ],
     "duckdb_appender_chunk_test.mbt": [ "native" ],
@@ -40,7 +39,7 @@ options(
     "duckdb_extension_wbtest.mbt": [ "or", "native", "js" ],
     "duckdb_interval_pbt_test.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_js.mbt": [ "js" ],
-    "duckdb_js_test.mbt": [ "js" ],
+    "duckdb_js_wbtest.mbt": [ "js" ],
     "duckdb_native.mbt": [ "native" ],
     "duckdb_native_error_wbtest.mbt": [ "native" ],
     "duckdb_vector_js.mbt": [ "js" ],
