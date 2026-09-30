@@ -1,0 +1,7 @@
+import {
+  "f4ah6o/duckdb" @lib,
+}
+
+options(
+  targets: { "quack_wbtest.mbt": [ "or", "native", "js" ] },
+)

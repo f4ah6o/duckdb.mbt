@@ -29,7 +29,14 @@ test "quack stateless query SQL" {
 
 ///|
 test "quack attach SQL" {
-  match quack_attach_sql("quack:localhost", "remote_db", "secret", false) {
+  // The deprecated `Connection::attach_quack` facade forwards to the generic
+  // `Connection::attach` primitive with `quack_attach_options`.
+  match
+    attach_sql(
+      "quack:localhost",
+      "remote_db",
+      quack_attach_options("secret", false),
+    ) {
     Ok(sql) =>
       inspect(
         sql,
@@ -37,7 +44,8 @@ test "quack attach SQL" {
       )
     Err(err) => fail("unexpected attach SQL error: \{err.message()}")
   }
-  match quack_attach_sql("quack:remote.com", "remote_2", "", true) {
+  match
+    attach_sql("quack:remote.com", "remote_2", quack_attach_options("", true)) {
     Ok(sql) =>
       inspect(
         sql,
@@ -49,8 +57,8 @@ test "quack attach SQL" {
 
 ///|
 test "quack attach rejects unsafe aliases" {
-  match quack_attach_sql("quack:localhost", "", "", false) {
-    Ok(sql) => fail("expected empty alias error, got \{sql}")
+  match quack_identifier("") {
+    Ok(alias) => fail("expected empty alias error, got \{alias}")
     Err(err) =>
       inspect(
         err.message(),
@@ -59,8 +67,8 @@ test "quack attach rejects unsafe aliases" {
         ),
       )
   }
-  match quack_attach_sql("quack:localhost", "remote-db", "", false) {
-    Ok(sql) => fail("expected invalid alias error, got \{sql}")
+  match quack_identifier("remote-db") {
+    Ok(alias) => fail("expected invalid alias error, got \{alias}")
     Err(err) =>
       inspect(
         err.message(),
