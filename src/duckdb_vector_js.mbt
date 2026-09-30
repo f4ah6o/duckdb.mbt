@@ -18,6 +18,9 @@
 // count), and a validity segment inside the flat `flags` array starting at
 // the prefix sum of `slotRows[0..i)`. `shapeOffsets[i]` points into `shapes`
 // (-1 when the slot is not nested) and `nameOffsets[i]` into `names`.
+// Slots are allocated DFS: a column's slot precedes its nested children's,
+// so the real columns are the slots `js_top_level_slots` reports, not a
+// contiguous `0..<columns.length` range.
 //
 // Shape tags in `shapes` at `shapeOffsets[i]`:
 //   1 LIST/ARRAY: [1, childSlot]
@@ -105,9 +108,11 @@ const JS_SHAPE_MAP = 3
 /// (`typeIds`, `kinds`, `metas`, `offsets`, `slotRows`); the flat `flags`
 /// validity segments; the nested `shapes` descriptor pool plus per-slot
 /// `shapeOffsets`; the `names` pool plus per-slot `nameOffsets`; the top-level
-/// `rowCount`; then the value pools. Slots `0..<columns.length` are the real
-/// columns; nested children are appended as extra slots. All parameters are
-/// `FixedArray` per the JS FFI boundary rules.
+/// `rowCount`; then the value pools. Top-level columns take their slot
+/// before their nested children are appended (DFS), so they are not
+/// necessarily slots `0..<columns.length` — `js_top_level_slots` recovers
+/// the top-level set. All parameters are `FixedArray` per the JS FFI
+/// boundary rules.
 extern "js" fn js_stream_next_vectors_ffi(
   stream : ResultStream,
   on_ok : (
@@ -201,6 +206,8 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|  const enc = (v) => {
   #|    if (v === null || v === undefined) return null;
   #|    const t = typeof v;
+  #|    // Bigints render as strings here — same fidelity trade-off the
+  #|    // tagged-JSON Value decode already makes elsewhere (Value::String).
   #|    if (t === "bigint") return { "$kind": "i", "v": v.toString() };
   #|    if (t === "number" || t === "string" || t === "boolean") return v;
   #|    if (v instanceof Uint8Array) {
