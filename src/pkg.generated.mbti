@@ -152,16 +152,36 @@ pub struct ArrowField {
   type_id : String
 }
 
-pub type ArrowResult
+type ArrowHandle
+
+pub struct ArrowResult {
+  // private fields
+}
 pub fn ArrowResult::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn ArrowResult::column_count(Self) -> Int
+#deprecated
 pub fn ArrowResult::get_column_bool(Self, Int) -> Array[Bool]
+#deprecated
+pub fn ArrowResult::get_column_bool_nullable(Self, Int) -> (Array[Bool], Array[Bool])
+#deprecated
 pub fn ArrowResult::get_column_double(Self, Int) -> Array[Double]
+#deprecated
+pub fn ArrowResult::get_column_double_nullable(Self, Int) -> (Array[Double], Array[Bool])
+#deprecated
 pub fn ArrowResult::get_column_int32(Self, Int) -> Array[Int]
-pub fn ArrowResult::get_column_int64(Self, Int) -> Array[Int]
+#deprecated
+pub fn ArrowResult::get_column_int32_nullable(Self, Int) -> (Array[Int], Array[Bool])
+#deprecated
+pub fn ArrowResult::get_column_int64(Self, Int) -> Array[Int64]
+#deprecated
+pub fn ArrowResult::get_column_int64_nullable(Self, Int) -> (Array[Int64], Array[Bool])
+#deprecated
 pub fn ArrowResult::get_column_string(Self, Int) -> Array[String]
+#deprecated
+pub fn ArrowResult::get_column_string_nullable(Self, Int) -> (Array[String], Array[Bool])
 pub fn ArrowResult::get_schema(Self) -> Result[ArrowSchemaInfo, DuckDBError]
 pub fn ArrowResult::row_count(Self) -> Int
+pub fn ArrowResult::to_chunks(Self) -> Result[Array[VectorChunk], DuckDBError]
 
 pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]

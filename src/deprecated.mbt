@@ -280,3 +280,340 @@ pub fn Connection::attach_quack(
     Err(err) => on_done(Err(err))
   }
 }
+
+// ============================================================================
+// Arrow per-column accessors (reworked in #62)
+//
+// `query_arrow` now materializes results into canonical `VectorChunk`s.
+// These legacy getters keep working as forwarders that flatten the typed
+// vectors into row-aligned arrays (NULL rows yield the type's zero value;
+// the `*_nullable` variants also return the validity mask). Prefer
+// `ArrowResult::to_chunks` plus the `Vector` accessors for new code.
+// ============================================================================
+
+///|
+/// Materialized chunks of an open arrow result; `[]` once closed.
+fn arrow_open_chunks(result : ArrowResult) -> Array[VectorChunk] {
+  match result.to_chunks() {
+    Ok(chunks) => chunks
+    Err(_) => []
+  }
+}
+
+///|
+/// Row `row` of `vector` coerced to `Int` (0 for NULL/unconvertible rows).
+fn arrow_row_int(vector : Vector, row : Int) -> Int {
+  match vector.value_at(row) {
+    Value::Int(n) => n
+    Value::Int64(n) => n.to_int()
+    Value::UInt64(n) => n.to_int()
+    Value::Double(d) => d.to_int()
+    Value::Bool(b) => if b { 1 } else { 0 }
+    _ => 0
+  }
+}
+
+///|
+/// Row `row` of `vector` coerced to `Int64` (0 for NULL/unconvertible rows).
+fn arrow_row_int64(vector : Vector, row : Int) -> Int64 {
+  match vector.value_at(row) {
+    Value::Int(n) => n.to_int64()
+    Value::Int64(n) => n
+    Value::UInt64(n) => n.to_int64()
+    Value::Double(d) => d.to_int64()
+    Value::Bool(b) => if b { 1L } else { 0L }
+    _ => 0L
+  }
+}
+
+///|
+/// Row `row` of `vector` coerced to `Double` (0.0 for NULL/unconvertible).
+fn arrow_row_double(vector : Vector, row : Int) -> Double {
+  match vector.value_at(row) {
+    Value::Double(d) => d
+    Value::Int(n) => n.to_double()
+    Value::Int64(n) => n.to_double()
+    Value::UInt64(n) => n.to_double()
+    Value::Bool(b) => if b { 1.0 } else { 0.0 }
+    _ => 0.0
+  }
+}
+
+///|
+/// Row `row` of `vector` coerced to `Bool` (false for NULL/unconvertible).
+fn arrow_row_bool(vector : Vector, row : Int) -> Bool {
+  match vector.value_at(row) {
+    Value::Bool(b) => b
+    Value::Int(n) => n != 0
+    Value::Int64(n) => n != 0L
+    _ => false
+  }
+}
+
+///|
+/// Row `row` of `vector` rendered to `String` ("" for NULL rows), matching
+/// the legacy `duckdb_value_varchar` coercion semantics.
+fn arrow_row_string(vector : Vector, row : Int) -> String {
+  if !vector.validity[row] {
+    ""
+  } else {
+    vector.string_at(row)
+  }
+}
+
+///|
+/// Column `col` flattened to `Int` values across all chunks (NULL rows
+/// yield 0).
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::ints/value_at for new code")
+pub fn ArrowResult::get_column_int32(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Int] {
+  let values : Array[Int] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_int(vector, row))
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  values
+}
+
+///|
+/// Column `col` flattened to `Int64` values across all chunks (NULL rows
+/// yield 0). Note: this getter previously returned `Array[Int]`, which
+/// truncated BIGINT to 32 bits; it now keeps full Int64 precision.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::int64s/value_at for new code")
+pub fn ArrowResult::get_column_int64(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Int64] {
+  let values : Array[Int64] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_int64(vector, row))
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  values
+}
+
+///|
+/// Column `col` flattened to `Double` values across all chunks (NULL rows
+/// yield 0.0).
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::doubles/value_at for new code")
+pub fn ArrowResult::get_column_double(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Double] {
+  let values : Array[Double] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_double(vector, row))
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  values
+}
+
+///|
+/// Column `col` flattened to `Bool` values across all chunks (NULL rows
+/// yield false).
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::bools/value_at for new code")
+pub fn ArrowResult::get_column_bool(
+  self : ArrowResult,
+  col : Int,
+) -> Array[Bool] {
+  let values : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_bool(vector, row))
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  values
+}
+
+///|
+/// Column `col` flattened to rendered strings across all chunks (NULL rows
+/// yield "").
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::strings/string_at for new code")
+pub fn ArrowResult::get_column_string(
+  self : ArrowResult,
+  col : Int,
+) -> Array[String] {
+  let values : Array[String] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_string(vector, row))
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  values
+}
+
+///|
+/// Column `col` flattened to `(values, validity)` across all chunks.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::ints and Vector::is_null for new code")
+pub fn ArrowResult::get_column_int32_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Int], Array[Bool]) {
+  let values : Array[Int] = []
+  let validity : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_int(vector, row))
+          validity.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  (values, validity)
+}
+
+///|
+/// Column `col` flattened to `(values, validity)` across all chunks.
+/// See `get_column_int64` for the Int -> Int64 precision fix.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::int64s and Vector::is_null for new code")
+pub fn ArrowResult::get_column_int64_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Int64], Array[Bool]) {
+  let values : Array[Int64] = []
+  let validity : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_int64(vector, row))
+          validity.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  (values, validity)
+}
+
+///|
+/// Column `col` flattened to `(values, validity)` across all chunks.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::doubles and Vector::is_null for new code")
+pub fn ArrowResult::get_column_double_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Double], Array[Bool]) {
+  let values : Array[Double] = []
+  let validity : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_double(vector, row))
+          validity.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  (values, validity)
+}
+
+///|
+/// Column `col` flattened to `(values, validity)` across all chunks.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::strings and Vector::is_null for new code")
+pub fn ArrowResult::get_column_string_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[String], Array[Bool]) {
+  let values : Array[String] = []
+  let validity : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_string(vector, row))
+          validity.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  (values, validity)
+}
+
+///|
+/// Column `col` flattened to `(values, validity)` across all chunks.
+#deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::bools and Vector::is_null for new code")
+pub fn ArrowResult::get_column_bool_nullable(
+  self : ArrowResult,
+  col : Int,
+) -> (Array[Bool], Array[Bool]) {
+  let values : Array[Bool] = []
+  let validity : Array[Bool] = []
+  for chunk in arrow_open_chunks(self) {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          values.push(arrow_row_bool(vector, row))
+          validity.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => ()
+    }
+  } nobreak {
+    ()
+  }
+  (values, validity)
+}

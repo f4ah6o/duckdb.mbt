@@ -1,8 +1,8 @@
 // ============================================================================
-// Arrow Integration Tests
+// Arrow Integration Tests (issue #62: canonical typed vectors)
 // ============================================================================
 
-// Helper to run Arrow query synchronously
+// Helper to run an Arrow query synchronously
 
 ///|
 fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
@@ -29,6 +29,69 @@ fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
         None => Err("arrow query returned no result")
       }
   }
+}
+
+///|
+/// Materialized chunks of `result` or a test failure.
+fn arrow_chunks_or_fail(result : ArrowResult) -> Array[VectorChunk] raise {
+  match result.to_chunks() {
+    Ok(chunks) => chunks
+    Err(err) => fail("to_chunks failed: \{err.message()}")
+  }
+}
+
+///|
+/// Concatenate `ints()` payloads of column `col` across all chunks.
+fn arrow_column_ints(
+  chunks : Array[VectorChunk],
+  col : Int,
+) -> Array[Int] raise {
+  let out : Array[Int] = []
+  for chunk in chunks {
+    match chunk.column(col) {
+      Some(vector) =>
+        match vector.ints() {
+          Some(values) =>
+            for v in values {
+              out.push(v)
+            } nobreak {
+              ()
+            }
+          None => fail("column \{col} is not an int vector")
+        }
+      None => fail("missing column \{col}")
+    }
+  } nobreak {
+    ()
+  }
+  out
+}
+
+///|
+/// Concatenate `int64s()` payloads of column `col` across all chunks.
+fn arrow_column_int64s(
+  chunks : Array[VectorChunk],
+  col : Int,
+) -> Array[Int64] raise {
+  let out : Array[Int64] = []
+  for chunk in chunks {
+    match chunk.column(col) {
+      Some(vector) =>
+        match vector.int64s() {
+          Some(values) =>
+            for v in values {
+              out.push(v)
+            } nobreak {
+              ()
+            }
+          None => fail("column \{col} is not an int64 vector")
+        }
+      None => fail("missing column \{col}")
+    }
+  } nobreak {
+    ()
+  }
+  out
 }
 
 ///|
@@ -72,36 +135,23 @@ test "native arrow query multiple rows" {
 }
 
 ///|
-test "native arrow query with types" {
-  let result = run_native_arrow_query(
-    "SELECT 42::INTEGER AS i, 3.14::DOUBLE AS d, true::BOOLEAN AS b, 'hello'::VARCHAR AS s",
-  )
-  match result {
-    Ok(result) => {
-      let cc = result.column_count()
-      result.close(on_done=fn(_) { () })
-      if cc != 4 {
-        fail("expected 4 columns, got \{cc}")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("arrow query failed: \{err}")
-  }
-}
-
-///|
 test "native arrow query empty result" {
   let result = run_native_arrow_query("SELECT * FROM RANGE(0)")
   match result {
     Ok(result) => {
       let cc = result.column_count()
       let rc = result.row_count()
+      let schema_ok = match result.get_schema() {
+        Ok(schema) => schema.fields.length() == 1
+        Err(_) => false
+      }
       result.close(on_done=fn(_) { () })
       if cc != 1 {
         fail("expected 1 column, got \{cc}")
       } else if rc != 0 {
         fail("expected 0 rows, got \{rc}")
+      } else if !schema_ok {
+        fail("schema should still describe the empty result")
       } else {
         ()
       }
@@ -153,10 +203,7 @@ test "native arrow schema extraction" {
             }
           }
         }
-        Err(err) =>
-          match err {
-            err => fail("schema failed: \{err.message()}")
-          }
+        Err(err) => fail("schema failed: \{err.message()}")
       }
       result.close(on_done=fn(_) { () })
     }
@@ -190,10 +237,37 @@ test "native arrow schema multiple types" {
             ()
           }
         }
-        Err(err) =>
-          match err {
-            err => fail("schema failed: \{err.message()}")
+        Err(err) => fail("schema failed: \{err.message()}")
+      }
+      result.close(on_done=fn(_) { () })
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow schema decimal and list" {
+  let result = run_native_arrow_query(
+    "SELECT 12.34::DECIMAL(10, 2) AS amount, [1, 2, 3]::INTEGER[] AS xs",
+  )
+  match result {
+    Ok(result) => {
+      match result.get_schema() {
+        Ok(schema) => {
+          let fields = schema.fields
+          if fields.length() != 2 {
+            fail("expected 2 fields, got \{fields.length()}")
+          } else if fields[0].name != "amount" {
+            fail("expected 'amount', got '\{fields[0].name}'")
+          } else if fields[0].type_id != "decimal" {
+            fail("expected type_id 'decimal', got '\{fields[0].type_id}'")
+          } else if fields[1].type_id != "list" {
+            fail("expected type_id 'list', got '\{fields[1].type_id}'")
+          } else {
+            ()
           }
+        }
+        Err(err) => fail("schema failed: \{err.message()}")
       }
       result.close(on_done=fn(_) { () })
     }
@@ -202,15 +276,17 @@ test "native arrow schema multiple types" {
 }
 
 // ============================================================================
-// Column Data Extraction Tests
+// Typed Column Data Tests (canonical Vector accessors, no JSON/byte packs)
 // ============================================================================
 
 ///|
 test "native arrow int32 column data" {
-  let result = run_native_arrow_query("SELECT * FROM RANGE(5)")
+  let result = run_native_arrow_query("SELECT unnest(range(5))::INTEGER AS v")
   match result {
     Ok(result) => {
-      let values = result.get_column_int32(0)
+      let chunks = arrow_chunks_or_fail(result)
+      let values = arrow_column_ints(chunks, 0)
+      result.close(on_done=fn(_) { () })
       if values.length() != 5 {
         fail("expected 5 values, got \{values.length()}")
       } else if values[0] != 0 {
@@ -220,7 +296,6 @@ test "native arrow int32 column data" {
       } else {
         ()
       }
-      result.close(on_done=fn(_) { () })
     }
     Err(err) => fail("query failed: \{err}")
   }
@@ -231,15 +306,67 @@ test "native arrow int64 column data" {
   let result = run_native_arrow_query("SELECT 100::BIGINT AS x")
   match result {
     Ok(result) => {
-      let values = result.get_column_int64(0)
+      let chunks = arrow_chunks_or_fail(result)
+      let values = arrow_column_int64s(chunks, 0)
+      result.close(on_done=fn(_) { () })
       if values.length() != 1 {
         fail("expected 1 value, got \{values.length()}")
-      } else if values[0] != 100 {
+      } else if values[0] != 100L {
         fail("expected 100, got \{values[0]}")
       } else {
         ()
       }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow int64 keeps full precision" {
+  let result = run_native_arrow_query(
+    "SELECT 4611686018427387904::BIGINT AS big, -9223372036854775807::BIGINT AS neg",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let bigs = arrow_column_int64s(chunks, 0)
+      let negs = arrow_column_int64s(chunks, 1)
       result.close(on_done=fn(_) { () })
+      if bigs.length() != 1 || negs.length() != 1 {
+        fail("expected 1 value per column")
+      } else if bigs[0] != 4611686018427387904L {
+        fail("int64 precision lost: \{bigs[0]}")
+      } else if negs[0] != -9223372036854775807L {
+        fail("negative int64 precision lost: \{negs[0]}")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow uint64 keeps full precision" {
+  let result = run_native_arrow_query(
+    "SELECT 18446744073709551615::UBIGINT AS max_u64",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let vector = chunks[0].column(0)
+      let value = match vector {
+        Some(v) =>
+          match v.uint64s() {
+            Some(values) => values[0]
+            None => fail("column 0 is not a uint64 vector")
+          }
+        None => fail("missing column 0")
+      }
+      result.close(on_done=fn(_) { () })
+      if value != 18446744073709551615UL {
+        fail("uint64 precision lost: \{value}")
+      }
     }
     Err(err) => fail("query failed: \{err}")
   }
@@ -250,18 +377,20 @@ test "native arrow double column data" {
   let result = run_native_arrow_query("SELECT 3.14::DOUBLE AS x")
   match result {
     Ok(result) => {
-      let values = result.get_column_double(0)
-      if values.length() != 1 {
-        fail("expected 1 value, got \{values.length()}")
-      } else {
-        let v = values[0]
-        if v < 3.13 || v > 3.15 {
-          fail("expected ~3.14, got \{v}")
-        } else {
-          ()
-        }
+      let chunks = arrow_chunks_or_fail(result)
+      let vector = chunks[0].column(0)
+      let value = match vector {
+        Some(v) =>
+          match v.doubles() {
+            Some(values) => values[0]
+            None => fail("column 0 is not a double vector")
+          }
+        None => fail("missing column 0")
       }
       result.close(on_done=fn(_) { () })
+      if value < 3.13 || value > 3.15 {
+        fail("expected ~3.14, got \{value}")
+      }
     }
     Err(err) => fail("query failed: \{err}")
   }
@@ -274,21 +403,24 @@ test "native arrow bool column data" {
   )
   match result {
     Ok(result) => {
-      // First column should be true
-      let t_values = result.get_column_bool(0)
-      if t_values.length() != 1 {
-        fail("expected 1 value in column 0, got \{t_values.length()}")
-      } else if t_values[0] != true {
-        fail("expected true, got \{t_values[0]}")
-      }
-      // Second column should be false
-      let f_values = result.get_column_bool(1)
-      if f_values.length() != 1 {
-        fail("expected 1 value in column 1, got \{f_values.length()}")
-      } else if f_values[0] != false {
-        fail("expected false, got \{f_values[0]}")
+      let chunks = arrow_chunks_or_fail(result)
+      let bools : Array[Bool] = []
+      for col = 0; col < 2; col = col + 1 {
+        match chunks[0].column(col) {
+          Some(vector) =>
+            match vector.bools() {
+              Some(values) => bools.push(values[0])
+              None => fail("column \{col} is not a bool vector")
+            }
+          None => fail("missing column \{col}")
+        }
+      } nobreak {
+        ()
       }
       result.close(on_done=fn(_) { () })
+      if bools.length() != 2 || bools[0] != true || bools[1] != false {
+        fail("expected [true, false], got \{bools}")
+      }
     }
     Err(err) => fail("query failed: \{err}")
   }
@@ -299,215 +431,326 @@ test "native arrow string column data" {
   let result = run_native_arrow_query("SELECT 'hello'::VARCHAR AS s")
   match result {
     Ok(result) => {
-      let values = result.get_column_string(0)
-      if values.length() != 1 {
-        fail("expected 1 value, got \{values.length()}")
-      } else if values[0] != "hello" {
-        fail("expected 'hello', got '\{values[0]}'")
-      } else {
-        ()
+      let chunks = arrow_chunks_or_fail(result)
+      let value = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.strings() {
+            Some(values) => values[0]
+            None => fail("column 0 is not a string vector")
+          }
+        None => fail("missing column 0")
       }
       result.close(on_done=fn(_) { () })
+      if value != "hello" {
+        fail("expected 'hello', got '\{value}'")
+      }
     }
     Err(err) => fail("query failed: \{err}")
   }
 }
 
 ///|
-test "native arrow multiple rows int32" {
-  let result = run_native_arrow_query("SELECT * FROM RANGE(100)")
+test "native arrow multi-chunk result" {
+  // RANGE() produces BIGINT, so the column materializes as an Int64 vector.
+  let result = run_native_arrow_query("SELECT * FROM RANGE(3000)")
   match result {
     Ok(result) => {
-      let values = result.get_column_int32(0)
-      if values.length() != 100 {
-        fail("expected 100 values, got \{values.length()}")
-      } else if values[0] != 0 {
-        fail("expected 0, got \{values[0]}")
-      } else if values[99] != 99 {
-        fail("expected 99, got \{values[99]}")
+      let chunks = arrow_chunks_or_fail(result)
+      let rc = result.row_count()
+      let values = arrow_column_int64s(chunks, 0)
+      result.close(on_done=fn(_) { () })
+      if rc != 3000 {
+        fail("expected 3000 rows, got \{rc}")
+      } else if values.length() != 3000 {
+        fail("expected 3000 values, got \{values.length()}")
+      } else if values[2047] != 2047L || values[2048] != 2048L {
+        // Crosses DuckDB's STANDARD_VECTOR_SIZE chunk boundary.
+        fail("multi-chunk boundary values wrong")
       } else {
         ()
       }
-      result.close(on_done=fn(_) { () })
     }
     Err(err) => fail("query failed: \{err}")
   }
 }
 
 // ============================================================================
-// Null Handling Tests
+// Decimal + nested-type coverage (issue #62 acceptance criteria)
 // ============================================================================
 
 ///|
-test "native arrow int32 nullable with nulls" {
+test "native arrow decimal column" {
   let result = run_native_arrow_query(
-    "SELECT 1::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 3::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT 5::INTEGER",
+    "SELECT 12.34::DECIMAL(10, 2) AS amount, -0.01::DECIMAL(4, 2) AS small",
   )
   match result {
     Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let ok = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.decimals() {
+            Some(decimals) => {
+              let d = decimals[0]
+              d.width == 10 && d.scale == 2 && vector.string_at(0) == "12.34"
+            }
+            None => false
+          }
+        None => false
+      }
+      let small_ok = match chunks[0].column(1) {
+        Some(vector) => vector.string_at(0) == "-0.01"
+        None => false
+      }
+      result.close(on_done=fn(_) { () })
+      if !ok {
+        fail("decimal vector or value wrong")
+      } else if !small_ok {
+        fail("negative decimal wrong")
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow list column (nested)" {
+  let result = run_native_arrow_query(
+    "SELECT [1, 2, 3]::INTEGER[] AS xs, []::INTEGER[] AS empty",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let ok = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.list_parts() {
+            Some((child, offsets, lengths)) => {
+              let child_values = match child.ints() {
+                Some(values) =>
+                  values.length() == 3 &&
+                  values[0] == 1 &&
+                  values[1] == 2 &&
+                  values[2] == 3
+                None => false
+              }
+              child_values && offsets[0] == 0UL && lengths[0] == 3UL
+            }
+            None => false
+          }
+        None => false
+      }
+      // Second column decodes as a nested `Value::List` via value_at.
+      let nested_ok = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.value_at(0) {
+            Value::List(items) => items.length() == 3
+            _ => false
+          }
+        None => false
+      }
+      result.close(on_done=fn(_) { () })
+      if !ok {
+        fail("list vector parts wrong")
+      } else if !nested_ok {
+        fail("list value_at decode wrong")
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow struct column (nested)" {
+  let result = run_native_arrow_query(
+    "SELECT {'a': 7, 'b': 'x'}::STRUCT(a INTEGER, b VARCHAR) AS s",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let ok = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.struct_parts() {
+            Some((fields, children)) => {
+              let names_ok = fields == ["a", "b"]
+              let a_ok = match children[0].ints() {
+                Some(values) => values[0] == 7
+                None => false
+              }
+              let b_ok = match children[1].strings() {
+                Some(values) => values[0] == "x"
+                None => false
+              }
+              names_ok && a_ok && b_ok
+            }
+            None => false
+          }
+        None => false
+      }
+      result.close(on_done=fn(_) { () })
+      if !ok {
+        fail("struct vector parts wrong")
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+// ============================================================================
+// Null Mask Tests (canonical validity, no byte packs)
+// ============================================================================
+
+///|
+/// Validity mask of column `col` across all chunks (true = non-NULL).
+fn arrow_column_validity(
+  chunks : Array[VectorChunk],
+  col : Int,
+) -> Array[Bool] raise {
+  let out : Array[Bool] = []
+  for chunk in chunks {
+    match chunk.column(col) {
+      Some(vector) =>
+        for row = 0; row < vector.len(); row = row + 1 {
+          out.push(vector.validity[row])
+        } nobreak {
+          ()
+        }
+      None => fail("missing column \{col}")
+    }
+  } nobreak {
+    ()
+  }
+  out
+}
+
+///|
+test "native arrow int32 nulls via validity mask" {
+  let result = run_native_arrow_query(
+    "SELECT v FROM (VALUES (1), (NULL), (3), (NULL), (5)) t(v)",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let validity = arrow_column_validity(chunks, 0)
+      let vector = chunks[0].column(0)
+      let null_ok = match vector {
+        Some(v) => v.is_null(1) && !v.is_null(0) && v.is_null(3)
+        None => false
+      }
+      let values = arrow_column_ints(chunks, 0)
+      result.close(on_done=fn(_) { () })
+      if validity != [true, false, true, false, true] {
+        fail("expected [true, false, true, false, true], got \{validity}")
+      } else if !null_ok {
+        fail("Vector::is_null disagrees with the validity mask")
+      } else if values[0] != 1 || values[2] != 3 || values[4] != 5 {
+        fail("non-null values wrong")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow all-nulls column" {
+  let result = run_native_arrow_query(
+    "SELECT v FROM (VALUES (NULL::INTEGER), (NULL::INTEGER), (NULL::INTEGER)) t(v)",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let validity = arrow_column_validity(chunks, 0)
+      result.close(on_done=fn(_) { () })
+      if validity != [false, false, false] {
+        fail("expected all-invalid, got \{validity}")
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+///|
+test "native arrow string nulls via validity mask" {
+  let result = run_native_arrow_query(
+    "SELECT v FROM (VALUES ('a'), (NULL), ('c'), (NULL), ('e')) t(v)",
+  )
+  match result {
+    Ok(result) => {
+      let chunks = arrow_chunks_or_fail(result)
+      let validity = arrow_column_validity(chunks, 0)
+      let values = match chunks[0].column(0) {
+        Some(vector) =>
+          match vector.strings() {
+            Some(v) => v
+            None => fail("column 0 is not a string vector")
+          }
+        None => fail("missing column 0")
+      }
+      result.close(on_done=fn(_) { () })
+      if validity != [true, false, true, false, true] {
+        fail("expected [true, false, true, false, true], got \{validity}")
+      } else if values[0] != "a" || values[2] != "c" || values[4] != "e" {
+        fail("non-null strings wrong")
+      } else {
+        ()
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+// ============================================================================
+// Ownership / Closed semantics
+// ============================================================================
+
+///|
+test "native arrow closed result reports Closed" {
+  let result = run_native_arrow_query("SELECT 1 AS x")
+  match result {
+    Ok(result) => {
+      let first_close : Ref[Bool] = Ref::new(false)
+      result.close(on_done=fn(res) { first_close.val = res is Ok(_) })
+      let chunks_err = result.to_chunks() is Err(_)
+      let schema_err = result.get_schema() is Err(_)
+      let second_close : Ref[Bool] = Ref::new(false)
+      result.close(on_done=fn(res) {
+        match res {
+          Err(DuckDBError::Closed(_)) => second_close.val = true
+          _ => second_close.val = false
+        }
+      })
+      if !first_close.val {
+        fail("first close should succeed")
+      } else if !chunks_err || !schema_err {
+        fail("accessors should report errors after close")
+      } else if !second_close.val {
+        fail("second close should report Closed")
+      }
+    }
+    Err(err) => fail("query failed: \{err}")
+  }
+}
+
+// ============================================================================
+// Deprecated getter compat (migration path coverage)
+// ============================================================================
+
+///|
+test "native arrow deprecated getters still work" {
+  let result = run_native_arrow_query(
+    "SELECT v FROM (VALUES (1::INTEGER), (NULL::INTEGER), (3::INTEGER)) t(v)",
+  )
+  match result {
+    Ok(result) => {
+      let flat = result.get_column_int32(0)
       let (values, validity) = result.get_column_int32_nullable(0)
       result.close(on_done=fn(_) { () })
-      if values.length() != 5 {
-        fail("expected 5 values, got \{values.length()}")
-      } else if validity.length() != 5 {
-        fail("expected 5 validity, got \{validity.length()}")
-      } else if validity[0] != true {
-        fail("expected validity[0] = true, got false")
-      } else if validity[1] != false {
-        fail("expected validity[1] = false, got true")
-      } else if validity[2] != true {
-        fail("expected validity[2] = true, got false")
-      } else if validity[3] != false {
-        fail("expected validity[3] = false, got true")
-      } else if validity[4] != true {
-        fail("expected validity[4] = true, got false")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("query failed: \{err}")
-  }
-}
-
-///|
-test "native arrow int32 nullable all nulls" {
-  let result = run_native_arrow_query(
-    "SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER UNION ALL SELECT NULL::INTEGER",
-  )
-  match result {
-    Ok(result) => {
-      let (values, validity) = result.get_column_int32_nullable(0)
-      result.close(on_done=fn(_) { () })
-      if values.length() != 3 {
-        fail("expected 3 values, got \{values.length()}")
-      } else if validity.length() != 3 {
-        fail("expected 3 validity, got \{validity.length()}")
-      } else if validity[0] != false {
-        fail("expected validity[0] = false, got true")
-      } else if validity[1] != false {
-        fail("expected validity[1] = false, got true")
-      } else if validity[2] != false {
-        fail("expected validity[2] = false, got true")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("query failed: \{err}")
-  }
-}
-
-///|
-test "native arrow int32 nullable no nulls" {
-  let result = run_native_arrow_query(
-    "SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3",
-  )
-  match result {
-    Ok(result) => {
-      let (values, validity) = result.get_column_int32_nullable(0)
-      result.close(on_done=fn(_) { () })
-      if values.length() != 3 {
-        fail("expected 3 values, got \{values.length()}")
-      } else if validity.length() != 3 {
-        fail("expected 3 validity, got \{validity.length()}")
-      } else if validity[0] != true {
-        fail("expected validity[0] = true, got false")
-      } else if validity[1] != true {
-        fail("expected validity[1] = true, got false")
-      } else if validity[2] != true {
-        fail("expected validity[2] = true, got false")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("query failed: \{err}")
-  }
-}
-
-///|
-test "native arrow string nullable with nulls" {
-  let result = run_native_arrow_query(
-    "SELECT 'a' UNION ALL SELECT NULL UNION ALL SELECT 'c' UNION ALL SELECT NULL UNION ALL SELECT 'e'",
-  )
-  match result {
-    Ok(result) => {
-      let (values, validity) = result.get_column_string_nullable(0)
-      result.close(on_done=fn(_) { () })
-      if values.length() != 5 {
-        fail("expected 5 values, got \{values.length()}")
-      } else if validity.length() != 5 {
-        fail("expected 5 validity, got \{validity.length()}")
-      } else if validity[0] != true {
-        fail("expected validity[0] = true")
-      } else if validity[1] != false {
-        fail("expected validity[1] = false")
-      } else if validity[2] != true {
-        fail("expected validity[2] = true")
-      } else if validity[3] != false {
-        fail("expected validity[3] = false")
-      } else if validity[4] != true {
-        fail("expected validity[4] = true")
-      } else if values[0] != "a" {
-        fail("expected 'a', got '\{values[0]}'")
-      } else if values[2] != "c" {
-        fail("expected 'c', got '\{values[2]}'")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("query failed: \{err}")
-  }
-}
-
-///|
-test "native arrow double nullable with nulls" {
-  let result = run_native_arrow_query(
-    "SELECT 1.5::DOUBLE UNION ALL SELECT NULL::DOUBLE UNION ALL SELECT 3.14::DOUBLE",
-  )
-  match result {
-    Ok(result) => {
-      let (values, validity) = result.get_column_double_nullable(0)
-      result.close(on_done=fn(_) { () })
-      if values.length() != 3 {
-        fail("expected 3 values, got \{values.length()}")
-      } else if validity.length() != 3 {
-        fail("expected 3 validity, got \{validity.length()}")
-      } else if validity[0] != true {
-        fail("expected validity[0] = true")
-      } else if validity[1] != false {
-        fail("expected validity[1] = false")
-      } else if validity[2] != true {
-        fail("expected validity[2] = true")
-      } else {
-        ()
-      }
-    }
-    Err(err) => fail("query failed: \{err}")
-  }
-}
-
-///|
-test "native arrow bool nullable with nulls" {
-  let result = run_native_arrow_query(
-    "SELECT true::BOOLEAN UNION ALL SELECT NULL::BOOLEAN UNION ALL SELECT false::BOOLEAN",
-  )
-  match result {
-    Ok(result) => {
-      let (values, validity) = result.get_column_bool_nullable(0)
-      result.close(on_done=fn(_) { () })
-      if values.length() != 3 {
-        fail("expected 3 values, got \{values.length()}")
-      } else if validity.length() != 3 {
-        fail("expected 3 validity, got \{validity.length()}")
-      } else if validity[0] != true {
-        fail("expected validity[0] = true")
-      } else if validity[1] != false {
-        fail("expected validity[1] = false")
-      } else if validity[2] != true {
-        fail("expected validity[2] = true")
-      } else if values[0] != true {
-        fail("expected true, got \{values[0]}")
-      } else if values[2] != false {
-        fail("expected false, got \{values[2]}")
+      if flat != [1, 0, 3] {
+        fail("expected [1, 0, 3], got \{flat}")
+      } else if values != [1, 0, 3] {
+        fail("expected nullable values [1, 0, 3], got \{values}")
+      } else if validity != [true, false, true] {
+        fail("expected validity [true, false, true], got \{validity}")
       } else {
         ()
       }

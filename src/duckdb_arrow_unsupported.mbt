@@ -1,22 +1,18 @@
 ///|
-pub type ArrowResult
-
-///|
-pub struct ArrowField {
-  name : String
-  nullable : Bool
-  type_id : String
-}
-
-///|
-pub struct ArrowSchemaInfo {
-  fields : Array[ArrowField]
-}
+/// Stub backend handle; Arrow is unsupported on this target so it is never
+/// constructed.
+#external
+type ArrowHandle
 
 ///|
 /// An Unsupported error for `feature` on this stub-only target.
 fn unsupported_target_error_feature(feature : String) -> DuckDBError {
   Backend::Unsupported.capabilities().unsupported(feature)
+}
+
+///|
+fn arrow_result_close_handle(handle : ArrowHandle) -> Unit {
+  let _ = handle
 }
 
 // ============================================================================
@@ -31,87 +27,5 @@ pub fn Connection::query_arrow(
 ) -> Unit {
   let _ = self
   let _ = sql
-  on_done(Err(unsupported_target_error_feature("arrow integration")))
-}
-
-///|
-pub fn ArrowResult::column_count(self : ArrowResult) -> Int {
-  let _ = self
-  0
-}
-
-///|
-pub fn ArrowResult::row_count(self : ArrowResult) -> Int {
-  let _ = self
-  0
-}
-
-///|
-pub fn ArrowResult::get_schema(
-  self : ArrowResult,
-) -> Result[ArrowSchemaInfo, DuckDBError] {
-  let _ = self
-  let _ = ArrowSchemaInfo::{
-    fields: [ArrowField::{ name: "", nullable: false, type_id: "", }],
-  }
-  Err(unsupported_target_error_feature("arrow integration"))
-}
-
-///|
-pub fn ArrowResult::get_column_int32(
-  self : ArrowResult,
-  col : Int,
-) -> Array[Int] {
-  let _ = self
-  let _ = col
-  []
-}
-
-///|
-pub fn ArrowResult::get_column_int64(
-  self : ArrowResult,
-  col : Int,
-) -> Array[Int] {
-  let _ = self
-  let _ = col
-  []
-}
-
-///|
-pub fn ArrowResult::get_column_double(
-  self : ArrowResult,
-  col : Int,
-) -> Array[Double] {
-  let _ = self
-  let _ = col
-  []
-}
-
-///|
-pub fn ArrowResult::get_column_string(
-  self : ArrowResult,
-  col : Int,
-) -> Array[String] {
-  let _ = self
-  let _ = col
-  []
-}
-
-///|
-pub fn ArrowResult::get_column_bool(
-  self : ArrowResult,
-  col : Int,
-) -> Array[Bool] {
-  let _ = self
-  let _ = col
-  []
-}
-
-///|
-pub fn ArrowResult::close(
-  self : ArrowResult,
-  on_done~ : (Result[Unit, DuckDBError]) -> Unit,
-) -> Unit {
-  let _ = self
   on_done(Err(unsupported_target_error_feature("arrow integration")))
 }
