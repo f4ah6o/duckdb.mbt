@@ -23,6 +23,7 @@ pub enum AppenderCommand {
   AppendString(String)
   AppendBool(Bool)
   EndRow
+  AppendChunk(Int) // bulk-append a chunk of this many rows
   Flush
   Close
 } derive(Show)
@@ -162,6 +163,31 @@ pub fn execute_appender_command_on_model(
           row_count: model.row_count,
           flushed_row_count: model.flushed_row_count,
         }
+      }
+    // AppendChunk is only legal outside row building: Ready or Flushed.
+    (AppenderState::Ready, AppenderCommand::AppendChunk(rows)) =>
+      AppenderModel::{
+        state: AppenderState::Ready,
+        column_count: 0,
+        expected_columns: model.expected_columns,
+        row_count: model.row_count + rows,
+        flushed_row_count: model.flushed_row_count,
+      }
+    (AppenderState::Flushed, AppenderCommand::AppendChunk(rows)) =>
+      AppenderModel::{
+        state: AppenderState::Flushed,
+        column_count: 0,
+        expected_columns: model.expected_columns,
+        row_count: model.row_count + rows,
+        flushed_row_count: model.flushed_row_count,
+      }
+    (AppenderState::RowInProgress, AppenderCommand::AppendChunk(_)) =>
+      AppenderModel::{
+        state: AppenderState::Error,
+        column_count: model.column_count,
+        expected_columns: model.expected_columns,
+        row_count: model.row_count,
+        flushed_row_count: model.flushed_row_count,
       }
     (AppenderState::RowInProgress, AppenderCommand::EndRow) =>
       if model.column_count == model.expected_columns {
@@ -764,6 +790,140 @@ test "prop_appender_state_always_valid" {
         }
       }
       Ok(())
+    },
+    config~,
+  )
+}
+
+///|
+/// Property: append_chunk accumulates rows while the appender is ready
+test "prop_appender_chunk_appends_accumulate" {
+  let gen = @gen.int_range(0, 50).map(fn(chunk_rows) {
+    (AppenderState::Ready, AppenderCommand::AppendChunk(chunk_rows))
+  })
+  let config = CheckConfig::new(100, 20, 750015, 20)
+  assert_check(
+    "append_chunk accumulates rows",
+    gen,
+    fn(input) {
+      let (state, cmd) = input
+      let model = AppenderModel::{
+        state,
+        column_count: 0,
+        expected_columns: 3,
+        row_count: 0,
+        flushed_row_count: 0,
+      }
+      let new_model = execute_appender_command_on_model(model, cmd)
+      match cmd {
+        AppenderCommand::AppendChunk(rows) =>
+          if new_model.row_count == rows && new_model.state == state {
+            Ok(())
+          } else {
+            Err(
+              "AppendChunk should add \{rows} rows and keep state, got row_count=\{new_model.row_count} state=\{new_model.state}",
+            )
+          }
+        _ => Err("unexpected command")
+      }
+    },
+    config~,
+  )
+}
+
+///|
+/// Property: append_chunk mid-row is an error
+test "prop_appender_chunk_mid_row_errors" {
+  let gen = @gen.int_range(1, 50).map(fn(chunk_rows) {
+    AppenderCommand::AppendChunk(chunk_rows)
+  })
+  let config = CheckConfig::new(100, 20, 750016, 20)
+  assert_check(
+    "append_chunk mid-row errors",
+    gen,
+    fn(cmd) {
+      let model = AppenderModel::{
+        state: AppenderState::RowInProgress,
+        column_count: 1,
+        expected_columns: 3,
+        row_count: 0,
+        flushed_row_count: 0,
+      }
+      let new_model = execute_appender_command_on_model(model, cmd)
+      match new_model.state {
+        AppenderState::Error => Ok(())
+        _ =>
+          Err("AppendChunk while a row is in progress should result in Error")
+      }
+    },
+    config~,
+  )
+}
+
+///|
+/// Property: chunk appends and row appends mix correctly
+test "prop_appender_chunk_and_row_mix" {
+  let gen = @gen.int_range(1, 10).bind(fn(chunk_rows) {
+    @gen.int_range(1, 5).map(fn(row_appends) { (chunk_rows, row_appends) })
+  })
+  let config = CheckConfig::new(100, 20, 750017, 20)
+  assert_check(
+    "chunk and row appends mix correctly",
+    gen,
+    fn(input) {
+      let (chunk_rows, row_appends) = input
+      let mut model = appender_model_initial(2)
+
+      // Create
+      model = execute_appender_command_on_model(
+        model,
+        AppenderCommand::Create("test_table"),
+      )
+
+      // Chunk append while ready
+      model = execute_appender_command_on_model(
+        model,
+        AppenderCommand::AppendChunk(chunk_rows),
+      )
+      match model.state {
+        AppenderState::Ready => ()
+        _ => return Err("AppendChunk from Ready should stay Ready")
+      }
+
+      // Row appends
+      for _i in 0..<row_appends {
+        model = execute_appender_command_on_model(
+          model,
+          AppenderCommand::BeginRow,
+        )
+        model = execute_appender_command_on_model(
+          model,
+          AppenderCommand::AppendInt(1),
+        )
+        model = execute_appender_command_on_model(
+          model,
+          AppenderCommand::AppendInt(2),
+        )
+        model = execute_appender_command_on_model(
+          model,
+          AppenderCommand::EndRow,
+        )
+      }
+
+      // Another chunk append after rows
+      model = execute_appender_command_on_model(
+        model,
+        AppenderCommand::AppendChunk(chunk_rows),
+      )
+      model = execute_appender_command_on_model(model, AppenderCommand::Flush)
+      let expected = chunk_rows * 2 + row_appends
+      if model.row_count == expected && model.flushed_row_count == expected {
+        Ok(())
+      } else {
+        Err(
+          "Expected \{expected} rows after mixing chunk and row appends, got \{model.row_count}",
+        )
+      }
     },
     config~,
   )

@@ -53,6 +53,7 @@ pub fn Backend::capabilities(self : Backend) -> BackendCapabilities {
         prepared_statements: true,
         streaming: true,
         appender: true,
+        appender_chunk: true,
         appender_date_timestamp: true,
         arrow: true,
         persistent_storage: true,
@@ -74,6 +75,7 @@ pub fn Backend::capabilities(self : Backend) -> BackendCapabilities {
         prepared_statements: true,
         streaming: true,
         appender: true,
+        appender_chunk: true,
         appender_date_timestamp: false,
         arrow: true,
         persistent_storage: true,
@@ -95,6 +97,7 @@ pub fn Backend::capabilities(self : Backend) -> BackendCapabilities {
         prepared_statements: true,
         streaming: true,
         appender: false,
+        appender_chunk: false,
         appender_date_timestamp: false,
         arrow: true,
         persistent_storage: false,
@@ -116,6 +119,7 @@ pub fn Backend::capabilities(self : Backend) -> BackendCapabilities {
         prepared_statements: false,
         streaming: false,
         appender: false,
+        appender_chunk: false,
         appender_date_timestamp: false,
         arrow: false,
         persistent_storage: false,
@@ -151,6 +155,8 @@ pub(all) enum BackendFeature {
   Streaming
   /// `Connection::create_appender` bulk loading.
   Appender
+  /// `Appender::append_chunk` vectorized data-chunk ingestion.
+  AppenderChunk
   /// `Appender::append_date` / `Appender::append_timestamp` helpers.
   AppenderDateTimestamp
   /// Arrow query results (`query_arrow`).
@@ -191,6 +197,7 @@ pub fn BackendFeature::all() -> Array[BackendFeature] {
     PreparedStatements,
     Streaming,
     Appender,
+    AppenderChunk,
     AppenderDateTimestamp,
     Arrow,
     PersistentStorage,
@@ -217,6 +224,7 @@ pub fn BackendFeature::name(self : BackendFeature) -> String {
     PreparedStatements => "prepared statements"
     Streaming => "streaming results"
     Appender => "appender"
+    AppenderChunk => "appender data chunk ingestion (append_chunk)"
     AppenderDateTimestamp => "appender date/timestamp helpers"
     Arrow => "arrow integration"
     PersistentStorage => "persistent storage"
@@ -250,6 +258,8 @@ pub struct BackendCapabilities {
   streaming : Bool
   /// `Connection::create_appender` bulk loading.
   appender : Bool
+  /// `Appender::append_chunk` vectorized data-chunk ingestion.
+  appender_chunk : Bool
   /// `Appender::append_date` / `Appender::append_timestamp` helpers.
   appender_date_timestamp : Bool
   /// Arrow query results (`query_arrow`).
@@ -289,6 +299,7 @@ pub fn BackendCapabilities::supports(
     PreparedStatements => self.prepared_statements
     Streaming => self.streaming
     Appender => self.appender
+    AppenderChunk => self.appender_chunk
     AppenderDateTimestamp => self.appender_date_timestamp
     Arrow => self.arrow
     PersistentStorage => self.persistent_storage
@@ -480,6 +491,14 @@ pub fn support_matrix_markdown() -> String {
         matrix_cell(native.appender, "✅", "❌"),
         matrix_cell(node.appender, "✅ (Node only)", "❌"),
         matrix_cell(wasm.appender, "✅", "❌"),
+      ),
+    )
+    ..write_view(
+      matrix_feature_row(
+        "Appender DataChunk",
+        matrix_cell(native.appender_chunk, "✅", "❌"),
+        matrix_cell(node.appender_chunk, "✅ (Node only)", "❌"),
+        matrix_cell(wasm.appender_chunk, "✅", "❌"),
       ),
     )
     ..write_view(

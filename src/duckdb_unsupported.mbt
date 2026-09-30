@@ -357,6 +357,19 @@ pub fn Appender::flush(self : Appender) -> Result[Unit, DuckDBError] {
   Err(unsupported_target_error())
 }
 
+///|
+/// Vectorized chunk ingestion is unavailable on targets with no working
+/// binding — `unsupported_target_error` covers both the missing appender and
+/// the missing DataChunk writer.
+pub fn Appender::append_chunk(
+  self : Appender,
+  chunk : VectorChunk,
+) -> Result[Unit, DuckDBError] {
+  let _ = self
+  let _ = chunk
+  Err(unsupported_target_error())
+}
+
 // Note: Appender::close() is not provided here to avoid conflict with Connection::close()
 // The external bindings provide the implementation on supported targets.
 
