@@ -3,8 +3,10 @@
 `f4ah6o/duckdb` 0.7.0 ships the breaking interface changes that landed on
 `main` after the Mooncakes 0.6.4 release: a 128-bit `Decimal`, structured
 `DuckDBError` variants, the Arrow result rework, the move of the Quack
-helpers into the `f4ah6o/duckdb/quack` package, and the typed-vector /
-capabilities additions.
+helpers into the `f4ah6o/duckdb/quack` package, the typed-vector /
+capabilities additions, and the canonical-vector JS facade that makes
+`query`/`execute`/`ResultStream::next` render results identically to the
+native backend.
 
 This guide was produced by diffing the published `f4ah6o/duckdb@0.6.4`
 `pkg.generated.mbti` files (from Mooncakes) against the 0.7.0 interfaces, so
@@ -22,6 +24,7 @@ published package.
 | `conn.install_quack(...)` etc. | `@quack.install(conn, ...)` etc. | deprecated facade (still compiles) |
 | `ArrowResult::get_column_int64 -> Array[Int]` | `-> Array[Int64]` | **breaking** (function is also deprecated) |
 | `ArrowResult::get_column_*` | `ArrowResult::to_chunks` + `Vector` accessors | deprecated facade (still compiles) |
+| JS `rows`/`column_types` payloads | DuckDB-style nested rendering, `5.0` integral doubles, real WASM `column_types`, `columns=[]` on zero chunks | **behavior change** (JS only) |
 | `pub enum Value` (9 variants) | `pub(all) enum Value` (17 variants) | **breaking** for exhaustive `match` |
 | `array_of`, `assert_check`, `check_with_stats`, `shrink_int`, `CheckConfig`, `CheckResult` | removed from the public interface | **breaking** |
 | `pub type LogicalType`, `pub type Vector` | `NativeLogicalType`, `NativeVector` (native FFI); `Vector` is now the public typed-vector struct | **breaking** if referenced |
@@ -219,6 +222,51 @@ Use `vector.is_null(row)` (or the `vector.validity` mask) for nullability, and
 `blobs` / `decimals` / `intervals` (each returns `None` on a physical-type
 mismatch), `list_parts` / `struct_parts` / `map_parts` for nested columns,
 `any_cells`, `len`, `string_at`, and `value_at`.
+
+## JS facades: canonical vectors and DuckDB-style strings
+
+On the JS backends (Node via `@duckdb/node-api`, browser via
+`duckdb-wasm` Arrow), `conn.query`, `PreparedStatement::execute`, and
+`ResultStream::next` are now thin facades over the typed-vector path
+(`query_chunks`/`execute_chunks`/`next_chunk` materialization plus the
+canonical renderers shared with the native backend). Signatures are
+unchanged, but several observable behaviors change — audit code that
+string-compares cell output or inspects `column_types`:
+
+- **Nested cells render DuckDB-style** instead of `JSON.stringify` output:
+  lists `[1, 2, 3]` (spaced, `NULL` for null elements), structs
+  `{a: 1, b: x}`, maps `{k=v}` — previously `[1,2,3]` and `{"a":1}`-style
+  JSON blobs.
+- **Integral `DOUBLE` renders with a decimal point**: `5.0` (was `5`).
+  `nan`/`inf`/`-inf`, booleans, and integer columns are unchanged.
+- **`QueryResult.column_types` on WASM** reports the real `ColumnType` per
+  column (previously every column was `Unknown(-1)` — the WASM path
+  carried no type IDs).
+- **Zero-chunk results**: a query that produces no result chunks returns
+  `columns=[]`, matching the native path (previously JS populated
+  `columns` from Arrow schema / `columnNames()` metadata).
+
+```mbt nocheck
+// conn.query("SELECT [1,2] AS l, {'a': 1} AS s, 5.0::DOUBLE AS d", ...)
+
+// 0.6.4 JS (Node + WASM)
+// result.rows[0] == ["[1,2]", "{\"a\":1}", "5"]
+// WASM:  result.column_types == [Unknown(-1), Unknown(-1), Unknown(-1)]
+// Node:  result.column_types == [List, Struct, Double]  (already real)
+
+// 0.7.0 JS — same query, both backends
+// result.rows[0] == ["[1, 2]", "{a: 1}", "5.0"]
+// result.column_types == [List, Struct, Double]
+```
+
+The typed-chunk APIs benefit too: `query_chunks`, `execute_chunks`,
+`next_chunk`, and `ArrowResult::to_chunks` now produce real
+`VectorData::List`/`Struct`/`Map` on JS, so `vector.list_parts()`,
+`vector.struct_parts()`, `vector.map_parts()`, and nested
+`vector.value_at(row)` work on JS the same way they do on native.
+Previously nested columns fell into a tagged-JSON `Any` fallback per cell
+(it remains only for UNION/BIT/TIME_TZ/BIGNUM). `conn.execute` and
+`stream.columns`/`stream.column_types` are unchanged.
 
 ## Quack: moved to `f4ah6o/duckdb/quack`
 
