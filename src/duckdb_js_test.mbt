@@ -2175,3 +2175,157 @@ test "js node bind list" {
       }
   }
 }
+
+///|
+// Exercises the closed-handle guards in the raw JS FFI wrappers via the
+// extract()/eval harness: every close->use and close->close must report the
+// ERR_CLOSED sentinel, not crash or hit the underlying driver.
+extern "js" fn js_run_closed_guard_test(backend : JsBackend) -> String =
+  #|(backend) => {
+  #|  const { execFileSync } = require("child_process");
+  #|  const script = [
+  #|    "const backend = " + backend + ";",
+  #|    "const fs = require('fs');",
+  #|    "const path = require('path');",
+  #|    "const source = fs.readFileSync(path.join(process.cwd(), 'src/duckdb_js.mbt'), 'utf8');",
+  #|    "const extract = (name) => {",
+  #|    "  const pattern = 'extern \"js\" fn ' + name + '[\\\\s\\\\S]*?=\\\\n((?:\\\\s*#\\\\|.*\\\\n)+)';",
+  #|    "  const match = source.match(new RegExp(pattern));",
+  #|    "  if (!match) throw new Error('missing js ffi: ' + name);",
+  #|    "  return match[1]",
+  #|    "    .split(/\\r?\\n/)",
+  #|    "    .filter((line) => line.trim().startsWith('#|'))",
+  #|    "    .map((line) => line.replace(/^\\s*#\\|\\s?/, ''))",
+  #|    "    .join('\\n');",
+  #|    "};",
+  #|    "const js_connect = eval(extract('js_connect'));",
+  #|    "const js_query = eval(extract('js_query_ffi'));",
+  #|    "const js_close = eval(extract('js_close'));",
+  #|    "const js_prepare = eval(extract('js_prepare'));",
+  #|    "const js_bind_int = eval(extract('js_bind_int'));",
+  #|    "const js_close_prepared = eval(extract('js_close_prepared'));",
+  #|    "const js_query_stream = eval(extract('js_query_stream'));",
+  #|    "const js_stream_next = eval(extract('js_stream_next_ffi'));",
+  #|    "const js_stream_close = eval(extract('js_stream_close'));",
+  #|    "const js_create_appender = eval(extract('js_create_appender'));",
+  #|    "const js_appender_append_int = eval(extract('js_appender_append_int'));",
+  #|    "const js_appender_close = eval(extract('js_appender_close'));",
+  #|    "const call = (fn) => new Promise((resolve) => {",
+  #|    "  try { fn(resolve, (e) => resolve('ERR:' + String(e))); }",
+  #|    "  catch (e) { resolve('THROW:' + String(e)); }",
+  #|    "});",
+  #|    "const run = async () => {",
+  #|    "  const results = {};",
+  #|    "  const conn = await new Promise((res, rej) => js_connect(':memory:', backend, res, rej));",
+  #|    "  // close -> query",
+  #|    "  const closed = await call((ok, err) => js_close(conn, ok, err));",
+  #|    "  if (closed !== undefined) return { failed: 'initial close: ' + JSON.stringify(closed) };",
+  #|    "  results.queryAfterClose = await call((ok, err) => js_query(conn, 'SELECT 1', () => ok('OK'), err));",
+  #|    "  results.closeAfterClose = await call((ok, err) => js_close(conn, ok, err));",
+  #|    "  // statement close -> bind / execute / close",
+  #|    "  const conn2 = await new Promise((res, rej) => js_connect(':memory:', backend, res, rej));",
+  #|    "  const stmt = await new Promise((res, rej) => js_prepare(conn2, 'SELECT ?::INTEGER AS x', res, rej));",
+  #|    "  const stmtClosed = await call((ok, err) => js_close_prepared(stmt, ok, err));",
+  #|    "  if (stmtClosed !== undefined) return { failed: 'stmt close: ' + JSON.stringify(stmtClosed) };",
+  #|    "  const bindRes = js_bind_int(stmt, 1, 42);",
+  #|    "  results.bindAfterClose = bindRes && bindRes.ok === false ? bindRes.error : 'OK';",
+  #|    "  results.stmtCloseAfterClose = await call((ok, err) => js_close_prepared(stmt, ok, err));",
+  #|    "  // stream close -> next / close",
+  #|    "  const stream = await new Promise((res, rej) => js_query_stream(conn2, 'SELECT 1 AS x', res, rej));",
+  #|    "  const streamClosed = await call((ok, err) => js_stream_close(stream, ok, err));",
+  #|    "  if (streamClosed !== undefined) return { failed: 'stream close: ' + JSON.stringify(streamClosed) };",
+  #|    "  results.nextAfterClose = await call((ok, err) => js_stream_next(stream, () => ok('OK'), err));",
+  #|    "  results.streamCloseAfterClose = await call((ok, err) => js_stream_close(stream, ok, err));",
+  #|    "  // appender close -> append / close",
+  #|    "  const tableSetup = await call((ok, err) => js_query(conn2, 'CREATE TABLE guard_t (a INTEGER)', () => ok('OK'), err));",
+  #|    "  if (tableSetup !== 'OK') return { failed: 'table setup: ' + tableSetup };",
+  #|    "  const appender = await new Promise((res, rej) => js_create_appender(conn2, 'guard_t', res, rej));",
+  #|    "  const appClosed = await call((ok, err) => js_appender_close(appender, ok, err));",
+  #|    "  if (appClosed !== undefined) return { failed: 'appender close: ' + JSON.stringify(appClosed) };",
+  #|    "  const appRes = js_appender_append_int(appender, 7);",
+  #|    "  results.appendAfterClose = appRes && appRes.ok === false ? appRes.error : 'OK';",
+  #|    "  results.appenderCloseAfterClose = await call((ok, err) => js_appender_close(appender, ok, err));",
+  #|    "  await call((ok, err) => js_close(conn2, ok, err));",
+  #|    "  return results;",
+  #|    "};",
+  #|    "run()",
+  #|    "  .then((result) => { console.log(JSON.stringify({ ok: true, results: result })); })",
+  #|    "  .catch((err) => { console.log(JSON.stringify({ ok: false, error: String(err && err.message ? err.message : err) })); });"
+  #|  ].join("\n");
+  #|  try {
+  #|    const output = execFileSync(process.execPath, ["-e", script], {
+  #|      encoding: "utf8",
+  #|      stdio: ["ignore", "pipe", "pipe"],
+  #|    });
+  #|    const lines = output.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  #|    return lines.length ? lines[lines.length - 1] : "";
+  #|  } catch (err) {
+  #|    const message = err && err.stderr
+  #|      ? err.stderr.toString()
+  #|      : (err && err.message ? err.message : String(err));
+  #|    return JSON.stringify({ ok: false, error: message });
+  #|  }
+  #|}
+
+///|
+test "js wrapper closed-handle guards" {
+  let payload = js_run_closed_guard_test(JsBackend::Node)
+  if payload is "" {
+    fail("no output from js closed-guard runner")
+  }
+  let json = @json.parse(payload) catch {
+    err => fail("invalid runner output: \{err} (\{payload})")
+  }
+  match json {
+    Json::Object(obj) =>
+      match obj.get("ok") {
+        Some(Json::True) =>
+          match obj.get("results") {
+            Some(Json::Object(results)) => {
+              let expected = [
+                ("queryAfterClose", "ERR:ERR_CLOSED:connection"),
+                ("closeAfterClose", "ERR:ERR_CLOSED:connection"),
+                ("bindAfterClose", "ERR_CLOSED:statement"),
+                ("stmtCloseAfterClose", "ERR:ERR_CLOSED:statement"),
+                ("nextAfterClose", "ERR:ERR_CLOSED:stream"),
+                ("streamCloseAfterClose", "ERR:ERR_CLOSED:stream"),
+                ("appendAfterClose", "ERR_CLOSED:appender"),
+                ("appenderCloseAfterClose", "ERR:ERR_CLOSED:appender"),
+              ]
+              match results.get("failed") {
+                Some(Json::String(message)) =>
+                  fail("closed-guard step failed: \{message}")
+                _ => ()
+              }
+              for pair in expected {
+                let (key, want) = pair
+                match results.get(key) {
+                  Some(Json::String(got)) =>
+                    if got != want {
+                      fail("\{key}: expected \{want}, got \{got}")
+                    }
+                  _ => fail("\{key}: missing in \{payload}")
+                }
+              } nobreak {
+                ()
+              }
+            }
+            _ => fail("missing results: \{payload}")
+          }
+        Some(Json::False) => {
+          let message = match obj.get("error") {
+            Some(Json::String(m)) => m
+            _ => payload
+          }
+          // Skip when @duckdb/node-api is unavailable in this environment.
+          if message.contains("@duckdb/node-api") {
+            ()
+          } else {
+            fail("closed-guard runner failed: \{message}")
+          }
+        }
+        _ => fail("unexpected ok field: \{payload}")
+      }
+    _ => fail("unexpected runner output: \{payload}")
+  }
+}

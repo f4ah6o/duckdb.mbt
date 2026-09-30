@@ -51,9 +51,13 @@ test "quack attach SQL" {
 test "quack attach rejects unsafe aliases" {
   match quack_attach_sql("quack:localhost", "", "", false) {
     Ok(sql) => fail("expected empty alias error, got \{sql}")
-    Err(err) => inspect(err.message(), content=(
-      #|invalid argument alias: Quack alias must not be empty
-    ))
+    Err(err) =>
+      inspect(
+        err.message(),
+        content=(
+          #|invalid argument alias: Quack alias must not be empty
+        ),
+      )
   }
   match quack_attach_sql("quack:localhost", "remote-db", "", false) {
     Ok(sql) => fail("expected invalid alias error, got \{sql}")
