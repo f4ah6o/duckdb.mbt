@@ -705,9 +705,25 @@ test "js stream vectors: struct-in-struct keeps field names aligned" {
 }
 
 ///|
+test "js stream vectors: schema-only emits are EOS for public next_chunk" {
+  // The public next_chunk/next path treats a 0-row emit as end-of-stream
+  // (native parity: native next_chunk filters row_count() <= 0), while the
+  // drain facade keeps it so query/execute still report the schema.
+  let cols : FixedArray[String] = ["a", "b"]
+  let empty : FixedArray[String] = []
+  assert_true(js_chunk_is_eos(cols, 0, keep_schema=false))
+  assert_true(!js_chunk_is_eos(cols, 0, keep_schema=true))
+  assert_true(js_chunk_is_eos(empty, 0, keep_schema=false))
+  assert_true(js_chunk_is_eos(empty, 0, keep_schema=true))
+  assert_true(!js_chunk_is_eos(cols, 3, keep_schema=false))
+  assert_true(!js_chunk_is_eos(cols, 3, keep_schema=true))
+}
+
+///|
 test "js stream vectors: empty result keeps column schema" {
   // WHERE false: the drained chunks should still carry one schema-only
-  // chunk so compat facades report real column names/types.
+  // chunk so compat facades report real column names/types — and the same
+  // emit carries rowCount 0, the marker that ends public streams.
   match
     js_stream_vector_chunks(
       JsBackend::Node,

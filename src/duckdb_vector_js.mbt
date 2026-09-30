@@ -1103,13 +1103,30 @@ fn js_top_level_slots(pools : JsVectorPools) -> Array[Int] {
 }
 
 ///|
+/// Whether an emitted slot table marks end-of-stream for the caller. No
+/// columns always means EOS; a 0-row schema-only emit means EOS only for
+/// the public `next_chunk`/`next` path — matching native `next_chunk`,
+/// which returns `None` whenever `row_count() <= 0`. Drains pass
+/// `keep_schema=true` so empty results still materialize their column
+/// names/types into `VectorChunk`s.
+fn js_chunk_is_eos(
+  columns : FixedArray[String],
+  row_count : Int,
+  keep_schema~ : Bool,
+) -> Bool {
+  columns.length() == 0 || (row_count <= 0 && !keep_schema)
+}
+
+///|
 /// Fetch the next `VectorChunk` of a JS result stream, or `None` when the
-/// stream is exhausted. Shared by `ResultStream::next_chunk`,
-/// `Connection::query_chunks`, and `PreparedStatement::execute_chunks`.
+/// stream is exhausted. Shared by `ResultStream::next_chunk` (which passes
+/// `keep_schema=false`), `Connection::query_chunks`, and
+/// `PreparedStatement::execute_chunks`.
 fn js_stream_next_vector_chunk(
   stream : ResultStream,
   on_ok : (VectorChunk?) -> Unit,
   on_err : (String) -> Unit,
+  keep_schema~ : Bool,
 ) -> Unit {
   js_stream_next_vectors_ffi(
     stream,
@@ -1133,8 +1150,9 @@ fn js_stream_next_vector_chunk(
       pool_bytes,
     ) {
       // A schema-only emit (0 rows but named columns) still materializes
-      // a real chunk so drained queries keep their column names/types.
-      if columns.length() == 0 {
+      // a real chunk for drains so emptied queries keep their column
+      // names/types; the public next_chunk path sees it as end-of-stream.
+      if js_chunk_is_eos(columns, row_count, keep_schema~) {
         on_ok(None)
         return
       }
@@ -1197,6 +1215,7 @@ fn js_drain_stream_chunks(
 ) -> Unit {
   js_stream_next_vector_chunk(
     stream,
+    keep_schema=true,
     fn(chunk) {
       match chunk {
         Some(c) => {
@@ -1261,11 +1280,12 @@ pub fn ResultStream::next_chunk(
   self : ResultStream,
   on_done~ : (Result[VectorChunk?, DuckDBError]) -> Unit,
 ) -> Unit {
-  js_stream_next_vector_chunk(self, fn(chunk) { on_done(Ok(chunk)) }, fn(
-    message,
-  ) {
-    on_done(Err(query_error(message)))
-  })
+  js_stream_next_vector_chunk(
+    self,
+    keep_schema=false,
+    fn(chunk) { on_done(Ok(chunk)) },
+    fn(message) { on_done(Err(query_error(message))) },
+  )
 }
 
 // ============================================================================
