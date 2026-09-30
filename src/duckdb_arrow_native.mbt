@@ -34,7 +34,7 @@ pub fn Connection::query_arrow(
 ) -> Unit {
   let result = native_query(self, @encoding/utf8.encode(sql))
   if native_is_null_result(result) {
-    on_done(Err(native_typed_error("arrow query failed")))
+    on_done(Err(native_typed_error(query_error, "arrow query failed")))
     return
   }
   let columns = native_result_column_names(result)

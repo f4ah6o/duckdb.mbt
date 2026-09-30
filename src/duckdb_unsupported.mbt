@@ -588,21 +588,21 @@ pub fn decimal_to_double(decimal : Decimal) -> Double {
 }
 
 ///|
+/// Create a decimal from whole and fractional parts. See the native backend's
+/// `decimal_from_parts` for the parts contract.
 pub fn decimal_from_parts(
   whole : Int64,
   fractional : Int64,
   scale : Int,
 ) -> Decimal {
-  let magnitude = BigInt::from_int64(whole) * pow10_bigint(scale)
-  let value = if whole < 0L {
-    magnitude - BigInt::from_int64(fractional)
-  } else {
-    magnitude + BigInt::from_int64(fractional)
-  }
+  let negative = whole < 0L || fractional < 0L
+  let magnitude = bigint_abs(BigInt::from_int64(whole)) * pow10_bigint(scale) +
+    bigint_abs(BigInt::from_int64(fractional))
+  let value = if negative { -magnitude } else { magnitude }
   let width = if whole == 0L {
-    String::length(fractional.to_string())
+    String::length(bigint_abs(BigInt::from_int64(fractional)).to_string())
   } else {
-    String::length(whole.abs().to_string()) + scale
+    String::length(bigint_abs(BigInt::from_int64(whole)).to_string()) + scale
   }
   decimal_from_scaled_bigint(value, width.max(1), scale)
 }
@@ -611,13 +611,7 @@ pub fn decimal_from_parts(
 pub fn decimal_to_parts(decimal : Decimal) -> (BigInt, BigInt) {
   let divisor = pow10_bigint(decimal.scale)
   let value = decimal_scaled_bigint(decimal)
-  let remainder = value % divisor
-  let fractional = if remainder.compare_int(0) < 0 {
-    -remainder
-  } else {
-    remainder
-  }
-  (value / divisor, fractional)
+  (value / divisor, value % divisor)
 }
 
 ///|

@@ -113,7 +113,7 @@ pub suberror DuckDBError {
   Prepare(String)
   Bind(String)
   Append(String)
-  Unsupported(feature~ : String, backend~ : String)
+  Unsupported(feature~ : String, backend~ : String, message~ : String)
   Closed(resource~ : String)
   InvalidArgument(argument~ : String, reason~ : String)
   Backend(backend~ : String, message~ : String)
@@ -125,7 +125,6 @@ pub fn DuckDBError::message(Self) -> String
 pub fn DuckDBError::to_message(Self) -> String
 
 // Types and methods
-#external
 pub type Appender
 pub fn Appender::append_bigint(Self, Int) -> Result[Unit, DuckDBError]
 pub fn Appender::append_blob(Self, Bytes) -> Result[Unit, DuckDBError]
@@ -290,11 +289,9 @@ pub enum ColumnType {
 pub fn ColumnType::equal(Self, Self) -> Bool
 pub fn ColumnType::not_equal(Self, Self) -> Bool
 
-#external
 pub type Config
 pub fn Config::set(Self, String, String) -> Result[Unit, DuckDBError]
 
-#external
 pub type Connection
 pub fn Connection::attach(Self, String, db_alias? : String, options? : String, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 #deprecated
@@ -377,7 +374,6 @@ pub type NativeLogicalType
 #external
 pub type NativeVector
 
-#external
 pub type PreparedStatement
 pub fn PreparedStatement::backend(Self) -> Backend
 pub fn PreparedStatement::bind_bigint(Self, Int, Int) -> Result[Unit, DuckDBError]
@@ -421,7 +417,6 @@ pub fn QueryResult::get_value(Self, Int, Int) -> Value?
 pub fn QueryResult::row_count(Self) -> Int
 pub fn QueryResult::to_typed(Self) -> TypedQueryResult
 
-#external
 pub type ResultStream
 pub fn ResultStream::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
 pub fn ResultStream::column_count(Self) -> Int
@@ -468,6 +463,7 @@ pub(all) enum Value {
   String(String)
   Date(Int)
   Timestamp(Int64)
+  TimestampNs(Int64)
   Decimal(Decimal)
   Interval(Interval)
   HugeInt(lower~ : UInt64, upper~ : Int64)
@@ -485,6 +481,7 @@ pub fn Value::as_double(Self) -> Double?
 pub fn Value::as_int(Self) -> Int?
 pub fn Value::as_string(Self) -> String?
 pub fn Value::as_timestamp(Self) -> Int64?
+pub fn Value::as_timestamp_ns(Self) -> Int64?
 pub fn Value::is_null(Self) -> Bool
 pub fn Value::to_string(Self) -> String
 

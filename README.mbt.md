@@ -47,8 +47,9 @@ changing capabilities; CI regenerates the section and fails on drift.
   `upper : Int64` halves (two's complement). `decimal_from_hugeint` builds a
   `Decimal` from halves, `decimal_from_parts`/`decimal_to_parts` convert
   to/from whole+fractional parts (`decimal_to_parts` returns `BigInt` values so
-  whole parts beyond 64 bits are preserved), and `decimal_to_double` may lose
-  precision above 2^53, matching DuckDB semantics.
+  whole parts beyond 64 bits are preserved, with a signed fractional remainder
+  so negative sub-unit values like `-0.50` round-trip), and
+  `decimal_to_double` may lose precision above 2^53, matching DuckDB semantics.
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
 - JS (WASM) uses direct duckdb-wasm prepared parameters only. Verified advanced prepared-statement bind support is limited to Decimal and Interval string parameters with an explicit SQL cast, for example `?::DECIMAL(10,2)` or `?::INTERVAL`.
 - JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported: the browser smoke test fails for them against `@duckdb/duckdb-wasm` 1.33.1-dev18.0 through 1.33.1-dev65.0.
@@ -87,12 +88,17 @@ All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
   CI matrix — the matrix install step is what actually exercises a version.
   The oldest matrix entry stays as the minimum supported version until
   intentionally dropped; the newest entry matches the `package.json` pin.
+  The `duckdb-pins` CI job
+  (`scripts/check_duckdb_pins.mjs`, runnable locally via
+  `pnpm check:dep-pins`) enforces this: it fails when a `package.json` pin
+  does not equal the newest matrix entry, so a bump that forgets the matrix
+  update cannot look green while the pinned version goes untested.
 - **Automated bumps.** [Dependabot](.github/dependabot.yml) opens grouped
   weekly PRs for `@duckdb/*` npm packages and GitHub Actions. A Dependabot PR
-  is merged only after the new version is added to the `ci.yml` matrix and
-  the full backend suite is green: `moon test --target js` +
-  `pnpm test:wasm-browser` for JS bumps, `moon test --target native` for
-  native bumps.
+  is merged only after the new version is added to the `ci.yml` matrix (the
+  `duckdb-pins` job fails otherwise) and the full backend suite is green:
+  `moon test --target js` + `pnpm test:wasm-browser` for JS bumps,
+  `moon test --target native` for native bumps.
 - **Advanced-type re-check.** The browser smoke check exercises direct
   prepared parameters for Decimal, Interval, Blob, List, Struct, and Map. If a
   bump flips any of them between supported and unsupported, update the

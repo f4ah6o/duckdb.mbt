@@ -437,6 +437,15 @@ pub fn Value::as_timestamp(self : Value) -> Int64? {
 }
 
 ///|
+/// Get the nanosecond timestamp value if present, None otherwise.
+pub fn Value::as_timestamp_ns(self : Value) -> Int64? {
+  match self {
+    TimestampNs(t) => Some(t)
+    _ => None
+  }
+}
+
+///|
 /// Get the decimal value if present, None otherwise.
 pub fn Value::as_decimal(self : Value) -> Decimal? {
   match self {
@@ -481,6 +490,7 @@ pub fn Value::to_string(self : Value) -> String {
     Timestamp(micros) =>
       // Convert microseconds since epoch to timestamp string
       timestamp_to_string(micros)
+    TimestampNs(nanos) => timestamp_nanos_render(nanos)
     Decimal(dec) => decimal_render(dec)
     Interval(iv) =>
       "\{iv.months} months \{iv.days} days \{iv.micros} microseconds"
@@ -537,45 +547,39 @@ fn pad_int(s : String, len : Int) -> String {
 }
 
 ///|
-/// Convert days since epoch to year, month, day.
+/// Convert days since epoch to year, month, day. Howard Hinnant's
+/// `civil_from_days` — correct for any day count, including pre-epoch.
 pub fn days_to_ymd(days : Int) -> (Int, Int, Int) {
-  // Simplified calculation - accurate for dates after 1970
-  let days_per_4_years = 365 * 4 + 1 // Include one leap year
-  let mut remaining = days
-  let mut year = 1970
+  let z = days.to_int64() + 719468L
+  let era = floor_div_i64(z, 146097L)
+  let doe = z - era * 146097L // [0, 146096]
+  let yoe = (doe - doe / 1460L + doe / 36524L - doe / 146096L) / 365L // [0, 399]
+  let y = yoe + era * 400L
+  let doy = doe - (365L * yoe + yoe / 4L - yoe / 100L) // [0, 365]
+  let mp = (5L * doy + 2L) / 153L // [0, 11]
+  let d = doy - (153L * mp + 2L) / 5L + 1L // [1, 31]
+  let m = if mp < 10L { mp + 3L } else { mp - 9L } // [1, 12]
+  let year = if m <= 2L { y + 1L } else { y }
+  (year.to_int(), m.to_int(), d.to_int())
+}
 
-  // Add years in 4-year chunks for efficiency
-  while remaining >= days_per_4_years {
-    remaining = remaining - days_per_4_years
-    year = year + 4
+///|
+/// Floor division on Int64 (rounds toward negative infinity).
+fn floor_div_i64(a : Int64, b : Int64) -> Int64 {
+  let q = a / b
+  if a % b != 0L && (a < 0L) != (b < 0L) {
+    q - 1L
+  } else {
+    q
   }
-
-  // Add remaining years
-  while remaining >= 365 {
-    let days_in_year = if is_leap_year(year) { 366 } else { 365 }
-    if remaining < days_in_year {
-      break
-    }
-    remaining = remaining - days_in_year
-    year = year + 1
-  }
-
-  // Add months
-  let mut month = 1
-  while remaining >= days_in_month(year, month) {
-    remaining = remaining - days_in_month(year, month)
-    month = month + 1
-  }
-  let day = remaining + 1
-  (year, month, day)
 }
 
 ///|
 /// Convert microseconds since epoch to timestamp string.
 fn timestamp_to_string(micros : Int64) -> String {
-  let seconds = micros / 1000000L
-  let days = seconds / 86400L
-  let secs_in_day = seconds % 86400L
+  let seconds = floor_div_i64(micros, 1000000L)
+  let days = floor_div_i64(seconds, 86400L)
+  let secs_in_day = seconds - days * 86400L
   let (year, month, day) = days_to_ymd(days.to_int())
   let hour = (secs_in_day / 3600L).to_int()
   let minute = (secs_in_day % 3600L / 60L).to_int()

@@ -245,7 +245,7 @@ test "prop_timestamp_roundtrip_valid_ymd_hms" {
 fn gen_decimal_parts() -> @gen.Gen[(Int, Int, Int)] {
   @gen.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
-    @gen.int_range(0, 1000).bind(fn(whole) {
+    @gen.int_range(-1000, 1000).bind(fn(whole) {
       let frac_gen = if max_frac == 0 {
         @gen.pure(0)
       } else {
@@ -267,7 +267,10 @@ test "prop_decimal_parts_roundtrip" {
       let (whole, frac, scale) = input
       let dec = decimal_from_parts(whole.to_int64(), frac.to_int64(), scale)
       let (whole2, frac2) = decimal_to_parts(dec)
-      if whole2.compare_int(whole) == 0 && frac2.compare_int(frac) == 0 {
+      // `frac` is a magnitude in `decimal_from_parts`; `decimal_to_parts`
+      // returns a signed remainder, so a negative `whole` yields `-frac`.
+      let expected_frac = if whole < 0 { -frac } else { frac }
+      if whole2.compare_int(whole) == 0 && frac2.compare_int(expected_frac) == 0 {
         Ok(())
       } else {
         Err(

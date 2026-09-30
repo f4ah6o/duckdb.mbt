@@ -311,7 +311,7 @@ pub fn BackendCapabilities::unsupported_error(
   self : BackendCapabilities,
   feature : BackendFeature,
 ) -> DuckDBError {
-  DuckDBError::Unsupported(feature=feature.name(), backend=self.backend.name())
+  unsupported_error(feature.name(), self.backend.name())
 }
 
 ///|
@@ -322,7 +322,7 @@ pub fn BackendCapabilities::unsupported(
   self : BackendCapabilities,
   feature : String,
 ) -> DuckDBError {
-  DuckDBError::Unsupported(feature~, backend=self.backend.name())
+  unsupported_error(feature, self.backend.name())
 }
 
 ///|
