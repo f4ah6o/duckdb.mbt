@@ -539,7 +539,7 @@ test "prop_appender_append_beyond_columns_errors" {
 ///|
 /// Property: end row with incomplete columns errors
 test "prop_appender_end_row_incomplete_errors" {
-  let gen = @gen.int_range(1, 10).bind(fn(col_count) {
+  let gen = @gen.int_range(1, 10).flat_map(fn(col_count) {
     @gen.int_range(0, col_count - 1).map(fn(current_count) {
       let model = AppenderModel::{
         state: AppenderState::RowInProgress,
@@ -755,8 +755,8 @@ test "prop_appender_column_count_resets" {
 ///|
 /// Property: appender state is always valid
 test "prop_appender_state_always_valid" {
-  let gen = @gen.int_range(1, 5).bind(fn(col_count) {
-    @gen.int_range(0, 30).bind(fn(len) {
+  let gen = @gen.int_range(1, 5).flat_map(fn(col_count) {
+    @gen.int_range(0, 30).flat_map(fn(len) {
       array_of(
         @gen.one_of([
           @gen.pure(AppenderCommand::Create("test_table")),
@@ -863,7 +863,7 @@ test "prop_appender_chunk_mid_row_errors" {
 ///|
 /// Property: chunk appends and row appends mix correctly
 test "prop_appender_chunk_and_row_mix" {
-  let gen = @gen.int_range(1, 10).bind(fn(chunk_rows) {
+  let gen = @gen.int_range(1, 10).flat_map(fn(chunk_rows) {
     @gen.int_range(1, 5).map(fn(row_appends) { (chunk_rows, row_appends) })
   })
   let config = CheckConfig::new(100, 20, 750017, 20)

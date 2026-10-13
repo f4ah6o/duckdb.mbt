@@ -432,16 +432,16 @@ test "prop_connection_invalid_transitions" {
 ///|
 /// Property: state machine invariants
 test "prop_connection_state_invariants" {
-  let gen = @gen.int_range(0, 20).bind(fn(len) {
+  let gen = @gen.int_range(0, 20).flat_map(fn(len) {
     array_of(
       @gen.one_of([
-        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
+        @gen.Generator::map(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
         @gen.pure(ConnectionCommand::Connect),
         @gen.pure(ConnectionCommand::Close),
         @gen.pure(ConnectionCommand::Execute),
-        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
+        @gen.Generator::map(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Prepare("SELECT " + n.to_string())
         }),
       ]),
@@ -485,12 +485,12 @@ test "prop_connection_state_invariants" {
 ///|
 /// Property: connection state is always valid
 test "prop_connection_state_always_valid" {
-  let gen = @gen.int_range(0, 30).bind(fn(len) {
+  let gen = @gen.int_range(0, 30).flat_map(fn(len) {
     array_of(
       @gen.one_of([
         @gen.pure(ConnectionCommand::Connect),
         @gen.pure(ConnectionCommand::Close),
-        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
+        @gen.Generator::map(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
         @gen.pure(ConnectionCommand::Execute),
@@ -524,10 +524,10 @@ test "prop_connection_state_always_valid" {
 ///|
 /// Property: query count never decreases
 test "prop_connection_query_count_never_decreases" {
-  let gen = @gen.int_range(0, 20).bind(fn(len) {
+  let gen = @gen.int_range(0, 20).flat_map(fn(len) {
     array_of(
       @gen.one_of([
-        @gen.Gen::fmap(@gen.int_range(0, 100), fn(n) {
+        @gen.Generator::map(@gen.int_range(0, 100), fn(n) {
           ConnectionCommand::Query("SELECT " + n.to_string())
         }),
         @gen.pure(ConnectionCommand::Connect),

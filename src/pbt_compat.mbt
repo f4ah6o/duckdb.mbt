@@ -63,7 +63,7 @@ fn[A] property_from_result(
 ///|
 pub fn[A : @debug.Debug] assert_check(
   name : String,
-  gen : @gen.Gen[A],
+  gen : @gen.Generator[A],
   check : (A) -> Result[Unit, String],
   config~ : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
@@ -80,7 +80,7 @@ pub fn[A : @debug.Debug] assert_check(
 
 ///|
 pub fn[A : @debug.Debug] check_with_stats(
-  gen : @gen.Gen[A],
+  gen : @gen.Generator[A],
   check : (A) -> (Result[Unit, String], String?),
   config~ : CheckConfig = CheckConfig::default(),
 ) -> CheckResult {
@@ -107,8 +107,8 @@ pub fn[A : @debug.Debug] check_with_stats(
 
 ///|
 /// Size-driven array generator compatible with previous Gen::array_of.
-pub fn[T] array_of(gen : @gen.Gen[T]) -> @gen.Gen[Array[T]] {
-  @gen.sized(fn(size) { @gen.Gen::array_with_size(gen, size) })
+pub fn[T] array_of(gen : @gen.Generator[T]) -> @gen.Generator[Array[T]] {
+  @gen.sized(fn(size) { @gen.Generator::array_with_size(gen, size) })
 }
 
 ///|

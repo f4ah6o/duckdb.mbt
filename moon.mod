@@ -3,7 +3,7 @@ name = "f4ah6o/duckdb"
 version = "0.7.0"
 
 import {
-  "moonbitlang/quickcheck@0.14.0",
+  "moonbitlang/quickcheck@0.15.0",
 }
 
 readme = "README.mbt.md"
