@@ -117,18 +117,18 @@ extern "js" fn js_stream_next_vectors_ffi(
   stream : ResultStream,
   on_ok : (
     FixedArray[String],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
-    FixedArray[Int],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
+    FixedArray[Int32],
     FixedArray[String],
-    FixedArray[Int],
-    Int,
-    FixedArray[Int],
+    FixedArray[Int32],
+    Int32,
+    FixedArray[Int32],
     FixedArray[Int64],
     FixedArray[Double],
     FixedArray[String],
@@ -885,18 +885,18 @@ extern "js" fn js_stream_next_vectors_ffi(
 /// are located through the `shapes`/`shape_offsets` descriptor pool; struct
 /// field names through `names`/`name_offsets`.
 priv struct JsVectorPools {
-  type_ids : FixedArray[Int]
-  kinds : FixedArray[Int]
-  metas : FixedArray[Int]
-  offsets : FixedArray[Int]
-  slot_rows : FixedArray[Int]
-  flag_bases : FixedArray[Int]
-  null_flags : FixedArray[Int]
-  shapes : FixedArray[Int]
-  shape_offsets : FixedArray[Int]
+  type_ids : FixedArray[Int32]
+  kinds : FixedArray[Int32]
+  metas : FixedArray[Int32]
+  offsets : FixedArray[Int32]
+  slot_rows : FixedArray[Int32]
+  flag_bases : FixedArray[Int32]
+  null_flags : FixedArray[Int32]
+  shapes : FixedArray[Int32]
+  shape_offsets : FixedArray[Int32]
   names : FixedArray[String]
-  name_offsets : FixedArray[Int]
-  pool_i32 : FixedArray[Int]
+  name_offsets : FixedArray[Int32]
+  pool_i32 : FixedArray[Int32]
   pool_i64 : FixedArray[Int64]
   pool_f64 : FixedArray[Double]
   pool_str : FixedArray[String]
@@ -906,7 +906,7 @@ priv struct JsVectorPools {
 ///|
 /// Decode one pooled slot (column or nested child) into an owned `Vector`,
 /// recursing into child slots described by the `shapes` pool.
-fn js_vector_from_pools(pools : JsVectorPools, slot : Int) -> Vector {
+fn js_vector_from_pools(pools : JsVectorPools, slot : Int32) -> Vector {
   let rows = pools.slot_rows[slot]
   let flag_base = pools.flag_bases[slot]
   let validity = FixedArray::makei(rows, fn(row) {
@@ -1067,7 +1067,7 @@ fn js_vector_from_pools(pools : JsVectorPools, slot : Int) -> Vector {
 /// appended to the slot table in DFS order as their parent is emitted, so
 /// top-level slots are not necessarily `0..<ncols`: a top-level slot is any
 /// slot no `shapes` descriptor references as a child.
-fn js_top_level_slots(pools : JsVectorPools) -> Array[Int] {
+fn js_top_level_slots(pools : JsVectorPools) -> Array[Int32] {
   let nslots = pools.kinds.length()
   let referenced = FixedArray::makei(nslots, fn(_) { false })
   for slot in 0..<nslots {
@@ -1093,7 +1093,7 @@ fn js_top_level_slots(pools : JsVectorPools) -> Array[Int] {
       }
     }
   }
-  let out : Array[Int] = []
+  let out : Array[Int32] = []
   for slot in 0..<nslots {
     if !referenced[slot] {
       out.push(slot)
@@ -1111,7 +1111,7 @@ fn js_top_level_slots(pools : JsVectorPools) -> Array[Int] {
 /// names/types into `VectorChunk`s.
 fn js_chunk_is_eos(
   columns : FixedArray[String],
-  row_count : Int,
+  row_count : Int32,
   keep_schema~ : Bool,
 ) -> Bool {
   columns.length() == 0 || (row_count <= 0 && !keep_schema)

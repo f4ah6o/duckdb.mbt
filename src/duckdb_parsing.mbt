@@ -5,7 +5,7 @@
 
 ///|
 /// Map DuckDB type id to ColumnType.
-pub fn column_type_from_id(id : Int) -> ColumnType {
+pub fn column_type_from_id(id : Int32) -> ColumnType {
   match id {
     0 => ColumnType::Invalid
     1 => ColumnType::Boolean
@@ -200,7 +200,7 @@ pub fn is_double(s : String) -> Bool {
 
 ///|
 /// Parse string to Int.
-pub fn parse_int(s : String) -> Int {
+pub fn parse_int(s : String) -> Int32 {
   let mut result = 0
   let mut negative = false
   let mut start = 0
@@ -258,7 +258,7 @@ pub fn parse_double(s : String) -> Double {
 
 ///|
 /// Find dot position in string.
-fn find_dot(s : String) -> Int? {
+fn find_dot(s : String) -> Int32? {
   for i in 0..<s.length() {
     if s[i] == '.' {
       return Some(i)
@@ -290,7 +290,7 @@ fn is_date(s : String) -> Bool {
 
 ///|
 /// Parse ISO date string to days since epoch.
-pub fn parse_date(s : String) -> Result[Int, String] {
+pub fn parse_date(s : String) -> Result[Int32, String] {
   if !is_date(s) {
     Err("invalid date format")
   } else {
@@ -315,7 +315,7 @@ pub fn parse_date(s : String) -> Result[Int, String] {
 
 ///|
 /// Convert year, month, day to days since epoch (1970-01-01).
-pub fn date_to_days(year : Int, month : Int, day : Int) -> Int {
+pub fn date_to_days(year : Int32, month : Int32, day : Int32) -> Int32 {
   // Simplified calculation - days from 1970-01-01
   let y = year - 1970
   let mut days = y * 365
@@ -339,13 +339,13 @@ pub fn date_to_days(year : Int, month : Int, day : Int) -> Int {
 
 ///|
 /// Check if a year is a leap year.
-fn typed_is_leap_year(year : Int) -> Bool {
+fn typed_is_leap_year(year : Int32) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 ///|
 /// Get the number of days in a month.
-fn typed_days_in_month(year : Int, month : Int) -> Int {
+fn typed_days_in_month(year : Int32, month : Int32) -> Int32 {
   if month == 2 {
     if typed_is_leap_year(year) {
       29
@@ -399,7 +399,7 @@ pub fn parse_timestamp(s : String) -> Result[Int64, String] {
 
 ///|
 /// Parse fractional seconds (up to 6 digits) into microseconds.
-pub fn parse_fraction_to_micros(s : String) -> Int {
+pub fn parse_fraction_to_micros(s : String) -> Int32 {
   let mut micros = 0
   let mut factor = 100000
   for i in 0..<s.length() {

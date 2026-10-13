@@ -47,13 +47,13 @@ pub struct ArrowResult {
 
 ///|
 /// Number of result columns.
-pub fn ArrowResult::column_count(self : ArrowResult) -> Int {
+pub fn ArrowResult::column_count(self : ArrowResult) -> Int32 {
   self.columns.length()
 }
 
 ///|
 /// Total rows across all materialized chunks.
-pub fn ArrowResult::row_count(self : ArrowResult) -> Int {
+pub fn ArrowResult::row_count(self : ArrowResult) -> Int32 {
   let mut rows = 0
   for chunk in self.chunks {
     rows = rows + chunk.row_count()

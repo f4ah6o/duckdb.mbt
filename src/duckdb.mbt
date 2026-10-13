@@ -364,7 +364,7 @@ pub(all) enum ColumnType {
   StringLiteral
   IntegerLiteral
   TimeNs
-  Unknown(Int)
+  Unknown(Int32)
 } derive(Eq)
 
 ///|
@@ -416,8 +416,8 @@ fn touch_public_types(backend : JsBackend) -> Unit {
 /// `upper` is the signed high 64 bits, `lower` the unsigned low 64 bits of the
 /// scaled two's-complement integer (value * 10^scale).
 pub struct Decimal {
-  width : Int // Total number of digits
-  scale : Int // Digits after decimal point
+  width : Int32 // Total number of digits
+  scale : Int32 // Digits after decimal point
   lower : UInt64 // Lower 64 bits of the 128-bit value
   upper : Int64 // Upper 64 bits (sign extension for negative values)
 }
@@ -442,7 +442,7 @@ fn bigint_abs(value : BigInt) -> BigInt {
 
 ///|
 /// 10^n as a BigInt (n <= 0 yields 1).
-fn pow10_bigint(n : Int) -> BigInt {
+fn pow10_bigint(n : Int32) -> BigInt {
   if n <= 0 {
     BigInt::from_int(1)
   } else {
@@ -455,8 +455,8 @@ fn pow10_bigint(n : Int) -> BigInt {
 /// low 128 bits in two's-complement form.
 fn decimal_from_scaled_bigint(
   value : BigInt,
-  width : Int,
-  scale : Int,
+  width : Int32,
+  scale : Int32,
 ) -> Decimal {
   let mask = (BigInt::from_int(1) << 64) - BigInt::from_int(1)
   {
@@ -486,8 +486,8 @@ fn decimal_render(decimal : Decimal) -> String {
 /// Date/time interval type.
 /// Represents a span of time in months, days, and microseconds.
 pub struct Interval {
-  months : Int // Months
-  days : Int // Days
+  months : Int32 // Months
+  days : Int32 // Days
   micros : Int64 // Microseconds (Int64 to avoid overflow)
 }
 
@@ -520,13 +520,13 @@ pub struct Map {
 ///|
 /// Typed value representing a single DuckDB cell.
 pub(all) enum Value {
-  Int(Int)
+  Int(Int32)
   Int64(Int64)
   UInt64(UInt64)
   Double(Double)
   Bool(Bool)
   String(String)
-  Date(Int) // Days since 1970-01-01
+  Date(Int32) // Days since 1970-01-01
   Timestamp(Int64) // Microseconds since 1970-01-01
   TimestampNs(Int64) // Nanoseconds since 1970-01-01 (TIMESTAMP_NS)
   Decimal(Decimal)
@@ -548,19 +548,23 @@ pub struct TypedQueryResult {
 }
 
 ///|
-pub fn QueryResult::row_count(self : QueryResult) -> Int {
+pub fn QueryResult::row_count(self : QueryResult) -> Int32 {
   self.rows.length()
 }
 
 ///|
-pub fn QueryResult::column_count(self : QueryResult) -> Int {
+pub fn QueryResult::column_count(self : QueryResult) -> Int32 {
   self.columns.length()
 }
 
 ///|
 /// The string value at (`row`, `col`), or `None` when the cell is NULL or
 /// the indices are out of bounds (bounds-checked, never panics).
-pub fn QueryResult::cell(self : QueryResult, row : Int, col : Int) -> String? {
+pub fn QueryResult::cell(
+  self : QueryResult,
+  row : Int32,
+  col : Int32,
+) -> String? {
   if row < 0 ||
     row >= self.rows.length() ||
     col < 0 ||
@@ -576,19 +580,19 @@ pub fn QueryResult::cell(self : QueryResult, row : Int, col : Int) -> String? {
 }
 
 ///|
-pub fn DataChunk::row_count(self : DataChunk) -> Int {
+pub fn DataChunk::row_count(self : DataChunk) -> Int32 {
   self.rows.length()
 }
 
 ///|
-pub fn DataChunk::column_count(self : DataChunk) -> Int {
+pub fn DataChunk::column_count(self : DataChunk) -> Int32 {
   self.columns.length()
 }
 
 ///|
 /// The string value at (`row`, `col`), or `None` when the cell is NULL or
 /// the indices are out of bounds (bounds-checked, never panics).
-pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
+pub fn DataChunk::cell(self : DataChunk, row : Int32, col : Int32) -> String? {
   if row < 0 ||
     row >= self.rows.length() ||
     col < 0 ||
@@ -612,8 +616,8 @@ pub fn DataChunk::cell(self : DataChunk, row : Int, col : Int) -> String? {
 /// Returns the Value directly without requiring to_typed() conversion.
 pub fn QueryResult::get_value(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Value? {
   if row < 0 ||
     row >= self.rows.length() ||
@@ -635,7 +639,11 @@ pub fn QueryResult::get_value(
 ///|
 /// Get the integer value at the specified row and column.
 /// Returns None if the value is null or not an integer.
-pub fn QueryResult::get_int(self : QueryResult, row : Int, col : Int) -> Int? {
+pub fn QueryResult::get_int(
+  self : QueryResult,
+  row : Int32,
+  col : Int32,
+) -> Int32? {
   match self.get_value(row, col) {
     Some(Int(n)) => Some(n)
     _ => None
@@ -647,8 +655,8 @@ pub fn QueryResult::get_int(self : QueryResult, row : Int, col : Int) -> Int? {
 /// Returns None if the value is null or not a double.
 pub fn QueryResult::get_double(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Double? {
   match self.get_value(row, col) {
     Some(Double(d)) => Some(d)
@@ -659,7 +667,11 @@ pub fn QueryResult::get_double(
 ///|
 /// Get the boolean value at the specified row and column.
 /// Returns None if the value is null or not a boolean.
-pub fn QueryResult::get_bool(self : QueryResult, row : Int, col : Int) -> Bool? {
+pub fn QueryResult::get_bool(
+  self : QueryResult,
+  row : Int32,
+  col : Int32,
+) -> Bool? {
   match self.get_value(row, col) {
     Some(Bool(b)) => Some(b)
     _ => None
@@ -671,8 +683,8 @@ pub fn QueryResult::get_bool(self : QueryResult, row : Int, col : Int) -> Bool? 
 /// Returns None if the value is null.
 pub fn QueryResult::get_string(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> String? {
   match self.get_value(row, col) {
     Some(String(s)) => Some(s)
@@ -685,7 +697,11 @@ pub fn QueryResult::get_string(
 ///|
 /// Get the date value at the specified row and column.
 /// Returns None if the value is null or not a date.
-pub fn QueryResult::get_date(self : QueryResult, row : Int, col : Int) -> Int? {
+pub fn QueryResult::get_date(
+  self : QueryResult,
+  row : Int32,
+  col : Int32,
+) -> Int32? {
   match self.get_value(row, col) {
     Some(Date(d)) => Some(d)
     _ => None
@@ -697,8 +713,8 @@ pub fn QueryResult::get_date(self : QueryResult, row : Int, col : Int) -> Int? {
 /// Returns None if the value is null or not a timestamp.
 pub fn QueryResult::get_timestamp(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Int64? {
   match self.get_value(row, col) {
     Some(Timestamp(t)) => Some(t)
@@ -711,8 +727,8 @@ pub fn QueryResult::get_timestamp(
 /// Returns None if the value is null or not a decimal.
 pub fn QueryResult::get_decimal(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Decimal? {
   match self.get_value(row, col) {
     Some(Decimal(d)) => Some(d)
@@ -725,8 +741,8 @@ pub fn QueryResult::get_decimal(
 /// Returns None if the value is null or not a blob.
 pub fn QueryResult::get_blob(
   self : QueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Bytes? {
   match self.get_value(row, col) {
     Some(Blob(b)) => Some(b)

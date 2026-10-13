@@ -48,7 +48,7 @@ pub fn QueryResult::to_typed(self : QueryResult) -> TypedQueryResult {
 
 ///|
 /// Get the number of rows in the result.
-pub fn TypedQueryResult::row_count(self : TypedQueryResult) -> Int {
+pub fn TypedQueryResult::row_count(self : TypedQueryResult) -> Int32 {
   if self.data.length() == 0 {
     0
   } else {
@@ -58,7 +58,7 @@ pub fn TypedQueryResult::row_count(self : TypedQueryResult) -> Int {
 
 ///|
 /// Get the number of columns in the result.
-pub fn TypedQueryResult::column_count(self : TypedQueryResult) -> Int {
+pub fn TypedQueryResult::column_count(self : TypedQueryResult) -> Int32 {
   self.columns.length()
 }
 
@@ -66,8 +66,8 @@ pub fn TypedQueryResult::column_count(self : TypedQueryResult) -> Int {
 /// Get a value at the specified row and column.
 pub fn TypedQueryResult::get_value(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Value? {
   if row < 0 || row >= self.row_count() || col < 0 || col >= self.column_count() {
     None
@@ -80,9 +80,9 @@ pub fn TypedQueryResult::get_value(
 /// Get an Int value at the specified position.
 pub fn TypedQueryResult::get_int(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
-) -> Int? {
+  row : Int32,
+  col : Int32,
+) -> Int32? {
   match self.get_value(row, col) {
     Some(Value::Int(i)) => Some(i)
     _ => None
@@ -93,8 +93,8 @@ pub fn TypedQueryResult::get_int(
 /// Get a Double value at the specified position.
 pub fn TypedQueryResult::get_double(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Double? {
   match self.get_value(row, col) {
     Some(Value::Double(d)) => Some(d)
@@ -106,8 +106,8 @@ pub fn TypedQueryResult::get_double(
 /// Get a Bool value at the specified position.
 pub fn TypedQueryResult::get_bool(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Bool? {
   match self.get_value(row, col) {
     Some(Value::Bool(b)) => Some(b)
@@ -119,8 +119,8 @@ pub fn TypedQueryResult::get_bool(
 /// Get a String value at the specified position.
 pub fn TypedQueryResult::get_string(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> String? {
   match self.get_value(row, col) {
     Some(Value::String(s)) => Some(s)
@@ -132,9 +132,9 @@ pub fn TypedQueryResult::get_string(
 /// Get a Date value (days since epoch) at the specified position.
 pub fn TypedQueryResult::get_date(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
-) -> Int? {
+  row : Int32,
+  col : Int32,
+) -> Int32? {
   match self.get_value(row, col) {
     Some(Value::Date(d)) => Some(d)
     _ => None
@@ -145,8 +145,8 @@ pub fn TypedQueryResult::get_date(
 /// Get a Timestamp value (microseconds since epoch) at the specified position.
 pub fn TypedQueryResult::get_timestamp(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Int64? {
   match self.get_value(row, col) {
     Some(Value::Timestamp(t)) => Some(t)
@@ -158,8 +158,8 @@ pub fn TypedQueryResult::get_timestamp(
 /// Get a Decimal value at the specified position.
 pub fn TypedQueryResult::get_decimal(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Decimal? {
   match self.get_value(row, col) {
     Some(Value::Decimal(d)) => Some(d)
@@ -171,8 +171,8 @@ pub fn TypedQueryResult::get_decimal(
 /// Get a Blob value at the specified position.
 pub fn TypedQueryResult::get_blob(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Bytes? {
   match self.get_value(row, col) {
     Some(Value::Blob(b)) => Some(b)
@@ -184,8 +184,8 @@ pub fn TypedQueryResult::get_blob(
 /// Check if the value at the specified position is NULL.
 pub fn TypedQueryResult::is_null(
   self : TypedQueryResult,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Bool {
   match self.get_value(row, col) {
     Some(Value::Null) => true
@@ -201,7 +201,7 @@ pub fn TypedQueryResult::is_null(
 /// Get an entire column as typed values.
 pub fn TypedQueryResult::get_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Value]? {
   if col < 0 || col >= self.column_count() {
     None
@@ -214,11 +214,11 @@ pub fn TypedQueryResult::get_column(
 /// Get an entire column as Option[Int] values.
 pub fn TypedQueryResult::get_int_column(
   self : TypedQueryResult,
-  col : Int,
-) -> Array[Int?]? {
+  col : Int32,
+) -> Array[Int32?]? {
   match self.get_column(col) {
     Some(column) => {
-      let result : Array[Int?] = []
+      let result : Array[Int32?] = []
       for value in column {
         match value {
           Value::Int(v) => result.push(Some(v))
@@ -238,7 +238,7 @@ pub fn TypedQueryResult::get_int_column(
 /// Get an entire column as Option[Double] values.
 pub fn TypedQueryResult::get_double_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Double?]? {
   match self.get_column(col) {
     Some(column) => {
@@ -262,7 +262,7 @@ pub fn TypedQueryResult::get_double_column(
 /// Get an entire column as Option[Bool] values.
 pub fn TypedQueryResult::get_bool_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Bool?]? {
   match self.get_column(col) {
     Some(column) => {
@@ -286,7 +286,7 @@ pub fn TypedQueryResult::get_bool_column(
 /// Get an entire column as Option[String] values.
 pub fn TypedQueryResult::get_string_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[String?]? {
   match self.get_column(col) {
     Some(column) => {
@@ -310,11 +310,11 @@ pub fn TypedQueryResult::get_string_column(
 /// Get an entire column as Option[Int] date values.
 pub fn TypedQueryResult::get_date_column(
   self : TypedQueryResult,
-  col : Int,
-) -> Array[Int?]? {
+  col : Int32,
+) -> Array[Int32?]? {
   match self.get_column(col) {
     Some(column) => {
-      let result : Array[Int?] = []
+      let result : Array[Int32?] = []
       for value in column {
         match value {
           Value::Date(v) => result.push(Some(v))
@@ -334,7 +334,7 @@ pub fn TypedQueryResult::get_date_column(
 /// Get an entire column as Option[Int64] timestamp values.
 pub fn TypedQueryResult::get_timestamp_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Int64?]? {
   match self.get_column(col) {
     Some(column) => {
@@ -358,7 +358,7 @@ pub fn TypedQueryResult::get_timestamp_column(
 /// Get an entire column as Option[Decimal] values.
 pub fn TypedQueryResult::get_decimal_column(
   self : TypedQueryResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Decimal?]? {
   match self.get_column(col) {
     Some(column) => {
@@ -384,7 +384,7 @@ pub fn TypedQueryResult::get_decimal_column(
 
 ///|
 /// Get the integer value if present, None otherwise.
-pub fn Value::as_int(self : Value) -> Int? {
+pub fn Value::as_int(self : Value) -> Int32? {
   match self {
     Int(i) => Some(i)
     _ => None
@@ -420,7 +420,7 @@ pub fn Value::as_string(self : Value) -> String? {
 
 ///|
 /// Get the date value if present, None otherwise.
-pub fn Value::as_date(self : Value) -> Int? {
+pub fn Value::as_date(self : Value) -> Int32? {
   match self {
     Date(d) => Some(d)
     _ => None
@@ -524,7 +524,7 @@ pub fn Value::to_string(self : Value) -> String {
 
 ///|
 /// Pad an integer with leading zeros to 2 digits.
-fn pad_int_2(n : Int) -> String {
+fn pad_int_2(n : Int32) -> String {
   if n < 10 {
     "0\{n}"
   } else {
@@ -534,7 +534,7 @@ fn pad_int_2(n : Int) -> String {
 
 ///|
 /// Pad a string with leading zeros to specified length.
-fn pad_int(s : String, len : Int) -> String {
+fn pad_int(s : String, len : Int32) -> String {
   if s.length() >= len {
     s
   } else {
@@ -549,7 +549,7 @@ fn pad_int(s : String, len : Int) -> String {
 ///|
 /// Convert days since epoch to year, month, day. Howard Hinnant's
 /// `civil_from_days` — correct for any day count, including pre-epoch.
-pub fn days_to_ymd(days : Int) -> (Int, Int, Int) {
+pub fn days_to_ymd(days : Int32) -> (Int32, Int32, Int32) {
   let z = days.to_int64() + 719468L
   let era = floor_div_i64(z, 146097L)
   let doe = z - era * 146097L // [0, 146096]
@@ -589,13 +589,13 @@ fn timestamp_to_string(micros : Int64) -> String {
 
 ///|
 /// Check if a year is a leap year.
-pub fn is_leap_year(year : Int) -> Bool {
+pub fn is_leap_year(year : Int32) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
 ///|
 /// Get the number of days in a month.
-pub fn days_in_month(year : Int, month : Int) -> Int {
+pub fn days_in_month(year : Int32, month : Int32) -> Int32 {
   if month == 2 {
     if is_leap_year(year) {
       29
@@ -611,7 +611,7 @@ pub fn days_in_month(year : Int, month : Int) -> Int {
 
 ///|
 /// Compute 10^n for decimal scaling.
-pub fn int_pow10(n : Int) -> Int64 {
+pub fn int_pow10(n : Int32) -> Int64 {
   if n <= 0 {
     1L
   } else if n == 1 {

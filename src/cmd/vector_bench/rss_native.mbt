@@ -1,14 +1,14 @@
 ///|
 /// Peak RSS via `getrusage(2)` — no C stub required; links straight to libc.
 #borrow(usage)
-extern "C" fn c_getrusage(who : Int, usage : FixedArray[Int64]) -> Int = "getrusage"
+extern "C" fn c_getrusage(who : Int32, usage : FixedArray[Int64]) -> Int32 = "getrusage"
 
 ///|
 /// `uname(2)` — POSIX on both Linux and Darwin; `sysname` distinguishes
 /// them. utsname char fields are 65 bytes on Linux and 256 on Darwin, so a
 /// 2048-byte buffer covers either layout.
 #borrow(buf)
-extern "C" fn c_uname(buf : FixedArray[Byte]) -> Int = "uname"
+extern "C" fn c_uname(buf : FixedArray[Byte]) -> Int32 = "uname"
 
 ///|
 /// Peak resident set size in KiB. Linux reports `ru_maxrss` in KiB — the

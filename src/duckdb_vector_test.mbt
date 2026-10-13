@@ -150,7 +150,7 @@ fn first_chunk(chunks : Array[VectorChunk]) -> VectorChunk {
 
 ///|
 /// Collect every (row, col) cell of all chunks via `get_value`.
-fn collect_values(chunks : Array[VectorChunk], col : Int) -> Array[Value] {
+fn collect_values(chunks : Array[VectorChunk], col : Int32) -> Array[Value] {
   let out : Array[Value] = []
   for chunk in chunks {
     for row in 0..<chunk.row_count() {
@@ -221,7 +221,7 @@ test "query_chunks integer column exposes raw int array" {
         Some(vector) =>
           match vector.ints() {
             Some(values) => {
-              let collected : Array[Int] = []
+              let collected : Array[Int32] = []
               for i in 0..<values.length() {
                 collected.push(values[i])
               }
@@ -496,7 +496,7 @@ test "ResultStream::next_chunk yields typed chunks" {
         Some(vector) =>
           match vector.ints() {
             Some(values) => {
-              let collected : Array[Int] = []
+              let collected : Array[Int32] = []
               for i in 0..<values.length() {
                 collected.push(values[i])
               }
@@ -512,7 +512,7 @@ test "ResultStream::next_chunk yields typed chunks" {
 
 ///|
 test "ResultStream::next compat still works" {
-  let counts_ref : Ref[Array[Int]] = Ref::new([])
+  let counts_ref : Ref[Array[Int32]] = Ref::new([])
   let rows_ref : Ref[Array[String]] = Ref::new([])
   let error_ref : Ref[String?] = Ref::new(None)
   connect(on_ready=fn(result) {
@@ -657,8 +657,8 @@ test "query_chunks decodes fixed-size arrays" {
           }
           match vector.list_parts() {
             Some((child, offsets, lengths)) => {
-              let got_offsets : Array[Int] = []
-              let got_lengths : Array[Int] = []
+              let got_offsets : Array[Int32] = []
+              let got_lengths : Array[Int32] = []
               for i in 0..<offsets.length() {
                 got_offsets.push(offsets[i].to_int())
                 got_lengths.push(lengths[i].to_int())
@@ -670,7 +670,7 @@ test "query_chunks decodes fixed-size arrays" {
               match child.ints() {
                 Some(xs) => {
                   inspect(xs.length(), content="9")
-                  let flat : Array[Int] = []
+                  let flat : Array[Int32] = []
                   for i in 0..<6 {
                     flat.push(xs[i])
                   }

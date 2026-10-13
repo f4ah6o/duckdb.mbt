@@ -7,7 +7,7 @@
 /// Run `sql` via `js_query_arrow` + `js_arrow_to_stream` drained through
 /// `js_stream_next_vectors_ffi` in a child node process, returning the
 /// pooled chunk payloads plus the arrow metadata externs' outputs.
-extern "js" fn js_run_arrow_vectors(backend : Int, sql : String) -> String =
+extern "js" fn js_run_arrow_vectors(backend : Int32, sql : String) -> String =
   #|(backend, sql) => {
   #|  const { execFileSync } = require("child_process");
   #|  const script = [
@@ -85,7 +85,7 @@ fn js_arrow_vector_chunks(
   backend : JsBackend,
   sql : String,
 ) -> Result[
-  (Array[VectorChunk], Array[String], Array[Int], Array[Bool]),
+  (Array[VectorChunk], Array[String], Array[Int32], Array[Bool]),
   String,
 ] {
   let js_backend = match backend {
@@ -233,8 +233,8 @@ test "js arrow vectors: nulls via validity" {
 }
 
 ///|
-fn chunk0_values(chunks : Array[VectorChunk]) -> Array[Int] {
-  let out : Array[Int] = []
+fn chunk0_values(chunks : Array[VectorChunk]) -> Array[Int32] {
+  let out : Array[Int32] = []
   for chunk in chunks {
     match chunk.column(0) {
       Some(vector) =>

@@ -11,14 +11,17 @@
 #borrow(chunk, col)
 extern "C" fn native_chunk_vector(
   chunk : NativeChunk,
-  col : Int,
+  col : Int32,
 ) -> NativeVector = "duckdb_mb_chunk_vector"
 
 ///|
 
 ///|
 #borrow(chunk, col)
-extern "C" fn native_chunk_column_type(chunk : NativeChunk, col : Int) -> Int = "duckdb_mb_chunk_column_type"
+extern "C" fn native_chunk_column_type(
+  chunk : NativeChunk,
+  col : Int32,
+) -> Int32 = "duckdb_mb_chunk_column_type"
 
 ///|
 
@@ -26,8 +29,8 @@ extern "C" fn native_chunk_column_type(chunk : NativeChunk, col : Int) -> Int = 
 #borrow(vector, rows)
 extern "C" fn native_vector_validity_flags(
   vector : NativeVector,
-  rows : Int,
-) -> FixedArray[Int] = "duckdb_mb_vector_validity_flags"
+  rows : Int32,
+) -> FixedArray[Int32] = "duckdb_mb_vector_validity_flags"
 
 ///|
 
@@ -35,8 +38,8 @@ extern "C" fn native_vector_validity_flags(
 #borrow(vector, rows)
 extern "C" fn native_vector_bool(
   vector : NativeVector,
-  rows : Int,
-) -> FixedArray[Int] = "duckdb_mb_vector_bool"
+  rows : Int32,
+) -> FixedArray[Int32] = "duckdb_mb_vector_bool"
 
 ///|
 
@@ -44,9 +47,9 @@ extern "C" fn native_vector_bool(
 #borrow(vector, type_id, rows)
 extern "C" fn native_vector_i32(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
-) -> FixedArray[Int] = "duckdb_mb_vector_i32"
+  type_id : Int32,
+  rows : Int32,
+) -> FixedArray[Int32] = "duckdb_mb_vector_i32"
 
 ///|
 
@@ -54,8 +57,8 @@ extern "C" fn native_vector_i32(
 #borrow(vector, type_id, rows)
 extern "C" fn native_vector_i64(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> FixedArray[Int64] = "duckdb_mb_vector_i64"
 
 ///|
@@ -64,7 +67,7 @@ extern "C" fn native_vector_i64(
 #borrow(vector, rows)
 extern "C" fn native_vector_u64(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[UInt64] = "duckdb_mb_vector_u64"
 
 ///|
@@ -73,7 +76,7 @@ extern "C" fn native_vector_u64(
 #borrow(vector, rows)
 extern "C" fn native_vector_f32(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[Float] = "duckdb_mb_vector_f32"
 
 ///|
@@ -82,7 +85,7 @@ extern "C" fn native_vector_f32(
 #borrow(vector, rows)
 extern "C" fn native_vector_f64(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[Double] = "duckdb_mb_vector_f64"
 
 ///|
@@ -91,8 +94,8 @@ extern "C" fn native_vector_f64(
 #borrow(vector, type_id, rows)
 extern "C" fn native_vector_strings(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> FixedArray[Bytes] = "duckdb_mb_vector_strings"
 
 ///|
@@ -101,7 +104,7 @@ extern "C" fn native_vector_strings(
 #borrow(vector, rows)
 extern "C" fn native_vector_blobs(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[Bytes] = "duckdb_mb_vector_blobs"
 
 ///|
@@ -110,8 +113,8 @@ extern "C" fn native_vector_blobs(
 #borrow(vector, type_id, rows)
 extern "C" fn native_vector_i128_lo(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> FixedArray[UInt64] = "duckdb_mb_vector_i128_lo"
 
 ///|
@@ -120,15 +123,15 @@ extern "C" fn native_vector_i128_lo(
 #borrow(vector, type_id, rows)
 extern "C" fn native_vector_i128_hi(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> FixedArray[Int64] = "duckdb_mb_vector_i128_hi"
 
 ///|
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_decimal_meta(vector : NativeVector) -> Int = "duckdb_mb_vector_decimal_meta"
+extern "C" fn native_vector_decimal_meta(vector : NativeVector) -> Int32 = "duckdb_mb_vector_decimal_meta"
 
 ///|
 
@@ -136,7 +139,7 @@ extern "C" fn native_vector_decimal_meta(vector : NativeVector) -> Int = "duckdb
 #borrow(vector, rows)
 extern "C" fn native_vector_decimal_lo(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[UInt64] = "duckdb_mb_vector_decimal_lo"
 
 ///|
@@ -145,7 +148,7 @@ extern "C" fn native_vector_decimal_lo(
 #borrow(vector, rows)
 extern "C" fn native_vector_decimal_hi(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[Int64] = "duckdb_mb_vector_decimal_hi"
 
 ///|
@@ -154,7 +157,7 @@ extern "C" fn native_vector_decimal_hi(
 #borrow(vector, rows)
 extern "C" fn native_vector_interval(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[Int64] = "duckdb_mb_vector_interval"
 
 ///|
@@ -163,7 +166,7 @@ extern "C" fn native_vector_interval(
 #borrow(vector, rows)
 extern "C" fn native_vector_list_offsets(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[UInt64] = "duckdb_mb_vector_list_offsets"
 
 ///|
@@ -172,7 +175,7 @@ extern "C" fn native_vector_list_offsets(
 #borrow(vector, rows)
 extern "C" fn native_vector_list_lengths(
   vector : NativeVector,
-  rows : Int,
+  rows : Int32,
 ) -> FixedArray[UInt64] = "duckdb_mb_vector_list_lengths"
 
 ///|
@@ -191,25 +194,25 @@ extern "C" fn native_vector_list_child_size(vector : NativeVector) -> Int64 = "d
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_list_child_type(vector : NativeVector) -> Int = "duckdb_mb_vector_list_child_type"
+extern "C" fn native_vector_list_child_type(vector : NativeVector) -> Int32 = "duckdb_mb_vector_list_child_type"
 
 ///|
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_map_key_type(vector : NativeVector) -> Int = "duckdb_mb_vector_map_key_type"
+extern "C" fn native_vector_map_key_type(vector : NativeVector) -> Int32 = "duckdb_mb_vector_map_key_type"
 
 ///|
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_map_value_type(vector : NativeVector) -> Int = "duckdb_mb_vector_map_value_type"
+extern "C" fn native_vector_map_value_type(vector : NativeVector) -> Int32 = "duckdb_mb_vector_map_value_type"
 
 ///|
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_struct_child_count(vector : NativeVector) -> Int = "duckdb_mb_vector_struct_child_count"
+extern "C" fn native_vector_struct_child_count(vector : NativeVector) -> Int32 = "duckdb_mb_vector_struct_child_count"
 
 ///|
 
@@ -217,7 +220,7 @@ extern "C" fn native_vector_struct_child_count(vector : NativeVector) -> Int = "
 #borrow(vector, child)
 extern "C" fn native_vector_struct_child(
   vector : NativeVector,
-  child : Int,
+  child : Int32,
 ) -> NativeVector = "duckdb_mb_vector_struct_child"
 
 ///|
@@ -226,7 +229,7 @@ extern "C" fn native_vector_struct_child(
 #borrow(vector, child)
 extern "C" fn native_vector_struct_child_name(
   vector : NativeVector,
-  child : Int,
+  child : Int32,
 ) -> Bytes = "duckdb_mb_vector_struct_child_name"
 
 ///|
@@ -235,14 +238,14 @@ extern "C" fn native_vector_struct_child_name(
 #borrow(vector, child)
 extern "C" fn native_vector_struct_child_type(
   vector : NativeVector,
-  child : Int,
-) -> Int = "duckdb_mb_vector_struct_child_type"
+  child : Int32,
+) -> Int32 = "duckdb_mb_vector_struct_child_type"
 
 ///|
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_array_size(vector : NativeVector) -> Int = "duckdb_mb_vector_array_size"
+extern "C" fn native_vector_array_size(vector : NativeVector) -> Int32 = "duckdb_mb_vector_array_size"
 
 ///|
 
@@ -254,7 +257,7 @@ extern "C" fn native_vector_array_child(vector : NativeVector) -> NativeVector =
 
 ///|
 #borrow(vector)
-extern "C" fn native_vector_array_child_type(vector : NativeVector) -> Int = "duckdb_mb_vector_array_child_type"
+extern "C" fn native_vector_array_child_type(vector : NativeVector) -> Int32 = "duckdb_mb_vector_array_child_type"
 
 ///|
 
@@ -268,7 +271,7 @@ extern "C" fn native_result_fetch_chunk(result : NativeResult) -> NativeChunk = 
 #borrow(chunk, col)
 extern "C" fn native_chunk_col_strings(
   chunk : NativeChunk,
-  col : Int,
+  col : Int32,
 ) -> FixedArray[Bytes] = "duckdb_mb_chunk_col_strings"
 
 ///|
@@ -277,8 +280,8 @@ extern "C" fn native_chunk_col_strings(
 #borrow(vector, type_id, row)
 extern "C" fn native_vector_cell_string(
   vector : NativeVector,
-  type_id : Int,
-  row : Int,
+  type_id : Int32,
+  row : Int32,
 ) -> Bytes = "duckdb_mb_vector_cell_string"
 
 // ============================================================================
@@ -290,8 +293,8 @@ extern "C" fn native_vector_cell_string(
 /// `type_id` is the column's `duckdb_type` id; `rows` the element count.
 fn vector_from_native(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> Vector {
   let validity = validity_from_flags(
     native_vector_validity_flags(vector, rows),
@@ -305,8 +308,8 @@ fn vector_from_native(
 ///|
 fn vector_data_from_native(
   vector : NativeVector,
-  type_id : Int,
-  rows : Int,
+  type_id : Int32,
+  rows : Int32,
 ) -> VectorData {
   match type_id {
     1 =>
@@ -606,7 +609,7 @@ fn native_chunk_string_rows(
   let row_count = native_chunk_row_count(chunk)
   let column_count = native_chunk_column_count(chunk)
   let column_cells : Array[FixedArray[Bytes]] = []
-  let column_validity : Array[FixedArray[Int]] = []
+  let column_validity : Array[FixedArray[Int32]] = []
   for col in 0..<column_count {
     column_cells.push(native_chunk_col_strings(chunk, col))
     column_validity.push(
@@ -638,6 +641,9 @@ fn native_chunk_string_rows(
 ///|
 /// Build a `FixedArray[Bool]` validity mask from `0`/`1` flags produced by a
 /// backend reader (`1` = valid). `flags` must have `rows` elements.
-fn validity_from_flags(flags : FixedArray[Int], rows : Int) -> FixedArray[Bool] {
+fn validity_from_flags(
+  flags : FixedArray[Int32],
+  rows : Int32,
+) -> FixedArray[Bool] {
   FixedArray::makei(rows, fn(i) { i < flags.length() && flags[i] == 1 })
 }

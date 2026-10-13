@@ -4,7 +4,7 @@
 
 ///|
 /// Check if year is a leap year (divisible by 4, not by 100, unless also by 400)
-fn _is_leap_year_internal(year : Int) -> Bool {
+fn _is_leap_year_internal(year : Int32) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 
@@ -12,8 +12,8 @@ fn _is_leap_year_internal(year : Int) -> Bool {
 /// Property: date_from_ymd/date_to_ymd round-trip
 /// Converting a date to days and back should yield the original date
 test "prop_date_roundtrip" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
@@ -45,8 +45,8 @@ test "prop_date_roundtrip" {
 /// Converting a timestamp to microseconds and back should yield the original timestamp
 test "prop_timestamp_roundtrip" {
   let gen = @gen.int_range(1970, 2100)
-    .bind(fn(year) {
-      @gen.int_range(1, 12).bind(fn(month) {
+    .flat_map(fn(year) {
+      @gen.int_range(1, 12).flat_map(fn(month) {
         let max_day = match month {
           2 => if _is_leap_year_internal(year) { 29 } else { 28 }
           4 | 6 | 9 | 11 => 30
@@ -55,10 +55,10 @@ test "prop_timestamp_roundtrip" {
         @gen.int_range(1, max_day).map(fn(day) { (year, month, day) })
       })
     })
-    .bind(fn(date) {
+    .flat_map(fn(date) {
       let (year, month, day) = date
-      @gen.int_range(0, 23).bind(fn(hour) {
-        @gen.int_range(0, 59).bind(fn(minute) {
+      @gen.int_range(0, 23).flat_map(fn(hour) {
+        @gen.int_range(0, 59).flat_map(fn(minute) {
           @gen.int_range(0, 59).map(fn(second) {
             (year, month, day, hour, minute, second)
           })
@@ -204,7 +204,7 @@ test "prop_value_int_roundtrip" {
 /// Property: Value::Double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_value_double_roundtrip" {
-  let gen = @gen.int_range(-1000000, 1000000).bind(fn(whole) {
+  let gen = @gen.int_range(-1000000, 1000000).flat_map(fn(whole) {
     @gen.int_range(1, 999).map(fn(frac) {
       whole.to_double() + frac.to_double() / 1000.0
     })
@@ -262,7 +262,7 @@ test "prop_value_bool_roundtrip" {
 /// Property: Value::String round-trip
 /// Converting a string to value and parsing should yield the original string
 test "prop_value_string_roundtrip" {
-  let gen = @gen.Gen::fmap(@gen.int_range(0, 255), fn(code) {
+  let gen = @gen.Generator::map(@gen.int_range(0, 255), fn(code) {
     "x" + code.to_string()
   })
   let config = CheckConfig::new(500, 100, 77777, 30)
@@ -316,7 +316,7 @@ test "prop_parse_int_boundary_values" {
 /// is_integer should correctly identify valid and invalid integer strings
 test "prop_is_integer_edge_cases" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
     @gen.pure(""),
     @gen.pure("+"),
     @gen.pure("-"),
@@ -365,8 +365,10 @@ test "prop_is_integer_edge_cases" {
 /// is_double should correctly identify valid and invalid double strings
 test "prop_is_double_edge_cases" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() + ".5" }),
-    @gen.Gen::fmap(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-10000, 10000), fn(n) {
+      n.to_string() + ".5"
+    }),
+    @gen.Generator::map(@gen.int_range(-10000, 10000), fn(n) { n.to_string() }),
     @gen.pure("."),
     @gen.pure("1.2.3"),
     @gen.pure(".123"),
@@ -417,7 +419,7 @@ test "prop_is_double_edge_cases" {
 /// Property: parse_double round-trip
 /// Converting a double to string and parsing should yield approximately the same value
 test "prop_parse_double_roundtrip" {
-  let gen = @gen.Gen::fmap(@gen.int_range(-1000000, 1000000), fn(n) {
+  let gen = @gen.Generator::map(@gen.int_range(-1000000, 1000000), fn(n) {
     n.to_double() / 1000.0
   })
   let config = CheckConfig::new(1000, 100, 141414, 50)
@@ -470,11 +472,11 @@ test "prop_parse_double_special" {
 /// Parsing doubles should handle large and small values correctly
 test "prop_parse_double_boundary" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) { n.to_double() }),
-    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
+    @gen.Generator::map(@gen.int_range(-100000, 100000), fn(n) { n.to_double() }),
+    @gen.Generator::map(@gen.int_range(-100000, 100000), fn(n) {
       n.to_double() / 1000.0
     }),
-    @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
+    @gen.Generator::map(@gen.int_range(-100000, 100000), fn(n) {
       n.to_double() / 1000000.0
     }),
   ])
@@ -514,8 +516,8 @@ test "prop_parse_double_boundary" {
 /// Property: parse_date format validation
 /// parse_date should correctly handle valid date formats
 test "prop_parse_date_format" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
@@ -547,8 +549,8 @@ test "prop_parse_date_format" {
 /// Property: parse_date round-trip
 /// Converting date to days and back should yield the original date
 test "prop_parse_date_roundtrip" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
@@ -590,11 +592,11 @@ test "prop_parse_date_roundtrip" {
 /// Property: parse_timestamp format validation
 /// parse_timestamp should correctly handle valid timestamp formats
 test "prop_parse_timestamp_format" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
-      @gen.int_range(1, 28).bind(fn(day) {
-        @gen.int_range(0, 23).bind(fn(hour) {
-          @gen.int_range(0, 59).bind(fn(minute) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
+      @gen.int_range(1, 28).flat_map(fn(day) {
+        @gen.int_range(0, 23).flat_map(fn(hour) {
+          @gen.int_range(0, 59).flat_map(fn(minute) {
             @gen.int_range(0, 59).map(fn(second) {
               let y_str = year.to_string()
               let m_str = if month < 10 {
@@ -640,8 +642,8 @@ test "prop_parse_timestamp_format" {
 /// Converting timestamp to microseconds and back should yield the original timestamp
 /// NOTE: Simplified test - only validates parsing, not full round-trip due to date_to_days issues
 test "prop_parse_timestamp_roundtrip" {
-  let gen = @gen.int_range(0, 23).bind(fn(hour) {
-    @gen.int_range(0, 59).bind(fn(minute) {
+  let gen = @gen.int_range(0, 23).flat_map(fn(hour) {
+    @gen.int_range(0, 59).flat_map(fn(minute) {
       @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
@@ -673,7 +675,7 @@ test "prop_parse_timestamp_roundtrip" {
 /// Property: is_leap_year divisible by 400
 /// Years divisible by 400 are always leap years
 test "prop_is_leap_year_divisible_by_400" {
-  let gen = @gen.Gen::fmap(@gen.int_range(0, 10), fn(n) { n * 400 + 1600 })
+  let gen = @gen.Generator::map(@gen.int_range(0, 10), fn(n) { n * 400 + 1600 })
   let config = CheckConfig::new(100, 10, 212121, 10)
   assert_check(
     "years divisible by 400 are leap",
@@ -721,7 +723,7 @@ test "prop_is_leap_year_not_100_only" {
 /// Years divisible by 4 are leap years, except centuries not divisible by 400
 test "prop_is_leap_year_divisible_by_4" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(1, 24), fn(n) { n * 4 + 2000 }),
+    @gen.Generator::map(@gen.int_range(1, 24), fn(n) { n * 4 + 2000 }),
   ])
   let config = CheckConfig::new(100, 10, 232323, 10)
   assert_check(
@@ -886,7 +888,7 @@ test "prop_int_pow10_known_values" {
 /// Property: int_pow10 multiplicative
 /// int_pow10(a+b) == int_pow10(a) * int_pow10(b) for valid ranges
 test "prop_int_pow10_multiplicative" {
-  let gen = @gen.int_range(0, 5).bind(fn(a) {
+  let gen = @gen.int_range(0, 5).flat_map(fn(a) {
     @gen.int_range(0, 5).map(fn(b) { (a, b, a + b) })
   })
   let config = CheckConfig::new(200, 20, 292929, 20)
@@ -941,8 +943,8 @@ test "prop_int_pow10_monotonic" {
 /// Property: parse_value date detection
 /// parse_value should detect and parse date strings (YYYY-MM-DD)
 test "prop_parse_value_date_detection" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       @gen.int_range(1, 28).map(fn(day) {
         let m_str = if month < 10 { "0\{month}" } else { month.to_string() }
         let d_str = if day < 10 { "0\{day}" } else { day.to_string() }
@@ -969,8 +971,8 @@ test "prop_parse_value_date_detection" {
 /// Property: parse_value timestamp detection
 /// parse_value should detect and parse timestamp strings
 test "prop_parse_value_timestamp_detection" {
-  let gen = @gen.int_range(0, 23).bind(fn(hour) {
-    @gen.int_range(0, 59).bind(fn(minute) {
+  let gen = @gen.int_range(0, 23).flat_map(fn(hour) {
+    @gen.int_range(0, 59).flat_map(fn(minute) {
       @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
@@ -1004,8 +1006,10 @@ test "prop_parse_value_type_precedence" {
   let gen = @gen.one_of([
     @gen.pure("true"),
     @gen.pure("false"),
-    @gen.Gen::fmap(@gen.int_range(-1000, 1000), fn(n) { n.to_string() }),
-    @gen.Gen::fmap(@gen.int_range(-1000, 1000), fn(n) { n.to_string() + ".5" }),
+    @gen.Generator::map(@gen.int_range(-1000, 1000), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-1000, 1000), fn(n) {
+      n.to_string() + ".5"
+    }),
     @gen.pure("2024-01-01"),
     @gen.pure("2024-01-01 12:30:45"),
     @gen.pure("random_string"),
@@ -1040,8 +1044,8 @@ test "prop_parse_value_type_precedence" {
 /// Property: date_to_days round-trip
 /// Converting date to days and back should preserve the date
 test "prop_date_to_days_roundtrip" {
-  let gen = @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+  let gen = @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       let max_day = match month {
         2 => if _is_leap_year_internal(year) { 29 } else { 28 }
         4 | 6 | 9 | 11 => 30
@@ -1073,8 +1077,8 @@ test "prop_date_to_days_roundtrip" {
 /// parse_time_to_micros should correctly parse HH:MM:SS format
 /// NOTE: Simplified test - only validates parsing, not round-trip
 test "prop_parse_time_to_micros_format" {
-  let gen = @gen.int_range(0, 23).bind(fn(hour) {
-    @gen.int_range(0, 59).bind(fn(minute) {
+  let gen = @gen.int_range(0, 23).flat_map(fn(hour) {
+    @gen.int_range(0, 59).flat_map(fn(minute) {
       @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let m_str = if minute < 10 { "0\{minute}" } else { minute.to_string() }
@@ -1101,9 +1105,9 @@ test "prop_parse_time_to_micros_format" {
 /// Property: parse_time_to_micros fractional seconds
 /// parse_time_to_micros should correctly handle fractional seconds
 test "prop_parse_time_to_micros_fractional" {
-  let gen = @gen.int_range(0, 23).bind(fn(hour) {
-    @gen.int_range(0, 59).bind(fn(minute) {
-      @gen.int_range(0, 59).bind(fn(second) {
+  let gen = @gen.int_range(0, 23).flat_map(fn(hour) {
+    @gen.int_range(0, 59).flat_map(fn(minute) {
+      @gen.int_range(0, 59).flat_map(fn(second) {
         @gen.int_range(0, 999999).map(fn(micros) {
           let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
           let m_str = if minute < 10 {
@@ -1213,7 +1217,7 @@ test "prop_parse_fraction_to_micros" {
 /// Property: parse_double preserves negative sign
 /// Converting a negative double to string and parsing should preserve the sign
 test "prop_parse_double_negative_sign" {
-  let gen = @gen.Gen::fmap(
+  let gen = @gen.Generator::map(
     @gen.int_range(-1000000, -1), // Only negative values
     fn(n) { n.to_double() / 1000.0 },
   )
@@ -1299,7 +1303,7 @@ test "prop_value_int_to_string_roundtrip" {
 /// Property: Value::Double to_string and back round-trip
 /// Converting Double to string and parsing should recover approximately the same value
 test "prop_value_double_to_string_roundtrip" {
-  let gen = @gen.Gen::fmap(@gen.int_range(0, 1000000), fn(n) {
+  let gen = @gen.Generator::map(@gen.int_range(0, 1000000), fn(n) {
     n.to_double() / 1000.0
   })
   let config = CheckConfig::new(500, 100, 434343, 50)
@@ -1357,7 +1361,7 @@ test "prop_value_bool_to_string_roundtrip" {
 /// Property: Value::String to_string and back round-trip
 /// String values should round-trip correctly
 test "prop_value_string_to_string_roundtrip" {
-  let gen = @gen.Gen::fmap(@gen.int_range(0, 1000), fn(n) { "test_\{n}" })
+  let gen = @gen.Generator::map(@gen.int_range(0, 1000), fn(n) { "test_\{n}" })
   let config = CheckConfig::new(300, 50, 454545, 30)
   assert_check(
     "Value::String to_string round-trip",
@@ -1428,8 +1432,8 @@ test "prop_timestamp_to_string_format" {
 ///|
 /// Property: Timestamp round-trip via parse_timestamp
 test "prop_timestamp_roundtrip_via_parse" {
-  let gen = @gen.int_range(0, 23).bind(fn(hour) {
-    @gen.int_range(0, 59).bind(fn(minute) {
+  let gen = @gen.int_range(0, 23).flat_map(fn(hour) {
+    @gen.int_range(0, 59).flat_map(fn(minute) {
       @gen.int_range(0, 59).map(fn(second) {
         let h_str = if hour < 10 { "0\{hour}" } else { hour.to_string() }
         let min_str = if minute < 10 {
@@ -1566,13 +1570,13 @@ test "prop_days_to_ymd_monotonicity" {
 /// as_int should return Some only for Int values
 test "prop_value_as_int_type_safety" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
     @gen.pure("true"),
     @gen.pure("false"),
-    @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
+    @gen.Generator::map(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
   ])
   let config = CheckConfig::new(300, 50, 525252, 30)
   assert_check(
@@ -1608,8 +1612,8 @@ test "prop_value_as_int_type_safety" {
 /// as_double should return Some only for Double values
 test "prop_value_as_double_type_safety" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
     @gen.pure("true"),
@@ -1643,12 +1647,12 @@ test "prop_value_as_double_type_safety" {
 /// is_null should return true only for Value::Null
 test "prop_value_is_null_consistency" {
   let gen = @gen.one_of([
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
-    @gen.Gen::fmap(@gen.int_range(-100, 100), fn(n) {
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) { n.to_string() }),
+    @gen.Generator::map(@gen.int_range(-100, 100), fn(n) {
       (n.to_double() / 100.0).to_string()
     }),
     @gen.pure("true"),
-    @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
+    @gen.Generator::map(@gen.int_range(1, 100), fn(n) { "test\{n}" }),
   ])
   let config = CheckConfig::new(300, 50, 545454, 30)
   assert_check(
@@ -1929,7 +1933,7 @@ fn shrink_string(s : String) -> Iter[String] {
 /// Property: shrink_string produces shorter strings
 /// Shrunk strings should be shorter or empty
 test "prop_shrink_string_produces_shorter_strings" {
-  let gen = @gen.Gen::fmap(@gen.int_range(1, 100), fn(n) {
+  let gen = @gen.Generator::map(@gen.int_range(1, 100), fn(n) {
     let mut s = ""
     let mut i = 0
     while i < n {

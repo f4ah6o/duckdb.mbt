@@ -112,7 +112,7 @@ extern "js" fn js_arrow_columns(result : ArrowHandle) -> FixedArray[String] =
 ///|
 /// DuckDB type ids per column (arrow schema mapped on wasm, `columnTypeId`
 /// on Node; 0 = unknown).
-extern "js" fn js_arrow_type_ids(result : ArrowHandle) -> FixedArray[Int] =
+extern "js" fn js_arrow_type_ids(result : ArrowHandle) -> FixedArray[Int32] =
   #|(result) => {
   #|  // apache-arrow type -> duckdb type id (mirrors tidForArrowType in
   #|  // duckdb_vector_js.mbt; 0 = unknown).

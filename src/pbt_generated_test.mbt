@@ -1,8 +1,8 @@
 ///|
 /// Generate array of strings for map keys/values.
-fn gen_string_array_local() -> @gen.Gen[Array[String]] {
-  @gen.int_range(0, 20).bind(fn(len) {
-    @gen.Gen::fmap(array_of(@gen.int_range(0, 100)), fn(arr) {
+fn gen_string_array_local() -> @gen.Generator[Array[String]] {
+  @gen.int_range(0, 20).flat_map(fn(len) {
+    @gen.Generator::map(array_of(@gen.int_range(0, 100)), fn(arr) {
       let strs = arr.map(fn(n) { "key_" + n.to_string() })
       take_string_array(strs, len)
     })
@@ -11,15 +11,15 @@ fn gen_string_array_local() -> @gen.Gen[Array[String]] {
 
 ///|
 /// Generate pair of arrays for map_from_arrays.
-fn gen_map_arrays_local() -> @gen.Gen[(Array[String], Array[String])] {
-  @gen.int_range(0, 10).bind(fn(len) {
-    array_of(@gen.int_range(0, 100)).bind(fn(keys_arr) {
-      @gen.Gen::fmap(array_of(@gen.int_range(0, 100)), fn(vals_arr) {
+fn gen_map_arrays_local() -> @gen.Generator[(Array[String], Array[String])] {
+  @gen.int_range(0, 10).flat_map(fn(len) {
+    array_of(@gen.int_range(0, 100)).flat_map(fn(keys_arr) {
+      @gen.Generator::map(array_of(@gen.int_range(0, 100)), fn(vals_arr) {
         let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
         let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
-        let min_len = Int::min(
+        let min_len = Int32::min(
           len,
-          Int::min(keys_full.length(), values_full.length()),
+          Int32::min(keys_full.length(), values_full.length()),
         )
         let keys = take_string_array(keys_full, min_len)
         let values = take_string_array(values_full, min_len)
@@ -31,7 +31,7 @@ fn gen_map_arrays_local() -> @gen.Gen[(Array[String], Array[String])] {
 
 ///|
 /// Take the first N elements from an array (or fewer if shorter).
-fn take_string_array(arr : Array[String], len : Int) -> Array[String] {
+fn take_string_array(arr : Array[String], len : Int32) -> Array[String] {
   let result : Array[String] = []
   let mut i = 0
   let target = if len < arr.length() { len } else { arr.length() }
@@ -68,13 +68,13 @@ fn shrink_map_arrays_local(
   let (keys, values) = input
   let candidates : Array[(Array[String], Array[String])] = []
   for shrunk_keys in shrink_string_array_local(keys) {
-    let len = Int::min(shrunk_keys.length(), values.length())
+    let len = Int32::min(shrunk_keys.length(), values.length())
     let trimmed_keys = take_string_array(shrunk_keys, len)
     let trimmed_values = take_string_array(values, len)
     candidates.push((trimmed_keys, trimmed_values))
   }
   for shrunk_values in shrink_string_array_local(values) {
-    let len = Int::min(keys.length(), shrunk_values.length())
+    let len = Int32::min(keys.length(), shrunk_values.length())
     let trimmed_keys = take_string_array(keys, len)
     let trimmed_values = take_string_array(shrunk_values, len)
     candidates.push((trimmed_keys, trimmed_values))
@@ -154,7 +154,7 @@ test "prop_map_from_pairs_size_bounded_pbt" {
 }
 
 ///|
-fn pow10_int(exp : Int) -> Int {
+fn pow10_int(exp : Int32) -> Int32 {
   let mut result = 1
   let mut i = 0
   while i < exp {
@@ -165,11 +165,13 @@ fn pow10_int(exp : Int) -> Int {
 }
 
 ///|
-fn gen_valid_date() -> @gen.Gen[(Int, Int, Int)] {
-  @gen.int_range(1970, 2100).bind(fn(year) {
-    @gen.int_range(1, 12).bind(fn(month) {
+fn gen_valid_date() -> @gen.Generator[(Int32, Int32, Int32)] {
+  @gen.int_range(1970, 2100).flat_map(fn(year) {
+    @gen.int_range(1, 12).flat_map(fn(month) {
       let max_day = days_in_month(year, month)
-      @gen.Gen::fmap(@gen.int_range(1, max_day), fn(day) { (year, month, day) })
+      @gen.Generator::map(@gen.int_range(1, max_day), fn(day) {
+        (year, month, day)
+      })
     })
   })
 }
@@ -198,12 +200,14 @@ test "prop_date_roundtrip_valid_ymd" {
 }
 
 ///|
-fn gen_valid_timestamp_parts() -> @gen.Gen[(Int, Int, Int, Int, Int, Int)] {
-  gen_valid_date().bind(fn(date) {
+fn gen_valid_timestamp_parts() -> @gen.Generator[
+  (Int32, Int32, Int32, Int32, Int32, Int32),
+] {
+  gen_valid_date().flat_map(fn(date) {
     let (year, month, day) = date
-    @gen.int_range(0, 23).bind(fn(hour) {
-      @gen.int_range(0, 59).bind(fn(minute) {
-        @gen.Gen::fmap(@gen.int_range(0, 59), fn(second) {
+    @gen.int_range(0, 23).flat_map(fn(hour) {
+      @gen.int_range(0, 59).flat_map(fn(minute) {
+        @gen.Generator::map(@gen.int_range(0, 59), fn(second) {
           (year, month, day, hour, minute, second)
         })
       })
@@ -242,16 +246,16 @@ test "prop_timestamp_roundtrip_valid_ymd_hms" {
 }
 
 ///|
-fn gen_decimal_parts() -> @gen.Gen[(Int, Int, Int)] {
-  @gen.int_range(0, 6).bind(fn(scale) {
+fn gen_decimal_parts() -> @gen.Generator[(Int32, Int32, Int32)] {
+  @gen.int_range(0, 6).flat_map(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
-    @gen.int_range(-1000, 1000).bind(fn(whole) {
+    @gen.int_range(-1000, 1000).flat_map(fn(whole) {
       let frac_gen = if max_frac == 0 {
         @gen.pure(0)
       } else {
         @gen.int_range(0, max_frac)
       }
-      @gen.Gen::fmap(frac_gen, fn(frac) { (whole, frac, scale) })
+      @gen.Generator::map(frac_gen, fn(frac) { (whole, frac, scale) })
     })
   })
 }
@@ -392,10 +396,10 @@ test "prop_interval_from_months_micros_zero" {
 }
 
 ///|
-fn gen_interval_parts() -> @gen.Gen[(Int, Int, Int64)] {
-  @gen.int_range(-100000, 100000).bind(fn(months) {
-    @gen.int_range(-10000, 10000).bind(fn(days) {
-      @gen.Gen::fmap(@gen.int_range(-1000000, 1000000), fn(micros_int) {
+fn gen_interval_parts() -> @gen.Generator[(Int32, Int32, Int64)] {
+  @gen.int_range(-100000, 100000).flat_map(fn(months) {
+    @gen.int_range(-10000, 10000).flat_map(fn(days) {
+      @gen.Generator::map(@gen.int_range(-1000000, 1000000), fn(micros_int) {
         (months, days, micros_int.to_int64())
       })
     })
@@ -598,7 +602,7 @@ test "prop_struct_from_arrays_matches_from_pairs" {
 /// is_special_float_string returns true for each known special marker.
 test "prop_is_special_float_string_accepts_known" {
   let specials = ["nan", "NaN", "inf", "Infinity", "-inf", "-Infinity"]
-  let gen = @gen.Gen::fmap(@gen.int_range(0, specials.length()), fn(i) {
+  let gen = @gen.Generator::map(@gen.int_range(0, specials.length()), fn(i) {
     specials[i]
   })
   let config = CheckConfig::new(200, 20, 810012, 20)
@@ -619,7 +623,7 @@ test "prop_is_special_float_string_accepts_known" {
 ///|
 /// is_special_float_string rejects ordinary integer-looking strings.
 test "prop_is_special_float_string_rejects_integers" {
-  let gen = @gen.Gen::fmap(@gen.int_range(-100000, 100000), fn(n) {
+  let gen = @gen.Generator::map(@gen.int_range(-100000, 100000), fn(n) {
     n.to_string()
   })
   let config = CheckConfig::new(200, 20, 810013, 20)

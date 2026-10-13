@@ -3,25 +3,25 @@
 
 ///|
 struct CheckConfig {
-  cases : Int
-  max_size : Int
-  seed : Int
-  max_shrinks : Int
-  discard_ratio : Int
+  cases : Int32
+  max_size : Int32
+  seed : Int32
+  max_shrinks : Int32
+  discard_ratio : Int32
 }
 
 ///|
-pub fn CheckConfig::seed(self : CheckConfig) -> Int {
+pub fn CheckConfig::seed(self : CheckConfig) -> Int32 {
   self.seed
 }
 
 ///|
 pub fn CheckConfig::new(
-  cases : Int,
-  max_size : Int,
-  seed : Int,
-  max_shrinks : Int,
-  discard_ratio? : Int = 10,
+  cases : Int32,
+  max_size : Int32,
+  seed : Int32,
+  max_shrinks : Int32,
+  discard_ratio~ : Int32 = 10,
 ) -> CheckConfig {
   { cases, max_size, seed, max_shrinks, discard_ratio, }
 }
@@ -63,9 +63,9 @@ fn[A] property_from_result(
 ///|
 pub fn[A : @debug.Debug] assert_check(
   name : String,
-  gen : @gen.Gen[A],
+  gen : @gen.Generator[A],
   check : (A) -> Result[Unit, String],
-  config? : CheckConfig = CheckConfig::default(),
+  config~ : CheckConfig = CheckConfig::default(),
   shrink? : (A) -> Iter[A],
 ) -> Unit {
   let cfg = config
@@ -80,9 +80,9 @@ pub fn[A : @debug.Debug] assert_check(
 
 ///|
 pub fn[A : @debug.Debug] check_with_stats(
-  gen : @gen.Gen[A],
+  gen : @gen.Generator[A],
   check : (A) -> (Result[Unit, String], String?),
-  config? : CheckConfig = CheckConfig::default(),
+  config~ : CheckConfig = CheckConfig::default(),
 ) -> CheckResult {
   let cfg = config
   let _ = cfg
@@ -107,13 +107,13 @@ pub fn[A : @debug.Debug] check_with_stats(
 
 ///|
 /// Size-driven array generator compatible with previous Gen::array_of.
-pub fn[T] array_of(gen : @gen.Gen[T]) -> @gen.Gen[Array[T]] {
-  @gen.sized(fn(size) { @gen.Gen::array_with_size(gen, size) })
+pub fn[T] array_of(gen : @gen.Generator[T]) -> @gen.Generator[Array[T]] {
+  @gen.sized(fn(size) { @gen.Generator::array_with_size(gen, size) })
 }
 
 ///|
 /// Simple integer shrinker for legacy shrink_int usage.
-pub fn shrink_int(value : Int) -> Iter[Int] {
-  let candidates : Array[Int] = if value == 0 { [] } else { [0, value / 2] }
+pub fn shrink_int(value : Int32) -> Iter[Int32] {
+  let candidates : Array[Int32] = if value == 0 { [] } else { [0, value / 2] }
   candidates.iter()
 }

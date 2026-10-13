@@ -28,7 +28,7 @@ fn main {
 }
 
 ///|
-fn fmt_rows_per_s(rows : Int, elapsed : Double) -> String {
+fn fmt_rows_per_s(rows : Int32, elapsed : Double) -> String {
   if elapsed <= 0.0 {
     "inf"
   } else {
@@ -37,7 +37,7 @@ fn fmt_rows_per_s(rows : Int, elapsed : Double) -> String {
 }
 
 ///|
-fn bench_row_wise(conn : @lib.Connection, rows : Int) -> Unit {
+fn bench_row_wise(conn : @lib.Connection, rows : Int32) -> Unit {
   let start = @bench.monotonic_clock_start()
   conn.create_appender("main", "bench_row", on_done=fn(result) {
     match result {
@@ -98,7 +98,7 @@ fn bench_row_wise(conn : @lib.Connection, rows : Int) -> Unit {
 }
 
 ///|
-fn bench_chunk_wise(conn : @lib.Connection, rows : Int) -> Unit {
+fn bench_chunk_wise(conn : @lib.Connection, rows : Int32) -> Unit {
   let chunk_rows = 2048
   // Prebuild the reusable chunk payloads once; the benchmark measures append,
   // not VectorData construction.
