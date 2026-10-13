@@ -9,7 +9,7 @@ fn spec_vector(logical_type : ColumnType, data : VectorData) -> Vector {
 }
 
 ///|
-fn spec_i32(n : Int) -> VectorData {
+fn spec_i32(n : Int32) -> VectorData {
   VectorData::Int32(FixedArray::make(n, 7))
 }
 

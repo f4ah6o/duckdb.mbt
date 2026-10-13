@@ -16,7 +16,7 @@
 
 ///|
 /// Parse a positive decimal integer, or `None` for anything else.
-fn parse_rows(s : String) -> Int? {
+fn parse_rows(s : String) -> Int32? {
   if s.length() == 0 {
     return None
   }
@@ -68,7 +68,11 @@ fn main {
 }
 
 ///|
-fn bench_string_path(conn : @lib.Connection, sql : String, rows : Int) -> Unit {
+fn bench_string_path(
+  conn : @lib.Connection,
+  sql : String,
+  rows : Int32,
+) -> Unit {
   let rss_before = peak_rss_kb()
   let start = @bench.monotonic_clock_start()
   let mut checksum = 0.0
@@ -101,7 +105,7 @@ fn bench_string_path(conn : @lib.Connection, sql : String, rows : Int) -> Unit {
 }
 
 ///|
-fn bench_typed_path(conn : @lib.Connection, sql : String, rows : Int) -> Unit {
+fn bench_typed_path(conn : @lib.Connection, sql : String, rows : Int32) -> Unit {
   let rss_before = peak_rss_kb()
   let start = @bench.monotonic_clock_start()
   let mut checksum = 0.0
@@ -151,7 +155,7 @@ fn bench_typed_path(conn : @lib.Connection, sql : String, rows : Int) -> Unit {
 }
 
 ///|
-fn fmt_rows_per_s(rows : Int, elapsed_ms : Double) -> String {
+fn fmt_rows_per_s(rows : Int32, elapsed_ms : Double) -> String {
   if elapsed_ms <= 0.0 {
     return "inf"
   }

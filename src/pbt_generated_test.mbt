@@ -17,9 +17,9 @@ fn gen_map_arrays_local() -> @gen.Gen[(Array[String], Array[String])] {
       @gen.Gen::fmap(array_of(@gen.int_range(0, 100)), fn(vals_arr) {
         let keys_full = keys_arr.map(fn(n) { "key_" + n.to_string() })
         let values_full = vals_arr.map(fn(n) { "val_" + n.to_string() })
-        let min_len = Int::min(
+        let min_len = Int32::min(
           len,
-          Int::min(keys_full.length(), values_full.length()),
+          Int32::min(keys_full.length(), values_full.length()),
         )
         let keys = take_string_array(keys_full, min_len)
         let values = take_string_array(values_full, min_len)
@@ -31,7 +31,7 @@ fn gen_map_arrays_local() -> @gen.Gen[(Array[String], Array[String])] {
 
 ///|
 /// Take the first N elements from an array (or fewer if shorter).
-fn take_string_array(arr : Array[String], len : Int) -> Array[String] {
+fn take_string_array(arr : Array[String], len : Int32) -> Array[String] {
   let result : Array[String] = []
   let mut i = 0
   let target = if len < arr.length() { len } else { arr.length() }
@@ -68,13 +68,13 @@ fn shrink_map_arrays_local(
   let (keys, values) = input
   let candidates : Array[(Array[String], Array[String])] = []
   for shrunk_keys in shrink_string_array_local(keys) {
-    let len = Int::min(shrunk_keys.length(), values.length())
+    let len = Int32::min(shrunk_keys.length(), values.length())
     let trimmed_keys = take_string_array(shrunk_keys, len)
     let trimmed_values = take_string_array(values, len)
     candidates.push((trimmed_keys, trimmed_values))
   }
   for shrunk_values in shrink_string_array_local(values) {
-    let len = Int::min(keys.length(), shrunk_values.length())
+    let len = Int32::min(keys.length(), shrunk_values.length())
     let trimmed_keys = take_string_array(keys, len)
     let trimmed_values = take_string_array(shrunk_values, len)
     candidates.push((trimmed_keys, trimmed_values))
@@ -154,7 +154,7 @@ test "prop_map_from_pairs_size_bounded_pbt" {
 }
 
 ///|
-fn pow10_int(exp : Int) -> Int {
+fn pow10_int(exp : Int32) -> Int32 {
   let mut result = 1
   let mut i = 0
   while i < exp {
@@ -165,7 +165,7 @@ fn pow10_int(exp : Int) -> Int {
 }
 
 ///|
-fn gen_valid_date() -> @gen.Gen[(Int, Int, Int)] {
+fn gen_valid_date() -> @gen.Gen[(Int32, Int32, Int32)] {
   @gen.int_range(1970, 2100).bind(fn(year) {
     @gen.int_range(1, 12).bind(fn(month) {
       let max_day = days_in_month(year, month)
@@ -198,7 +198,9 @@ test "prop_date_roundtrip_valid_ymd" {
 }
 
 ///|
-fn gen_valid_timestamp_parts() -> @gen.Gen[(Int, Int, Int, Int, Int, Int)] {
+fn gen_valid_timestamp_parts() -> @gen.Gen[
+  (Int32, Int32, Int32, Int32, Int32, Int32),
+] {
   gen_valid_date().bind(fn(date) {
     let (year, month, day) = date
     @gen.int_range(0, 23).bind(fn(hour) {
@@ -242,7 +244,7 @@ test "prop_timestamp_roundtrip_valid_ymd_hms" {
 }
 
 ///|
-fn gen_decimal_parts() -> @gen.Gen[(Int, Int, Int)] {
+fn gen_decimal_parts() -> @gen.Gen[(Int32, Int32, Int32)] {
   @gen.int_range(0, 6).bind(fn(scale) {
     let max_frac = if scale == 0 { 0 } else { pow10_int(scale) - 1 }
     @gen.int_range(-1000, 1000).bind(fn(whole) {
@@ -392,7 +394,7 @@ test "prop_interval_from_months_micros_zero" {
 }
 
 ///|
-fn gen_interval_parts() -> @gen.Gen[(Int, Int, Int64)] {
+fn gen_interval_parts() -> @gen.Gen[(Int32, Int32, Int64)] {
   @gen.int_range(-100000, 100000).bind(fn(months) {
     @gen.int_range(-10000, 10000).bind(fn(days) {
       @gen.Gen::fmap(@gen.int_range(-1000000, 1000000), fn(micros_int) {

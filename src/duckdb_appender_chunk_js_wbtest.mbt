@@ -391,7 +391,7 @@ test "js append_chunk end-to-end through the MoonBit wrapper" {
 test "js append_chunk slices oversized input across appendDataChunk calls" {
   let appender = js_make_fake_node_appender()
   let rows = 5000
-  let ids : Array[Int] = []
+  let ids : Array[Int32] = []
   for i in 0..<rows {
     ids.push(i)
   }

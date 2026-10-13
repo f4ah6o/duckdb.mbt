@@ -250,7 +250,7 @@ fn decode_bool_matrix(json : Json) -> Result[Array[Array[Bool]], String] {
 }
 
 ///|
-fn decode_int(json : Json) -> Result[Int, String] {
+fn decode_int(json : Json) -> Result[Int32, String] {
   match json {
     Json::Number(n, ..) => Ok(parse_int(n.to_string()))
     Json::String(s) => Ok(parse_int(s))
@@ -297,7 +297,7 @@ fn decode_query_result(
 ///|
 fn decode_stream_result(
   payload : String,
-) -> Result[(Array[String], Int), String] {
+) -> Result[(Array[String], Int32), String] {
   let json = @json.parse(payload) catch {
     err => return Err("parse failed: \{err.to_string()}")
   }
@@ -361,7 +361,7 @@ fn run_js_query(
 fn run_js_stream_count(
   backend : JsBackend,
   sql : String,
-) -> Result[(Array[String], Int), String] {
+) -> Result[(Array[String], Int32), String] {
   let payload = js_run_stream_count(backend, sql)
   if payload is "" {
     Err("no output from js runner")
@@ -1671,7 +1671,7 @@ fn run_appender_test(
   backend : JsBackend,
   setup_sql : String,
   table : String,
-  operations : Array[(String, Int)],
+  operations : Array[(String, Int32)],
 ) -> Result[(Array[String], Array[Array[String]], Array[Array[Bool]]), String] {
   // Convert operations to JSON
   let mut ops_json = "["

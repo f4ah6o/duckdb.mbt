@@ -26,7 +26,7 @@
 /// TIME_TZ, BIGNUM, ...), holding per-cell `Value`s.
 pub(all) enum VectorData {
   Bool(FixedArray[Bool])
-  Int32(FixedArray[Int])
+  Int32(FixedArray[Int32])
   Int64(FixedArray[Int64])
   UInt64(FixedArray[UInt64])
   Float(FixedArray[Float])
@@ -124,7 +124,7 @@ pub fn chunks_to_query_result(chunks : Array[VectorChunk]) -> QueryResult {
 
 ///|
 /// Number of rows in this chunk.
-pub fn VectorChunk::row_count(self : VectorChunk) -> Int {
+pub fn VectorChunk::row_count(self : VectorChunk) -> Int32 {
   if self.vectors.length() == 0 {
     0
   } else {
@@ -134,13 +134,13 @@ pub fn VectorChunk::row_count(self : VectorChunk) -> Int {
 
 ///|
 /// Number of columns in this chunk.
-pub fn VectorChunk::column_count(self : VectorChunk) -> Int {
+pub fn VectorChunk::column_count(self : VectorChunk) -> Int32 {
   self.columns.length()
 }
 
 ///|
 /// The `i`-th column vector.
-pub fn VectorChunk::column(self : VectorChunk, index : Int) -> Vector? {
+pub fn VectorChunk::column(self : VectorChunk, index : Int32) -> Vector? {
   if index >= 0 && index < self.vectors.length() {
     Some(self.vectors[index])
   } else {
@@ -164,7 +164,7 @@ pub fn VectorChunk::column_by_name(
 
 ///|
 /// Logical type of column `col`.
-pub fn VectorChunk::column_type(self : VectorChunk, col : Int) -> ColumnType {
+pub fn VectorChunk::column_type(self : VectorChunk, col : Int32) -> ColumnType {
   match self.column(col) {
     Some(vector) => vector.logical_type
     None => ColumnType::Invalid
@@ -176,8 +176,8 @@ pub fn VectorChunk::column_type(self : VectorChunk, col : Int) -> ColumnType {
 /// cell is NULL.
 pub fn VectorChunk::get_value(
   self : VectorChunk,
-  row : Int,
-  col : Int,
+  row : Int32,
+  col : Int32,
 ) -> Value? {
   match self.column(col) {
     Some(vector) =>
@@ -192,7 +192,11 @@ pub fn VectorChunk::get_value(
 
 ///|
 /// True when the cell at (`row`, `col`) is NULL.
-pub fn VectorChunk::is_null(self : VectorChunk, row : Int, col : Int) -> Bool {
+pub fn VectorChunk::is_null(
+  self : VectorChunk,
+  row : Int32,
+  col : Int32,
+) -> Bool {
   match self.column(col) {
     Some(vector) =>
       if row >= 0 && row < vector.len() {
@@ -264,13 +268,13 @@ pub fn VectorChunk::to_typed(self : VectorChunk) -> TypedQueryResult {
 
 ///|
 /// Number of rows in this vector.
-pub fn Vector::len(self : Vector) -> Int {
+pub fn Vector::len(self : Vector) -> Int32 {
   self.validity.length()
 }
 
 ///|
 /// True when row `row` is NULL.
-pub fn Vector::is_null(self : Vector, row : Int) -> Bool {
+pub fn Vector::is_null(self : Vector, row : Int32) -> Bool {
   if row >= 0 && row < self.validity.length() {
     !self.validity[row]
   } else {
@@ -282,7 +286,7 @@ pub fn Vector::is_null(self : Vector, row : Int) -> Bool {
 /// The raw `FixedArray[Int]` payload for an `Int32` vector, or `None` for
 /// other storage kinds. Combined with `validity` this exposes the column
 /// without per-cell boxing.
-pub fn Vector::ints(self : Vector) -> FixedArray[Int]? {
+pub fn Vector::ints(self : Vector) -> FixedArray[Int32]? {
   match self.data {
     Int32(values) => Some(values)
     _ => None
@@ -412,7 +416,7 @@ pub fn Vector::any_cells(self : Vector) -> Array[Value]? {
 ///|
 /// The typed `Value` for row `row`. Caller must ensure the row is valid
 /// (`!is_null(row)`); NULL rows return `Value::Null`.
-pub fn Vector::value_at(self : Vector, row : Int) -> Value {
+pub fn Vector::value_at(self : Vector, row : Int32) -> Value {
   if self.is_null(row) {
     return Value::Null
   }
@@ -510,7 +514,7 @@ pub fn Vector::value_at(self : Vector, row : Int) -> Value {
 /// Render row `row` of this vector as a DuckDB-style string (best-effort
 /// match to `duckdb_value_varchar` output). Used by the compat facade; NULL
 /// rows yield `""`.
-pub fn Vector::string_at(self : Vector, row : Int) -> String {
+pub fn Vector::string_at(self : Vector, row : Int32) -> String {
   if self.is_null(row) {
     return ""
   }
@@ -682,13 +686,13 @@ fn normalize_exponent(s : String) -> String {
 
 ///|
 /// `YYYY-MM-DD` for days since epoch.
-fn date_render(days : Int) -> String {
+fn date_render(days : Int32) -> String {
   let (year, month, day) = days_to_ymd(days)
   "\{year}-\{pad2(month)}-\{pad2(day)}"
 }
 
 ///|
-fn pad2(n : Int) -> String {
+fn pad2(n : Int32) -> String {
   if n < 10 {
     "0\{n}"
   } else {
@@ -761,7 +765,9 @@ fn timestamp_nanos_render(nanos : Int64) -> String {
 ///|
 /// Split microseconds since epoch into (year, month, day, hour, min, sec,
 /// microfraction), floor-dividing for negative timestamps.
-fn split_micros(micros : Int64) -> (Int, Int, Int, Int, Int, Int, Int64) {
+fn split_micros(
+  micros : Int64,
+) -> (Int32, Int32, Int32, Int32, Int32, Int32, Int64) {
   let total_seconds = micros / 1000000L
   let mut frac = micros % 1000000L
   let mut secs = total_seconds
@@ -790,7 +796,7 @@ fn split_micros(micros : Int64) -> (Int, Int, Int, Int, Int, Int, Int64) {
 ///|
 /// A fractional part rendered with `width` digits then trailing zeros
 /// stripped (DuckDB prints the minimal precision needed).
-fn trim_frac(frac : Int64, width : Int) -> String {
+fn trim_frac(frac : Int64, width : Int32) -> String {
   let mut digits = frac.to_string()
   for _ in digits.length()..<width {
     digits = "0" + digits
@@ -888,7 +894,7 @@ fn blob_render(bytes : Bytes) -> String {
 }
 
 ///|
-fn hex_digit(n : Int) -> Char {
+fn hex_digit(n : Int32) -> Char {
   if n < 10 {
     ('0'.to_int() + n).unsafe_to_char()
   } else {

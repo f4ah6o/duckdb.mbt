@@ -19,7 +19,7 @@ fn run_js_stream_vectors(
 }
 
 ///|
-extern "js" fn js_run_stream_vectors(backend : Int, sql : String) -> String =
+extern "js" fn js_run_stream_vectors(backend : Int32, sql : String) -> String =
   #|(backend, sql) => {
   #|  const { execFileSync } = require("child_process");
   #|  const script = [
@@ -180,7 +180,7 @@ fn parse_chunks_json(json : String) -> Result[Array[VectorChunk], String] {
 }
 
 ///|
-fn json_int_array(json : Json?) -> Array[Int] {
+fn json_int_array(json : Json?) -> Array[Int32] {
   match json {
     Some(Json::Array(items)) => items.map(fn(v) { json_to_int(Some(v)) })
     _ => []
@@ -203,7 +203,7 @@ fn json_i64_array(json : Json?) -> FixedArray[Int64] {
 }
 
 ///|
-fn json_to_int(json : Json?) -> Int {
+fn json_to_int(json : Json?) -> Int32 {
   match json {
     Some(Json::Number(n, ..)) => n.to_int()
     Some(Json::String(s)) => parse_int64_digits(s).to_int()

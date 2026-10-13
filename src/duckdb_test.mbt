@@ -34,9 +34,9 @@ fn run_native_query(sql : String) -> Result[QueryResult, String] {
 ///|
 fn run_native_stream_count(
   sql : String,
-) -> Result[(Array[String], Int), String] {
+) -> Result[(Array[String], Int32), String] {
   let columns_ref : Ref[Array[String]?] = Ref::new(None)
-  let count_ref : Ref[Int] = Ref::new(0)
+  let count_ref : Ref[Int32] = Ref::new(0)
   let error_ref : Ref[String?] = Ref::new(None)
   connect(on_ready=fn(result) {
     match result {

@@ -26,13 +26,13 @@
 /// this call returns.
 extern "js" fn js_appender_append_chunk_ffi(
   appender : Appender,
-  type_ids : FixedArray[Int],
-  metas : FixedArray[Int],
-  kinds : FixedArray[Int],
-  offsets : FixedArray[Int],
-  rows : Int,
-  null_flags : FixedArray[Int],
-  pool_i32 : FixedArray[Int],
+  type_ids : FixedArray[Int32],
+  metas : FixedArray[Int32],
+  kinds : FixedArray[Int32],
+  offsets : FixedArray[Int32],
+  rows : Int32,
+  null_flags : FixedArray[Int32],
+  pool_i32 : FixedArray[Int32],
   pool_i64 : FixedArray[Int64],
   pool_f64 : FixedArray[Double],
   pool_str : FixedArray[String],
@@ -203,13 +203,13 @@ extern "js" fn js_appender_append_chunk_ffi(
 /// payloads never reach here — `append_chunk_specs` rejects them first.
 fn js_pack_chunk(
   chunk : VectorChunk,
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> (
-  FixedArray[Int],
-  FixedArray[Int],
-  FixedArray[Int],
-  FixedArray[Int],
+  FixedArray[Int32],
+  FixedArray[Int32],
+  FixedArray[Int32],
+  FixedArray[Int32],
   FixedArray[Int64],
   FixedArray[Double],
   FixedArray[String],
@@ -219,7 +219,7 @@ fn js_pack_chunk(
   let kinds = FixedArray::make(ncols, 0)
   let offsets = FixedArray::make(ncols, 0)
   let null_flags = FixedArray::make(rows * ncols, 0)
-  let pool_i32 : Array[Int] = []
+  let pool_i32 : Array[Int32] = []
   let pool_i64 : Array[Int64] = []
   let pool_f64 : Array[Double] = []
   let pool_str : Array[String] = []

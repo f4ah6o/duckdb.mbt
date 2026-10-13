@@ -44,9 +44,9 @@ fn arrow_chunks_or_fail(result : ArrowResult) -> Array[VectorChunk] raise {
 /// Concatenate `ints()` payloads of column `col` across all chunks.
 fn arrow_column_ints(
   chunks : Array[VectorChunk],
-  col : Int,
-) -> Array[Int] raise {
-  let out : Array[Int] = []
+  col : Int32,
+) -> Array[Int32] raise {
+  let out : Array[Int32] = []
   for chunk in chunks {
     match chunk.column(col) {
       Some(vector) =>
@@ -71,7 +71,7 @@ fn arrow_column_ints(
 /// Concatenate `int64s()` payloads of column `col` across all chunks.
 fn arrow_column_int64s(
   chunks : Array[VectorChunk],
-  col : Int,
+  col : Int32,
 ) -> Array[Int64] raise {
   let out : Array[Int64] = []
   for chunk in chunks {
@@ -602,7 +602,7 @@ test "native arrow struct column (nested)" {
 /// Validity mask of column `col` across all chunks (true = non-NULL).
 fn arrow_column_validity(
   chunks : Array[VectorChunk],
-  col : Int,
+  col : Int32,
 ) -> Array[Bool] raise {
   let out : Array[Bool] = []
   for chunk in chunks {

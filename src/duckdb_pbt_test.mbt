@@ -4,7 +4,7 @@
 
 ///|
 /// Check if year is a leap year (divisible by 4, not by 100, unless also by 400)
-fn _is_leap_year_internal(year : Int) -> Bool {
+fn _is_leap_year_internal(year : Int32) -> Bool {
   (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
 }
 

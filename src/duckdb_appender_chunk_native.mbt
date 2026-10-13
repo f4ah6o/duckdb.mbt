@@ -23,14 +23,14 @@
 /// `aux[i]` carries `(width << 16) | scale` for DECIMAL columns.
 #borrow(type_ids, aux)
 extern "C" fn native_create_data_chunk_typed(
-  type_ids : FixedArray[Int],
-  aux : FixedArray[Int],
-  ncols : Int,
+  type_ids : FixedArray[Int32],
+  aux : FixedArray[Int32],
+  ncols : Int32,
 ) -> NativeDataChunk = "duckdb_mb_create_data_chunk_typed"
 
 ///|
 /// Row capacity of vectors inside a created data chunk.
-extern "C" fn native_vector_size() -> Int = "duckdb_mb_vector_size"
+extern "C" fn native_vector_size() -> Int32 = "duckdb_mb_vector_size"
 
 ///|
 #borrow(chunk)
@@ -42,7 +42,7 @@ extern "C" fn native_destroy_data_chunk(chunk : NativeDataChunk) = "duckdb_mb_de
 #borrow(chunk)
 extern "C" fn native_data_chunk_get_vector(
   chunk : NativeDataChunk,
-  col : Int,
+  col : Int32,
 ) -> NativeVector = "duckdb_mb_data_chunk_get_vector"
 
 ///|
@@ -72,18 +72,18 @@ extern "C" fn native_appender_append_data_chunk(
 #borrow(vector, flags)
 extern "C" fn native_vector_write_validity(
   vector : NativeVector,
-  flags : FixedArray[Int],
-  offset : Int,
-  rows : Int,
+  flags : FixedArray[Int32],
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_validity"
 
 ///|
 #borrow(vector, flags)
 extern "C" fn native_vector_write_bool(
   vector : NativeVector,
-  flags : FixedArray[Int],
-  offset : Int,
-  rows : Int,
+  flags : FixedArray[Int32],
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_bool"
 
 ///|
@@ -92,10 +92,10 @@ extern "C" fn native_vector_write_bool(
 #borrow(vector, values)
 extern "C" fn native_vector_write_i32(
   vector : NativeVector,
-  type_id : Int,
-  values : FixedArray[Int],
-  offset : Int,
-  rows : Int,
+  type_id : Int32,
+  values : FixedArray[Int32],
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_i32"
 
 ///|
@@ -104,10 +104,10 @@ extern "C" fn native_vector_write_i32(
 #borrow(vector, values)
 extern "C" fn native_vector_write_i64(
   vector : NativeVector,
-  type_id : Int,
+  type_id : Int32,
   values : FixedArray[Int64],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_i64"
 
 ///|
@@ -116,8 +116,8 @@ extern "C" fn native_vector_write_i64(
 extern "C" fn native_vector_write_u64(
   vector : NativeVector,
   values : FixedArray[UInt64],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_u64"
 
 ///|
@@ -125,8 +125,8 @@ extern "C" fn native_vector_write_u64(
 extern "C" fn native_vector_write_f32(
   vector : NativeVector,
   values : FixedArray[Float],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_f32"
 
 ///|
@@ -134,8 +134,8 @@ extern "C" fn native_vector_write_f32(
 extern "C" fn native_vector_write_f64(
   vector : NativeVector,
   values : FixedArray[Double],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_f64"
 
 ///|
@@ -145,8 +145,8 @@ extern "C" fn native_vector_write_f64(
 extern "C" fn native_vector_write_strings(
   vector : NativeVector,
   values : FixedArray[Bytes],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_strings"
 
 ///|
@@ -155,11 +155,11 @@ extern "C" fn native_vector_write_strings(
 #borrow(vector, upper, lower)
 extern "C" fn native_vector_write_i128(
   vector : NativeVector,
-  type_id : Int,
+  type_id : Int32,
   upper : FixedArray[Int64],
   lower : FixedArray[UInt64],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_i128"
 
 ///|
@@ -170,8 +170,8 @@ extern "C" fn native_vector_write_decimal(
   vector : NativeVector,
   upper : FixedArray[Int64],
   lower : FixedArray[UInt64],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_decimal"
 
 ///|
@@ -179,10 +179,10 @@ extern "C" fn native_vector_write_decimal(
 #borrow(vector, months_days, micros)
 extern "C" fn native_vector_write_interval(
   vector : NativeVector,
-  months_days : FixedArray[Int],
+  months_days : FixedArray[Int32],
   micros : FixedArray[Int64],
-  offset : Int,
-  rows : Int,
+  offset : Int32,
+  rows : Int32,
 ) -> Bool = "duckdb_mb_vector_write_interval"
 
 // ----------------------------------------------------------------------------
@@ -194,9 +194,9 @@ extern "C" fn native_vector_write_interval(
 /// validity writer.
 fn native_validity_flags(
   vector : Vector,
-  offset : Int,
-  rows : Int,
-) -> FixedArray[Int] {
+  offset : Int32,
+  rows : Int32,
+) -> FixedArray[Int32] {
   FixedArray::makei(rows, fn(i) {
     if vector.validity[offset + i] {
       1
@@ -213,9 +213,9 @@ fn native_validity_flags(
 fn write_column_native(
   vector : Vector,
   target : NativeVector,
-  type_id : Int,
-  offset : Int,
-  rows : Int,
+  type_id : Int32,
+  offset : Int32,
+  rows : Int32,
 ) -> Result[Unit, DuckDBError] {
   let write_error = fn() {
     append_error("append_chunk: failed to write column data")

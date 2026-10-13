@@ -198,8 +198,8 @@ pub fn Connection::load_quack(
 pub fn Connection::start_quack_server(
   self : Connection,
   uri : String,
-  token? : String = "",
-  allow_other_hostname? : Bool = false,
+  token~ : String = "",
+  allow_other_hostname~ : Bool = false,
   on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
 ) -> Unit {
   self.query(quack_serve_sql(uri, token, allow_other_hostname), on_done~)
@@ -231,8 +231,8 @@ pub fn Connection::quack_query(
   self : Connection,
   uri : String,
   sql : String,
-  token? : String = "",
-  disable_ssl? : Bool = false,
+  token~ : String = "",
+  disable_ssl~ : Bool = false,
   on_done~ : (Result[QueryResult, DuckDBError]) -> Unit,
 ) -> Unit {
   self.query(quack_query_sql(uri, sql, token, disable_ssl), on_done~)
@@ -247,7 +247,7 @@ pub fn Connection::quack_query(
 pub fn Connection::create_quack_secret(
   self : Connection,
   token : String,
-  scope? : String = "",
+  scope~ : String = "",
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   self.query(quack_secret_sql(token, scope), on_done=fn(result) {
@@ -265,8 +265,8 @@ pub fn Connection::attach_quack(
   self : Connection,
   uri : String,
   db_alias : String,
-  token? : String = "",
-  disable_ssl? : Bool = false,
+  token~ : String = "",
+  disable_ssl~ : Bool = false,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   match quack_identifier(db_alias) {
@@ -302,7 +302,7 @@ fn arrow_open_chunks(result : ArrowResult) -> Array[VectorChunk] {
 
 ///|
 /// Row `row` of `vector` coerced to `Int` (0 for NULL/unconvertible rows).
-fn arrow_row_int(vector : Vector, row : Int) -> Int {
+fn arrow_row_int(vector : Vector, row : Int32) -> Int32 {
   match vector.value_at(row) {
     Value::Int(n) => n
     Value::Int64(n) => n.to_int()
@@ -315,7 +315,7 @@ fn arrow_row_int(vector : Vector, row : Int) -> Int {
 
 ///|
 /// Row `row` of `vector` coerced to `Int64` (0 for NULL/unconvertible rows).
-fn arrow_row_int64(vector : Vector, row : Int) -> Int64 {
+fn arrow_row_int64(vector : Vector, row : Int32) -> Int64 {
   match vector.value_at(row) {
     Value::Int(n) => n.to_int64()
     Value::Int64(n) => n
@@ -328,7 +328,7 @@ fn arrow_row_int64(vector : Vector, row : Int) -> Int64 {
 
 ///|
 /// Row `row` of `vector` coerced to `Double` (0.0 for NULL/unconvertible).
-fn arrow_row_double(vector : Vector, row : Int) -> Double {
+fn arrow_row_double(vector : Vector, row : Int32) -> Double {
   match vector.value_at(row) {
     Value::Double(d) => d
     Value::Int(n) => n.to_double()
@@ -341,7 +341,7 @@ fn arrow_row_double(vector : Vector, row : Int) -> Double {
 
 ///|
 /// Row `row` of `vector` coerced to `Bool` (false for NULL/unconvertible).
-fn arrow_row_bool(vector : Vector, row : Int) -> Bool {
+fn arrow_row_bool(vector : Vector, row : Int32) -> Bool {
   match vector.value_at(row) {
     Value::Bool(b) => b
     Value::Int(n) => n != 0
@@ -353,7 +353,7 @@ fn arrow_row_bool(vector : Vector, row : Int) -> Bool {
 ///|
 /// Row `row` of `vector` rendered to `String` ("" for NULL rows), matching
 /// the legacy `duckdb_value_varchar` coercion semantics.
-fn arrow_row_string(vector : Vector, row : Int) -> String {
+fn arrow_row_string(vector : Vector, row : Int32) -> String {
   if !vector.validity[row] {
     ""
   } else {
@@ -367,9 +367,9 @@ fn arrow_row_string(vector : Vector, row : Int) -> String {
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::ints/value_at for new code")
 pub fn ArrowResult::get_column_int32(
   self : ArrowResult,
-  col : Int,
-) -> Array[Int] {
-  let values : Array[Int] = []
+  col : Int32,
+) -> Array[Int32] {
+  let values : Array[Int32] = []
   for chunk in arrow_open_chunks(self) {
     match chunk.column(col) {
       Some(vector) =>
@@ -393,7 +393,7 @@ pub fn ArrowResult::get_column_int32(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::int64s/value_at for new code")
 pub fn ArrowResult::get_column_int64(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Int64] {
   let values : Array[Int64] = []
   for chunk in arrow_open_chunks(self) {
@@ -418,7 +418,7 @@ pub fn ArrowResult::get_column_int64(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::doubles/value_at for new code")
 pub fn ArrowResult::get_column_double(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Double] {
   let values : Array[Double] = []
   for chunk in arrow_open_chunks(self) {
@@ -443,7 +443,7 @@ pub fn ArrowResult::get_column_double(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::bools/value_at for new code")
 pub fn ArrowResult::get_column_bool(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> Array[Bool] {
   let values : Array[Bool] = []
   for chunk in arrow_open_chunks(self) {
@@ -468,7 +468,7 @@ pub fn ArrowResult::get_column_bool(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::strings/string_at for new code")
 pub fn ArrowResult::get_column_string(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> Array[String] {
   let values : Array[String] = []
   for chunk in arrow_open_chunks(self) {
@@ -492,9 +492,9 @@ pub fn ArrowResult::get_column_string(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::ints and Vector::is_null for new code")
 pub fn ArrowResult::get_column_int32_nullable(
   self : ArrowResult,
-  col : Int,
-) -> (Array[Int], Array[Bool]) {
-  let values : Array[Int] = []
+  col : Int32,
+) -> (Array[Int32], Array[Bool]) {
+  let values : Array[Int32] = []
   let validity : Array[Bool] = []
   for chunk in arrow_open_chunks(self) {
     match chunk.column(col) {
@@ -519,7 +519,7 @@ pub fn ArrowResult::get_column_int32_nullable(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::int64s and Vector::is_null for new code")
 pub fn ArrowResult::get_column_int64_nullable(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> (Array[Int64], Array[Bool]) {
   let values : Array[Int64] = []
   let validity : Array[Bool] = []
@@ -545,7 +545,7 @@ pub fn ArrowResult::get_column_int64_nullable(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::doubles and Vector::is_null for new code")
 pub fn ArrowResult::get_column_double_nullable(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> (Array[Double], Array[Bool]) {
   let values : Array[Double] = []
   let validity : Array[Bool] = []
@@ -571,7 +571,7 @@ pub fn ArrowResult::get_column_double_nullable(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::strings and Vector::is_null for new code")
 pub fn ArrowResult::get_column_string_nullable(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> (Array[String], Array[Bool]) {
   let values : Array[String] = []
   let validity : Array[Bool] = []
@@ -597,7 +597,7 @@ pub fn ArrowResult::get_column_string_nullable(
 #deprecated("arrow getters now read canonical typed vectors; use ArrowResult::to_chunks with Vector::bools and Vector::is_null for new code")
 pub fn ArrowResult::get_column_bool_nullable(
   self : ArrowResult,
-  col : Int,
+  col : Int32,
 ) -> (Array[Bool], Array[Bool]) {
   let values : Array[Bool] = []
   let validity : Array[Bool] = []

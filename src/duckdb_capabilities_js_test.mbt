@@ -5,11 +5,11 @@
 // against node and wasm shapes without needing a live wasm engine.
 
 ///|
-extern "js" fn js_fake_connection(backend : Int) -> @duckdb.Connection =
+extern "js" fn js_fake_connection(backend : Int32) -> @duckdb.Connection =
   #|(backend) => ({ kind: backend === 2 ? "wasm" : "node" })
 
 ///|
-extern "js" fn js_fake_statement(backend : Int) -> @duckdb.PreparedStatement =
+extern "js" fn js_fake_statement(backend : Int32) -> @duckdb.PreparedStatement =
   #|(backend) => ({
   #|  kind: "prepared",
   #|  backend: backend === 2 ? "wasm" : "node",
@@ -23,7 +23,7 @@ extern "js" fn js_fake_statement(backend : Int) -> @duckdb.PreparedStatement =
   #|})
 
 ///|
-extern "js" fn js_fake_appender(backend : Int) -> @duckdb.Appender =
+extern "js" fn js_fake_appender(backend : Int32) -> @duckdb.Appender =
   #|(backend) => ({
   #|  kind: "appender",
   #|  connection: { kind: backend === 2 ? "wasm" : "node" },

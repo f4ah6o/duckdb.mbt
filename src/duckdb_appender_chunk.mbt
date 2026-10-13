@@ -21,7 +21,7 @@ pub fn Vector::all_valid(
 
 ///|
 /// Row count of a `VectorData` payload (0 for an empty nested payload).
-pub fn VectorData::len(self : VectorData) -> Int {
+pub fn VectorData::len(self : VectorData) -> Int32 {
   match self {
     Bool(values) => values.length()
     Int32(values) => values.length()
@@ -62,7 +62,7 @@ pub fn VectorChunk::new(
 ///|
 /// DuckDB type id for a `ColumnType` (inverse of `column_type_from_id`);
 /// `Unknown(id)` round-trips its payload.
-pub fn column_type_to_id(column_type : ColumnType) -> Int {
+pub fn column_type_to_id(column_type : ColumnType) -> Int32 {
   match column_type {
     Invalid => 0
     Boolean => 1
@@ -161,7 +161,7 @@ fn column_type_name(column_type : ColumnType) -> String {
 /// non-empty column list, matching names/vectors, per-vector payload/
 /// validity length agreement, and uniform row counts. Returns the chunk's
 /// row count.
-fn validate_vector_chunk(chunk : VectorChunk) -> Result[Int, DuckDBError] {
+fn validate_vector_chunk(chunk : VectorChunk) -> Result[Int32, DuckDBError] {
   let ncols = chunk.vectors.length()
   if ncols == 0 {
     return Err(
@@ -211,7 +211,7 @@ fn validate_vector_chunk(chunk : VectorChunk) -> Result[Int, DuckDBError] {
 fn column_write_spec(
   vector : Vector,
   backend : Backend,
-) -> Result[(Int, Int), DuckDBError] {
+) -> Result[(Int32, Int32), DuckDBError] {
   let unsupported = fn() {
     DuckDBError::Unsupported(
       feature="append_chunk for column type \{column_type_name(vector.logical_type)}",
@@ -359,7 +359,7 @@ fn column_write_spec(
 fn append_chunk_specs(
   chunk : VectorChunk,
   backend : Backend,
-) -> Result[(Int, FixedArray[Int], FixedArray[Int]), DuckDBError] {
+) -> Result[(Int32, FixedArray[Int32], FixedArray[Int32]), DuckDBError] {
   let rows = match validate_vector_chunk(chunk) {
     Ok(rows) => rows
     Err(err) => return Err(err)

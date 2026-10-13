@@ -18,12 +18,12 @@ pub enum AppenderState {
 pub enum AppenderCommand {
   Create(String) // table name
   BeginRow
-  AppendInt(Int)
+  AppendInt(Int32)
   AppendDouble(Double)
   AppendString(String)
   AppendBool(Bool)
   EndRow
-  AppendChunk(Int) // bulk-append a chunk of this many rows
+  AppendChunk(Int32) // bulk-append a chunk of this many rows
   Flush
   Close
 } derive(Show)
@@ -32,15 +32,15 @@ pub enum AppenderCommand {
 /// Appender model for state machine testing
 pub struct AppenderModel {
   state : AppenderState
-  column_count : Int
-  expected_columns : Int
-  row_count : Int
-  flushed_row_count : Int
+  column_count : Int32
+  expected_columns : Int32
+  row_count : Int32
+  flushed_row_count : Int32
 } derive(Show)
 
 ///|
 /// Initial appender model
-pub fn appender_model_initial(expected_columns : Int) -> AppenderModel {
+pub fn appender_model_initial(expected_columns : Int32) -> AppenderModel {
   AppenderModel::{
     state: AppenderState::NotCreated,
     column_count: 0,

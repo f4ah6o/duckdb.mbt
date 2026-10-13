@@ -26,7 +26,7 @@ pub enum ConnectionCommand {
 /// Connection model for state machine testing
 pub struct ConnectionModel {
   state : ConnectionState
-  query_count : Int
+  query_count : Int32
 } derive(Show)
 
 ///|

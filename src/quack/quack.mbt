@@ -173,8 +173,8 @@ pub fn load(
 pub fn serve(
   conn : @lib.Connection,
   uri : String,
-  token? : String = "",
-  allow_other_hostname? : Bool = false,
+  token~ : String = "",
+  allow_other_hostname~ : Bool = false,
   on_done~ : (Result[@lib.QueryResult, @lib.DuckDBError]) -> Unit,
 ) -> Unit {
   match require_quack(conn) {
@@ -209,8 +209,8 @@ pub fn query(
   conn : @lib.Connection,
   uri : String,
   sql : String,
-  token? : String = "",
-  disable_ssl? : Bool = false,
+  token~ : String = "",
+  disable_ssl~ : Bool = false,
   on_done~ : (Result[@lib.QueryResult, @lib.DuckDBError]) -> Unit,
 ) -> Unit {
   match require_quack(conn) {
@@ -225,7 +225,7 @@ pub fn query(
 pub fn create_secret(
   conn : @lib.Connection,
   token : String,
-  scope? : String = "",
+  scope~ : String = "",
   on_done~ : (Result[Unit, @lib.DuckDBError]) -> Unit,
 ) -> Unit {
   match require_quack(conn) {
@@ -247,8 +247,8 @@ pub fn attach(
   conn : @lib.Connection,
   uri : String,
   db_alias : String,
-  token? : String = "",
-  disable_ssl? : Bool = false,
+  token~ : String = "",
+  disable_ssl~ : Bool = false,
   on_done~ : (Result[Unit, @lib.DuckDBError]) -> Unit,
 ) -> Unit {
   match require_quack(conn) {

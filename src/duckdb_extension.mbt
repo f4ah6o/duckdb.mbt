@@ -167,8 +167,8 @@ fn attach_sql(
 pub fn Connection::install_extension(
   self : Connection,
   name : String,
-  repository? : String = "",
-  force? : Bool = false,
+  repository~ : String = "",
+  force~ : Bool = false,
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   match install_extension_sql(name, repository, force) {
@@ -213,8 +213,8 @@ pub fn Connection::load_extension(
 pub fn Connection::attach(
   self : Connection,
   uri : String,
-  db_alias? : String = "",
-  options? : String = "",
+  db_alias~ : String = "",
+  options~ : String = "",
   on_done~ : (Result[Unit, DuckDBError]) -> Unit,
 ) -> Unit {
   match attach_sql(uri, db_alias, options) {

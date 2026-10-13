@@ -68,7 +68,7 @@ fn run_native_chunk_append(
 }
 
 ///|
-fn int_vector(values : Array[Int]) -> Vector {
+fn int_vector(values : Array[Int32]) -> Vector {
   Vector::all_valid(
     ColumnType::Integer,
     VectorData::Int32(FixedArray::from_array(values)),
@@ -83,7 +83,7 @@ fn varchar_vector(values : Array[String]) -> Vector {
 ///|
 test "native append_chunk basic flat types" {
   let rows = 1000
-  let ids : Array[Int] = []
+  let ids : Array[Int32] = []
   let names : Array[String] = []
   let scores : Array[Double] = []
   let actives : Array[Bool] = []
@@ -335,7 +335,7 @@ test "native append_chunk splits inputs larger than vector capacity" {
   // (normally 2048); larger VectorChunks must be appended as consecutive
   // slices rather than overrunning the vector buffers.
   let rows = 5000
-  let ids : Array[Int] = []
+  let ids : Array[Int32] = []
   let names : Array[String] = []
   for i in 0..<rows {
     ids.push(i)
