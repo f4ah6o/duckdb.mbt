@@ -97,7 +97,10 @@ fn js_arrow_vector_chunks(
   if payload.has_prefix("ERR:") {
     return Err(payload)
   }
-  match (try? @json.parse(payload)) {
+  let parsed = try Ok(@json.parse(payload)) catch {
+    e => Err(e)
+  }
+  match parsed {
     Err(_) => Err("child output not json: " + payload)
     Ok(Json::Object(top)) =>
       match top.get("ok") {
