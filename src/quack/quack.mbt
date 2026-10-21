@@ -6,9 +6,10 @@
 // `load_extension`, `attach`, `query`) and add only the Quack-specific SQL
 // generation on top.
 //
-// Quack is experimental in DuckDB 1.5.x and distributed from DuckDB's
-// `core_nightly` extension repository; function names, defaults, and protocol
-// details may change before DuckDB 2.0.
+// Quack is experimental in DuckDB 1.5.x, where it is distributed from the
+// `core_nightly` extension repository. DuckDB 2.0 ships a polished protocol,
+// but the SQL surface can still change between releases, so verify the calls
+// against the engine version you deploy.
 // ============================================================================
 
 ///|

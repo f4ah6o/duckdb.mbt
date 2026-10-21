@@ -13,6 +13,33 @@ This guide was produced by diffing the published `f4ah6o/duckdb@0.6.4`
 every symbol-level change listed below is verified against the actual
 published package.
 
+## Upcoming 0.8.0: DuckDB 2.0 support and the end of 1.4
+
+0.8.0 adds DuckDB 2.0.0 to the supported native engines and drops 1.4.x ahead
+of its 2026-11-17 end of life. The package interface does not
+change: `moon info` reports no difference from 0.7.0.
+
+- **Supported engines.** Native builds are tested against libduckdb `1.5.6`
+  and `2.0.0`. The JS backends stay on `@duckdb/node-api` 1.x and
+  `@duckdb/duckdb-wasm` until the upstream 2.0 clients are published.
+- **NULL string and blob cells.** The native readers no longer interpret the
+  payload of NULL VARCHAR/BLOB values. DuckDB 2.0 leaves that memory
+  unspecified, and reading it crashed the Arrow/vector materializer.
+- **`TIMESTAMPTZ_NS`.** The new type is reported as
+  `ColumnType::Unknown(42)`; cells carry the engine text
+  (`2024-06-03 12:34:56.123456789+00`) in materialized and streaming results.
+- **Storage format.** Files created by 2.0 (storage version 69) cannot be
+  opened by 1.x. Set `storage_compatibility_version` in a `Config` before
+  opening if older engines must read the file.
+- **Streams and appenders.** `Appender::flush` fails with `resource_in_use`
+  while an unfinished `ResultStream` is open on the same connection.
+- **Errors.** `err.error_type()` can return `data_corruption` and
+  `resource_in_use` in addition to the existing classifications.
+- **SQL behavior.** Single-arrow lambdas are disabled by default, integer
+  `//`/`%` by zero raise, and parser diagnostics include `LINE n:` and caret
+  lines. These come from the engine, not the binding; see the DuckDB 2.0
+  migration guide for the SQL-side changes.
+
 ## At a glance
 
 | 0.6.4 | 0.7.0 | Severity |
