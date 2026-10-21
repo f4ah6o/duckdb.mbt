@@ -13,7 +13,7 @@ This guide was produced by diffing the published `f4ah6o/duckdb@0.6.4`
 every symbol-level change listed below is verified against the actual
 published package.
 
-## Upcoming 0.8.0: DuckDB 2.0 support and the end of 1.4
+## 0.8.0: DuckDB 2.0 support and the end of 1.4
 
 0.8.0 adds DuckDB 2.0.0 to the supported native engines and drops 1.4.x ahead
 of its 2026-11-17 end of life. The package interface does not
