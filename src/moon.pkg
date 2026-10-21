@@ -35,6 +35,7 @@ options(
     "duckdb_collection_pbt_test.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_connection_state_machine.mbt": [ "and", "native", "wasm-gc" ],
     "duckdb_decimal_pbt_test.mbt": [ "and", "native", "wasm-gc" ],
+    "duckdb_duckdb2_wbtest.mbt": [ "native" ],
     "duckdb_error_wbtest.mbt": [ "or", "native", "js" ],
     "duckdb_extension_wbtest.mbt": [ "or", "native", "js" ],
     "duckdb_interval_pbt_test.mbt": [ "and", "native", "wasm-gc" ],

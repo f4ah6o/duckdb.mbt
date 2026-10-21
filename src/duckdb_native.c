@@ -7,6 +7,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+// DuckDB 2.0 ships duckdb_v2.h next to duckdb.h and adds types and error codes
+// to the classic C API. The classic API version macros still read 1.5.6 there,
+// so version macros cannot detect 2.0; the extra header can. Never include
+// duckdb_v2.h itself: its API is unstable and unused here.
+#if defined(__has_include)
+#if __has_include("duckdb_v2.h")
+#define DUCKDB_MB_HAS_DUCKDB2 1
+#endif
+#endif
+
+// 1 when this translation unit was compiled against DuckDB 2.0 headers, used by
+// tests to expect the 2.0-only type and error mappings.
+int32_t duckdb_mb_has_duckdb2(void) {
+#ifdef DUCKDB_MB_HAS_DUCKDB2
+  return 1;
+#else
+  return 0;
+#endif
+}
+
 // Handle wrappers are stored in MoonBit external objects (allocated via
 // moonbit_make_external_object), so a handle stays a valid, GC-managed
 // pointer even after close. Closing NULLs the inner DuckDB handle; the
@@ -123,6 +143,10 @@ moonbit_bytes_t duckdb_mb_error_type_name(int32_t code) {
   case DUCKDB_ERROR_AUTOLOAD: name = "autoload"; break;
   case DUCKDB_ERROR_SEQUENCE: name = "sequence"; break;
   case DUCKDB_INVALID_CONFIGURATION: name = "invalid_configuration"; break;
+#ifdef DUCKDB_MB_HAS_DUCKDB2
+  case DUCKDB_ERROR_DATA_CORRUPTION: name = "data_corruption"; break;
+  case DUCKDB_ERROR_RESOURCE_IN_USE: name = "resource_in_use"; break;
+#endif
   default: name = "unknown"; break;
   }
   return duckdb_mb_make_bytes(name, strlen(name));
@@ -422,6 +446,9 @@ static bool duckdb_mb_is_stream_supported_type(duckdb_type type) {
   case DUCKDB_TYPE_HUGEINT:
   case DUCKDB_TYPE_UHUGEINT:
   case DUCKDB_TYPE_UUID:
+#ifdef DUCKDB_MB_HAS_DUCKDB2
+  case DUCKDB_TYPE_TIMESTAMP_TZ_NS:
+#endif
     return true;
   default:
     return false;
@@ -723,6 +750,12 @@ static moonbit_bytes_t duckdb_mb_cell_to_bytes(duckdb_vector vector,
   if (!data) {
     return moonbit_make_bytes_raw(0);
   }
+  // DuckDB leaves the payload of NULL values unspecified; reading it (notably
+  // a NULL VARCHAR or BLOB) is undefined behavior and crashes on 2.0.
+  uint64_t *validity = duckdb_vector_get_validity(vector);
+  if (validity && !duckdb_validity_row_is_valid(validity, row)) {
+    return moonbit_make_bytes_raw(0);
+  }
   switch (type) {
   case DUCKDB_TYPE_BOOLEAN: {
     bool val = ((bool *)data)[row];
@@ -896,6 +929,15 @@ static moonbit_bytes_t duckdb_mb_cell_to_bytes(duckdb_vector vector,
     duckdb_destroy_logical_type(&ltype);
     return bytes;
   }
+#ifdef DUCKDB_MB_HAS_DUCKDB2
+  case DUCKDB_TYPE_TIMESTAMP_TZ_NS: {
+    // Value-level duckdb_get_varchar renders the engine text; the result-level
+    // duckdb_value_varchar returns NULL for timezone-aware timestamps.
+    duckdb_timestamp_ns ns;
+    ns.nanos = ((int64_t *)data)[row];
+    return duckdb_mb_value_to_bytes(duckdb_create_timestamp_tz_ns(ns));
+  }
+#endif
   default:
     return moonbit_make_bytes_raw(0);
   }
@@ -2547,7 +2589,14 @@ void **duckdb_mb_vector_strings(duckdb_vector vector,
   if (type == DUCKDB_TYPE_ENUM) {
     ltype = duckdb_vector_get_column_type(vector);
   }
+  uint64_t *validity = duckdb_vector_get_validity(vector);
   for (int32_t row = 0; row < rows; row++) {
+    // Null rows carry an unspecified payload; never parse it as a string or
+    // dictionary index. The caller reads validity separately.
+    if (validity && !duckdb_validity_row_is_valid(validity, (idx_t)row)) {
+      out[row] = moonbit_make_bytes_raw(0);
+      continue;
+    }
     if (type == DUCKDB_TYPE_ENUM) {
       uint32_t dict_size = ltype ? duckdb_enum_dictionary_size(ltype) : 0;
       uint32_t index;
@@ -2588,7 +2637,12 @@ void **duckdb_mb_vector_blobs(duckdb_vector vector, int32_t rows) {
   if (!data || !out) {
     return NULL;
   }
+  uint64_t *validity = duckdb_vector_get_validity(vector);
   for (int32_t row = 0; row < rows; row++) {
+    if (validity && !duckdb_validity_row_is_valid(validity, (idx_t)row)) {
+      out[row] = moonbit_make_bytes_raw(0);
+      continue;
+    }
     duckdb_string_t blob = ((duckdb_string_t *)data)[row];
     const char *ptr = duckdb_string_t_data(&blob);
     idx_t len = duckdb_string_t_length(blob);
