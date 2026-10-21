@@ -17,7 +17,8 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
         # Pinned libduckdb versions under test; bump deliberately, never latest.
-        duckdb: ["1.4.5", "1.5.6"]
+        # 1.5 is supported until 2027-03, 2.0 until 2027-10 (LTS).
+        duckdb: ["1.5.6", "2.0.0"]
 
     runs-on: ${{ matrix.os }}
 
@@ -35,22 +36,14 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$RUNNER_OS" = "macOS" ]; then
-            asset="libduckdb-osx-universal.zip"
-            libname="libduckdb.dylib"
             prefix="${HOMEBREW_PREFIX:-/usr/local}"
           else
-            asset="libduckdb-linux-amd64.zip"
-            libname="libduckdb.so"
             prefix="/usr/local"
           fi
-          curl -fsSL -o /tmp/libduckdb.zip \
-            "https://github.com/duckdb/duckdb/releases/download/v${{ matrix.duckdb }}/${asset}"
-          unzip -o /tmp/libduckdb.zip -d /tmp/libduckdb
-          sudo cp "/tmp/libduckdb/${libname}" "$prefix/lib/"
-          sudo cp /tmp/libduckdb/duckdb.h "$prefix/include/"
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            sudo ldconfig
-          fi
+          # The script picks the release asset layout from the version: the
+          # pre-2.0 zips versus the 2.0 duckdb-shared-libs tarballs, which
+          # also carry duckdb_v2.h (the shim's 2.0 feature probe).
+          sudo scripts/install_libduckdb.sh "${{ matrix.duckdb }}" "$prefix"
 
       - name: Verify libduckdb version
         shell: bash

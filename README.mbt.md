@@ -86,7 +86,7 @@ job logs so failures can be attributed to a backend/version combination.
 
 | Backend | Command | Runner | DuckDB under test |
 |---------|---------|--------|-------------------|
-| Native | `moon check --target native` + `moon test --target native` | `macos-latest`, `ubuntu-latest` | libduckdb `1.4.5`, `1.5.6` |
+| Native | `moon check --target native` + `moon test --target native` | `macos-latest`, `ubuntu-latest` | libduckdb `1.5.6`, `2.0.0` |
 | JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3` (minimum), `1.5.6-r.1` (pinned) |
 | JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0` (minimum), `1.33.1-dev65.0` (pinned) |
 
@@ -104,8 +104,9 @@ All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
   The `duckdb-pins` CI job
   (`scripts/check_duckdb_pins.mjs`, runnable locally via
   `pnpm check:dep-pins`) enforces this: it fails when a `package.json` pin
-  does not equal the newest matrix entry, so a bump that forgets the matrix
-  update cannot look green while the pinned version goes untested.
+  does not equal the newest matrix entry or when the Native row of the table
+  above drifts from the `ci.yml` matrix, so neither half of a bump can land
+  alone.
 - **Automated bumps.** [Dependabot](.github/dependabot.yml) opens grouped
   weekly PRs for `@duckdb/*` npm packages and GitHub Actions. A Dependabot PR
   is merged only after the new version is added to the `ci.yml` matrix (the
@@ -118,8 +119,47 @@ All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and
   `BackendCapabilities` table in `src/duckdb_capabilities.mbt`, regenerate the
   Advanced Types table with `scripts/support_matrix.sh`, and update the
   expected-unsupported set in `scripts/wasm_browser_smoke.mjs` in the same PR.
-- A DuckDB 2.0 lane will be added once a 2.0 libduckdb build is published on
-  the [DuckDB releases page](https://github.com/duckdb/duckdb/releases).
+- A DuckDB 2.0 lane runs on the native backend. The install step uses
+  `scripts/install_libduckdb.sh <version> <prefix>`, which picks the release
+  asset layout from the version: `libduckdb-<platform>.zip` before 2.0 and
+  `duckdb-shared-libs-<platform>.tar.gz` from 2.0 on. The 2.0 archive also
+  ships `duckdb_v2.h`, which the native shim uses to detect the 2.0 headers.
+  The JS backends stay on 1.x until the 2.0 `@duckdb/node-api` and
+  `@duckdb/duckdb-wasm` releases are published.
+
+## DuckDB 2.0
+
+The native backend is tested against libduckdb 1.5.6 and 2.0.0. DuckDB 1.4 is
+no longer supported: it reaches end of life on 2026-11-17, and this release
+drops it early in favor of the 1.5 and 2.0 LTS lines. 2.0 changed
+engine behavior that callers can observe:
+
+- **Storage format.** Databases created by 2.0 use storage version 69 and
+  cannot be opened by 1.x. To keep a file readable by older engines, set the
+  compatibility version before opening it:
+
+  ```mbt nocheck
+  let config = Config::create()
+  let _ = config.set("storage_compatibility_version", "v1.5.6")
+  connect_with_config(on_ready=fn(result) { /* ... */ }, Some(config), path="app.db")
+  ```
+
+- **`TIMESTAMPTZ_NS`.** The new nanosecond timestamp-with-time-zone type is
+  reported as `ColumnType::Unknown(42)` and its cells carry DuckDB's text
+  (`2024-06-03 12:34:56.123456789+00`), in materialized and streaming results
+  alike. There is no typed accessor yet.
+- **Streams and appenders.** An unfinished `ResultStream` keeps the connection
+  busy: `Appender::flush` fails with `resource_in_use` until the stream is
+  drained or closed. Drain streams before appending on the same connection.
+- **Error classification.** 2.0 adds `data_corruption` and `resource_in_use`
+  to `err.error_type()`.
+- **Parser messages.** Syntax errors still classify as `parser`, but the text
+  now includes a `LINE n:` line and a caret on additional lines.
+- **Lambda syntax.** The single-arrow form (`x -> x + 1`) is disabled by
+  default; use `lambda x: x + 1`. `SET lambda_syntax='ENABLE_SINGLE_ARROW'`
+  restores it until DuckDB 2.1.
+- **Integer division.** `//` and `%` by zero now raise an error instead of
+  returning NULL.
 
 ## Installation
 
@@ -129,17 +169,37 @@ The native target links against `libduckdb` using the DuckDB C API.
 
 #### Install libduckdb
 
+The repository ships `scripts/install_libduckdb.sh <version> <prefix>`, which
+downloads the matching release asset, installs every C header, and places the
+shared library under `<prefix>/lib`. CI uses it for both supported versions.
+
 **macOS (Homebrew):**
 ```bash
 brew install duckdb
 ```
 
+Homebrew may lag behind the latest release. To test a specific version, run
+the script against the Homebrew prefix:
+
+```bash
+sudo scripts/install_libduckdb.sh 2.0.0 "$(brew --prefix)"
+```
+
 **Ubuntu/Debian:**
 ```bash
-# Download a release that matches your platform
-wget https://github.com/duckdb/duckdb/releases/download/<version>/libduckdb-linux-amd64.zip
-unzip libduckdb-linux-amd64.zip
-sudo cp libduckdb.so /usr/local/lib/
+sudo scripts/install_libduckdb.sh 2.0.0 /usr/local
+```
+
+Manual equivalent for 2.0 and later (the archive name changed from the 1.x
+`libduckdb-<platform>.zip`):
+
+```bash
+curl -fsSL -o /tmp/libduckdb.tar.gz \
+  https://github.com/duckdb/duckdb/releases/download/v2.0.0/duckdb-shared-libs-linux-amd64.tar.gz
+mkdir -p /tmp/libduckdb
+tar -xzf /tmp/libduckdb.tar.gz -C /tmp/libduckdb
+sudo cp /tmp/libduckdb/*.h /usr/local/include/
+sudo cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
 sudo ldconfig
 ```
 
@@ -236,9 +296,11 @@ wrappers built on the generic extension primitives
 They use DuckDB's `quack` extension instead of implementing the low-level
 `application/duckdb` wire format in MoonBit.
 
-Quack is experimental in DuckDB 1.5.x and is distributed from DuckDB's
-`core_nightly` extension repository. Function names, defaults, and protocol
-details may change before DuckDB 2.0.
+Quack was experimental in DuckDB 1.5.x and is distributed from DuckDB's
+`core_nightly` extension repository there. DuckDB 2.0 ships a polished
+protocol, but the helper functions (and the extension's SQL surface) can still
+change between releases; the native suite only pins the generated SQL, so run
+the calls against your target engine version before depending on them.
 
 The older `Connection::install_quack` / `load_quack` / `start_quack_server` /
 `stop_quack_server` / `quack_query` / `create_quack_secret` / `attach_quack`
