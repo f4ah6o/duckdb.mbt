@@ -26,6 +26,14 @@ test "duckdb_error_type_name maps code 42 to invalid_configuration" {
 ///|
 test "duckdb_error_type_name falls back to unknown" {
   assert_eq(duckdb_error_type_name(-1), "unknown")
-  assert_eq(duckdb_error_type_name(43), "unknown")
+  if native_has_duckdb2() {
+    // Codes 43 and 44 only exist in the DuckDB 2.0 headers.
+    assert_eq(duckdb_error_type_name(43), "data_corruption")
+    assert_eq(duckdb_error_type_name(44), "resource_in_use")
+    assert_eq(duckdb_error_type_name(45), "unknown")
+  } else {
+    assert_eq(duckdb_error_type_name(43), "unknown")
+    assert_eq(duckdb_error_type_name(44), "unknown")
+  }
   assert_eq(duckdb_error_type_name(999), "unknown")
 }

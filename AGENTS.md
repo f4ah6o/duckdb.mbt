@@ -21,6 +21,27 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 - Try to keep deprecated blocks in file called `deprecated.mbt` in each
   directory.
 
+## DuckDB version-specific code
+
+The native shim supports libduckdb 1.5.6 and 2.0.0 from one source file.
+
+- Detect 2.0 with `__has_include("duckdb_v2.h")` (`DUCKDB_MB_HAS_DUCKDB2`).
+  Do not use `DUCKDB_API_VERSION_AT_LEAST`: the classic API version stays
+  1.5.6 in the 2.0 headers.
+- Guard every 2.0-only enum constant or function with
+  `#ifdef DUCKDB_MB_HAS_DUCKDB2`; both supported headers must compile without
+  warnings.
+- Do not read the payload of NULL values. DuckDB leaves it unspecified, and
+  2.0 fills it with garbage; check `duckdb_vector_get_validity` first.
+- Tests for behavior that differs by engine version branch on
+  `SELECT version()` (`v2.` prefix) instead of adding a version API. The
+  `native_has_duckdb2()` whitebox helper reports the headers a native test
+  was compiled against.
+- `scripts/install_libduckdb.sh <version> <prefix>` selects the release asset
+  layout (`libduckdb-*.zip` before 2.0, `duckdb-shared-libs-*.tar.gz` after)
+  and installs every C header. `scripts/check_duckdb_pins.mjs` keeps the
+  `ci.yml` native matrix and the README Native row identical.
+
 ## Tooling
 
 - `moon fmt` is used to format your code properly.

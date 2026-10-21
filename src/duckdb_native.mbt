@@ -426,6 +426,11 @@ fn last_error(fallback : String) -> String {
 extern "C" fn native_error_type_name(code : Int32) -> Bytes = "duckdb_mb_error_type_name"
 
 ///|
+/// Whether this build targets DuckDB 2.0 headers. Whitebox tests use it to
+/// expect the 2.0-only type and error mappings without exposing a public API.
+extern "C" fn native_has_duckdb2() -> Bool = "duckdb_mb_has_duckdb2"
+
+///|
 /// Map a `duckdb_error_type` code to the same normalized snake_case names
 /// `duckdb_error_type_from_message` produces. Mapped in C over the
 /// `DUCKDB_ERROR_*` constants so the table cannot drift from the engine.
