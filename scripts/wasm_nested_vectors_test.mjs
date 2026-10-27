@@ -13,6 +13,7 @@ import { chromium } from "@playwright/test";
 
 const root = process.cwd();
 const duckdbDist = resolve(root, "node_modules/@duckdb/duckdb-wasm/dist");
+const wasmBundle = existsSync(join(duckdbDist, "duckdb-base.wasm")) ? "base" : "mvp";
 
 // pnpm keeps each package's dependencies next to it inside the .pnpm virtual
 // store; walking realpaths finds them regardless of the installed versions.
@@ -111,9 +112,9 @@ globalThis.runWasmNestedVectors = async () => {
 
   const duckdb = await import("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs");
   const logger = new duckdb.ConsoleLogger();
-  const worker = new Worker("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js");
+  const worker = new Worker("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-${wasmBundle}.worker.js");
   const db = new duckdb.AsyncDuckDB(logger, worker);
-  await db.instantiate("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm");
+  await db.instantiate("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-${wasmBundle}.wasm");
   const conn = await db.connect();
 
   // Real extern bodies, served as modules by /ffi/<file>/<name>.
@@ -554,7 +555,10 @@ async function main() {
       }
     });
     await page.goto(url);
-    const checks = await page.evaluate(() => globalThis.runWasmNestedVectors());
+    const checks = await Promise.race([
+      new Promise((_, reject) => setTimeout(() => reject(new Error("browser checks timed out after 120s")), 120000).unref()),
+      page.evaluate(() => globalThis.runWasmNestedVectors()),
+    ]);
     console.log(`duckdb-wasm nested vectors passed: ${checks.length} assertions`);
   } finally {
     if (browser) {

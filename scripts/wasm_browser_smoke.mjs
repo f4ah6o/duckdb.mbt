@@ -5,6 +5,7 @@ import { chromium } from "@playwright/test";
 
 const root = process.cwd();
 const duckdbDist = resolve(root, "node_modules/@duckdb/duckdb-wasm/dist");
+const wasmBundle = existsSync(join(duckdbDist, "duckdb-base.wasm")) ? "base" : "mvp";
 
 // pnpm keeps each package's dependencies next to it inside the .pnpm virtual
 // store; walking realpaths finds them regardless of the installed versions.
@@ -81,8 +82,8 @@ globalThis.runDuckDBWasmSmoke = async () => {
 
   const duckdb = await import("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs");
   const bundle = {
-    mainModule: "/node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm",
-    mainWorker: "/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js",
+    mainModule: "/node_modules/@duckdb/duckdb-wasm/dist/duckdb-${wasmBundle}.wasm",
+    mainWorker: "/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-${wasmBundle}.worker.js",
   };
   const logger = new duckdb.ConsoleLogger();
   const worker = new Worker(bundle.mainWorker);
@@ -190,7 +191,10 @@ async function main() {
     browser = await chromium.launch();
     const page = await browser.newPage();
     await page.goto(url);
-    const checks = await page.evaluate(() => globalThis.runDuckDBWasmSmoke());
+    const checks = await Promise.race([
+      new Promise((_, reject) => setTimeout(() => reject(new Error("browser checks timed out after 120s")), 120000).unref()),
+      page.evaluate(() => globalThis.runDuckDBWasmSmoke()),
+    ]);
     console.log(`duckdb-wasm browser smoke passed: ${checks.join(", ")}`);
   } finally {
     if (browser) {

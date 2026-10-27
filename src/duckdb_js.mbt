@@ -119,6 +119,7 @@ extern "js" fn js_query_stream(
   #|  };
   #|  const runWasm = async () => {
   #|    const reader = await conn.conn.send(sql, true);
+  #|    await reader.open();
   #|    let columns = [];
   #|    if (reader && reader.schema && reader.schema.fields) {
   #|      columns = reader.schema.fields.map((field) => field.name);
