@@ -13,7 +13,9 @@ import { chromium } from "@playwright/test";
 
 const root = process.cwd();
 const duckdbDist = resolve(root, "node_modules/@duckdb/duckdb-wasm/dist");
-const wasmBundle = existsSync(join(duckdbDist, "duckdb-base.wasm")) ? "base" : "mvp";
+// The legacy MVP build cannot propagate native SQL exceptions; Chromium
+// supports the EH build that production selectBundle() also prefers.
+const wasmBundle = existsSync(join(duckdbDist, "duckdb-base.wasm")) ? "base" : "eh";
 
 // pnpm keeps each package's dependencies next to it inside the .pnpm virtual
 // store; walking realpaths finds them regardless of the installed versions.
