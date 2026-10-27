@@ -119,6 +119,7 @@ extern "js" fn js_query_stream(
   #|  };
   #|  const runWasm = async () => {
   #|    const reader = await conn.conn.send(sql, true);
+  #|    await reader.open();
   #|    let columns = [];
   #|    if (reader && reader.schema && reader.schema.fields) {
   #|      columns = reader.schema.fields.map((field) => field.name);
@@ -174,6 +175,10 @@ extern "js" fn js_stream_close(
   #|(stream, on_ok, on_err) => {
   #|  const run = async () => {
   #|    if (stream && stream.closed) { on_err("ERR_CLOSED:stream"); return; }
+  #|    if (stream && stream.kind === "node" &&
+  #|        stream.result && typeof stream.result.closeSync === "function") {
+  #|      stream.result.closeSync();
+  #|    }
   #|    if (stream && stream.kind === "wasm") {
   #|      if (stream.reader && typeof stream.reader.cancel === "function") {
   #|        await stream.reader.cancel();

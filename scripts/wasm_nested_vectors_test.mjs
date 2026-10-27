@@ -13,6 +13,9 @@ import { chromium } from "@playwright/test";
 
 const root = process.cwd();
 const duckdbDist = resolve(root, "node_modules/@duckdb/duckdb-wasm/dist");
+// The legacy MVP build cannot propagate native SQL exceptions; Chromium
+// supports the EH build that production selectBundle() also prefers.
+const wasmBundle = existsSync(join(duckdbDist, "duckdb-base.wasm")) ? "base" : "eh";
 
 // pnpm keeps each package's dependencies next to it inside the .pnpm virtual
 // store; walking realpaths finds them regardless of the installed versions.
@@ -64,6 +67,7 @@ const mimeTypes = new Map([
 const ffiFiles = new Map([
   ["js", "src/duckdb_js.mbt"],
   ["vector", "src/duckdb_vector_js.mbt"],
+  ["arrow", "src/duckdb_arrow_js.mbt"],
 ]);
 
 // Extract an extern "js" body (a #-prefixed arrow-function expression)
@@ -110,9 +114,9 @@ globalThis.runWasmNestedVectors = async () => {
 
   const duckdb = await import("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser.mjs");
   const logger = new duckdb.ConsoleLogger();
-  const worker = new Worker("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js");
+  const worker = new Worker("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-${wasmBundle}.worker.js");
   const db = new duckdb.AsyncDuckDB(logger, worker);
-  await db.instantiate("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm");
+  await db.instantiate("/node_modules/@duckdb/duckdb-wasm/dist/duckdb-${wasmBundle}.wasm");
   const conn = await db.connect();
 
   // Real extern bodies, served as modules by /ffi/<file>/<name>.
@@ -475,6 +479,13 @@ globalThis.runWasmNestedVectors = async () => {
     }
   }
 
+  const compatibility = await import('/scripts/compatibility_cases.mjs');
+  const compatibilityFfi = { js_query_stream, js_stream_close, js_stream_next_vectors_ffi };
+  for (const name of ['js_query_arrow', 'js_arrow_to_stream', 'js_arrow_columns', 'js_arrow_type_ids', 'js_arrow_close_handle']) {
+    compatibilityFfi[name] = await ffi('arrow', name);
+  }
+  checks.push(...await compatibility.compatibilityCases(compatibilityFfi, connObj));
+
   await new Promise((res, rej) => js_close(connObj, res, rej));
 
   if (failures.length > 0) {
@@ -546,7 +557,10 @@ async function main() {
       }
     });
     await page.goto(url);
-    const checks = await page.evaluate(() => globalThis.runWasmNestedVectors());
+    const checks = await Promise.race([
+      new Promise((_, reject) => setTimeout(() => reject(new Error("browser checks timed out after 120s")), 120000).unref()),
+      page.evaluate(() => globalThis.runWasmNestedVectors()),
+    ]);
     console.log(`duckdb-wasm nested vectors passed: ${checks.length} assertions`);
   } finally {
     if (browser) {

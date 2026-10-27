@@ -114,7 +114,7 @@ jobs:
         # Pinned @duckdb/node-api versions under test: the minimum supported
         # release and the package.json pin. Keep the newest entry aligned with
         # the package.json dependency.
-        duckdb_node_api: ["1.4.3-r.3", "1.5.6-r.1"]
+        duckdb_node_api: ["1.4.3-r.3", "1.5.6-r.2"]
 
     runs-on: ubuntu-latest
 
@@ -157,6 +157,9 @@ jobs:
       - name: Test js
         run: moon test --target js
 
+      - name: JS compatibility regressions
+        run: node scripts/node_compatibility_test.mjs
+
   wasm-browser:
     name: browser-wasm/chromium/duckdb-wasm-${{ matrix.duckdb_wasm }}
     strategy:
@@ -165,7 +168,7 @@ jobs:
         # Pinned @duckdb/duckdb-wasm versions under test: the minimum
         # supported release and the package.json pin. Keep the newest entry
         # aligned with the package.json dependency.
-        duckdb_wasm: ["1.33.1-dev18.0", "1.33.1-dev65.0"]
+        duckdb_wasm: ["1.33.1-dev18.0", "1.33.1-dev110.0"]
 
     runs-on: ubuntu-latest
 

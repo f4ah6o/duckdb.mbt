@@ -61,7 +61,7 @@ extern "js" fn js_arrow_to_stream(result : ArrowHandle) -> ResultStream =
   #|    const batches = (table && table.batches) || [];
   #|    return {
   #|      kind: "wasm",
-  #|      reader: batches[Symbol.iterator](),
+  #|      reader: Object.assign(batches[Symbol.iterator](), { schema: table.schema }),
   #|      columns: columns,
   #|      done: false,
   #|      closed: !!result.closed,
@@ -174,11 +174,13 @@ extern "js" fn js_arrow_nullables(result : ArrowHandle) -> FixedArray[Bool] =
   #|}
 
 ///|
-/// Mark the handle closed and drop references so the table/result can be
-/// garbage-collected.
+/// Release the native result and drop references to the backend handle.
 extern "js" fn js_arrow_close_handle(result : ArrowHandle) -> Unit =
   #|(result) => {
   #|  if (!result) return;
+  #|  if (result.result && typeof result.result.closeSync === "function") {
+  #|    result.result.closeSync();
+  #|  }
   #|  result.closed = true;
   #|  result.table = null;
   #|  result.result = null;
@@ -226,7 +228,10 @@ pub fn Connection::query_arrow(
               }),
             )
           }
-          Err(err) => on_done(Err(err))
+          Err(err) => {
+            js_arrow_close_handle(handle)
+            on_done(Err(err))
+          }
         }
       })
     },
