@@ -57,7 +57,7 @@ changing capabilities; CI regenerates the section and fails on drift.
   `decimal_to_double` may lose precision above 2^53, matching DuckDB semantics.
 - List/Struct/Map are represented as string arrays (VARCHAR-only) and rely on DuckDB casting.
 - JS (WASM) uses direct duckdb-wasm prepared parameters only. Verified advanced prepared-statement bind support is limited to Decimal and Interval string parameters with an explicit SQL cast, for example `?::DECIMAL(10,2)` or `?::INTERVAL`.
-- JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported: the browser smoke test fails for them against `@duckdb/duckdb-wasm` 1.33.1-dev18.0 through 1.33.1-dev65.0.
+- JS (WASM) Blob, List, Struct, and Map direct prepared parameters are explicitly unsupported: the browser smoke test fails for them against `@duckdb/duckdb-wasm` 1.33.1-dev18.0 through 1.33.1-dev110.0.
 - Appender date/timestamp helpers are only implemented for native targets.
 
 ### Arrow Integration
@@ -87,8 +87,8 @@ job logs so failures can be attributed to a backend/version combination.
 | Backend | Command | Runner | DuckDB under test |
 |---------|---------|--------|-------------------|
 | Native | `moon check --target native` + `moon test --target native` | `macos-latest`, `ubuntu-latest` | libduckdb `1.5.6`, `2.0.0` |
-| JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3` (minimum), `1.5.6-r.1` (pinned) |
-| JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0` (minimum), `1.33.1-dev65.0` (pinned) |
+| JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3` (minimum), `1.5.6-r.2` (pinned) |
+| JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0` (minimum), `1.33.1-dev110.0` (pinned) |
 
 ### Updating DuckDB dependencies
 

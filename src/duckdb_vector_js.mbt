@@ -792,11 +792,13 @@ extern "js" fn js_stream_next_vectors_ffi(
   #|  };
   #|
   #|  const runNode = async () => {
+  #|    if (stream.done) { emptyOk(); return; }
   #|    const chunk = await stream.result.fetchChunk();
   #|    if (!chunk) {
   #|      throw new Error("fetchChunk failed");
   #|    }
   #|    if (chunk.rowCount <= 0) {
+  #|      stream.done = true;
   #|      if (stream.emitted) {
   #|        emptyOk();
   #|        return;

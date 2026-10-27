@@ -64,6 +64,7 @@ const mimeTypes = new Map([
 const ffiFiles = new Map([
   ["js", "src/duckdb_js.mbt"],
   ["vector", "src/duckdb_vector_js.mbt"],
+  ["arrow", "src/duckdb_arrow_js.mbt"],
 ]);
 
 // Extract an extern "js" body (a #-prefixed arrow-function expression)
@@ -474,6 +475,13 @@ globalThis.runWasmNestedVectors = async () => {
       assertDeep("empty shapes", d.shapes, [1, 4, 2, 1, 3]);
     }
   }
+
+  const compatibility = await import('/scripts/compatibility_cases.mjs');
+  const compatibilityFfi = { js_query_stream, js_stream_close, js_stream_next_vectors_ffi };
+  for (const name of ['js_query_arrow', 'js_arrow_to_stream', 'js_arrow_columns', 'js_arrow_type_ids', 'js_arrow_close_handle']) {
+    compatibilityFfi[name] = await ffi('arrow', name);
+  }
+  checks.push(...await compatibility.compatibilityCases(compatibilityFfi, connObj));
 
   await new Promise((res, rej) => js_close(connObj, res, rej));
 
