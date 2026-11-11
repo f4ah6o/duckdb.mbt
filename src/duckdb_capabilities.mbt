@@ -13,6 +13,7 @@
 ///|
 /// A concrete backend a `Connection` runs on. Unlike `JsBackend` this has no
 /// `Auto` selector — every variant names a real engine.
+#derive(Eq, Compare, Debug)
 pub(all) enum Backend {
   /// Native target, linked against `libduckdb`.
   Native
@@ -22,7 +23,16 @@ pub(all) enum Backend {
   Wasm
   /// A MoonBit target with no working binding (wasm/wasm-gc stubs).
   Unsupported
-} derive(Eq, Compare, Show)
+}
+
+///|
+pub extend Backend with Eq::{not_equal, equal}
+
+///|
+pub extend Backend with Compare::{op_lt, op_le, op_ge, compare, op_gt}
+
+///|
+pub extend Backend with @debug.Debug::{to_repr}
 
 ///|
 /// All concrete backends, in display order.
@@ -146,6 +156,7 @@ pub fn Backend::capabilities(self : Backend) -> BackendCapabilities {
 /// (error reporting, conformance tests, documentation generation).
 /// List/Struct/Map prepared binds share the `nested_bind` capability but keep
 /// distinct feature variants so error messages stay specific.
+#derive(Eq, Compare, Debug)
 pub(all) enum BackendFeature {
   /// `connect` can open a connection at all.
   Connect
@@ -187,7 +198,16 @@ pub(all) enum BackendFeature {
   NestedAppend
   /// Nested element types beyond VARCHAR.
   NestedTyped
-} derive(Eq, Compare, Show)
+}
+
+///|
+pub extend BackendFeature with Eq::{not_equal, equal}
+
+///|
+pub extend BackendFeature with Compare::{op_lt, op_le, op_ge, compare, op_gt}
+
+///|
+pub extend BackendFeature with @debug.Debug::{to_repr}
 
 ///|
 /// All capability features, in display order.
@@ -453,7 +473,7 @@ pub fn support_matrix_markdown() -> String {
   let native = Backend::Native.capabilities()
   let node = Backend::Node.capabilities()
   let wasm = Backend::Wasm.capabilities()
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   ignore(
     sb
     ..write_view("| Feature | Native | JS (Node) | JS (WASM) |\n")

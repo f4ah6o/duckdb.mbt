@@ -34,5 +34,5 @@ fn is_darwin() -> Bool {
   if c_uname(buf) != 0 {
     return false
   }
-  @encoding/utf8.decode_lossy(Bytes::from_fixedarray(buf)).has_prefix("Darwin")
+  @encoding/utf8.decode_lossy(Bytes::from_array(buf[:])).has_prefix("Darwin")
 }

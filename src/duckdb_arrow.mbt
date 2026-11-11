@@ -36,6 +36,7 @@ pub struct ArrowSchemaInfo {
 /// Materialized `query_arrow` result. Opaque to callers; the canonical
 /// `VectorChunk`s are exposed via `to_chunks`, and the backend-native handle
 /// is released by `close`.
+#warnings("-struct_never_constructed")
 pub struct ArrowResult {
   priv mut handle : ArrowHandle?
   priv columns : Array[String]

@@ -4,30 +4,33 @@
 
 ///|
 /// Connection state representation
+#derive(Debug)
 pub enum ConnectionState {
   NotConnected
   Connected
   QueryInProgress
   Closed
   Error
-} derive(Show)
+}
 
 ///|
 /// Connection command type
+#derive(Debug)
 pub enum ConnectionCommand {
   Connect
   Query(String)
   Close
   Prepare(String)
   Execute
-} derive(Show)
+}
 
 ///|
 /// Connection model for state machine testing
+#derive(Debug)
 pub struct ConnectionModel {
   state : ConnectionState
   query_count : Int32
-} derive(Show)
+}
 
 ///|
 /// Initial connection model

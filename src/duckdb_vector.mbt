@@ -808,7 +808,7 @@ fn trim_frac(frac : Int64, width : Int32) -> String {
   if end == 0 {
     "0"
   } else {
-    digits.view(start_offset=0, end_offset=end).to_owned()
+    digits.clamped_view(start=0, end~).to_owned()
   }
 }
 
@@ -870,7 +870,7 @@ fn uuid_render(lower : UInt64, upper : Int64) -> String {
 
   let hi_hex = hex64(hi)
   let lo_hex = hex64(lower)
-  "\{hi_hex.view(start_offset=0, end_offset=8)}-\{hi_hex.view(start_offset=8, end_offset=12)}-\{hi_hex.view(start_offset=12, end_offset=16)}-\{lo_hex.view(start_offset=0, end_offset=4)}-\{lo_hex.view(start_offset=4, end_offset=16)}"
+  "\{hi_hex.clamped_view(start=0, end=8)}-\{hi_hex.clamped_view(start=8, end=12)}-\{hi_hex.clamped_view(start=12, end=16)}-\{lo_hex.clamped_view(start=0, end=4)}-\{lo_hex.clamped_view(start=4, end=16)}"
 }
 
 ///|

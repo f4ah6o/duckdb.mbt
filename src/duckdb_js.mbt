@@ -1827,7 +1827,7 @@ pub fn decimal_from_double(
   width : Int32,
   scale : Int32,
 ) -> Decimal {
-  let scaled = (value * Double::pow(10.0, scale.to_double())).to_int64()
+  let scaled = (value * @math.pow(10.0, scale.to_double())).to_int64()
   { width, scale, lower: scaled.reinterpret_as_uint64(), upper: scaled >> 63, }
 }
 
@@ -1838,7 +1838,7 @@ pub fn decimal_from_double(
 pub fn decimal_to_double(decimal : Decimal) -> Double {
   let two64 = 18446744073709551616.0
   let value = decimal.upper.to_double() * two64 + decimal.lower.to_double()
-  value / Double::pow(10.0, decimal.scale.to_double())
+  value / @math.pow(10.0, decimal.scale.to_double())
 }
 
 ///|

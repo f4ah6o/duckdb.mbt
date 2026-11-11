@@ -144,15 +144,27 @@ test "error accessors: message and error_type" {
     DuckDB(error_type="catalog", message="table not found"),
   ]
   let messages = variants.map(fn(err) { err.message() })
-  inspect(
+  debug_inspect(
     messages,
     content=(
-      #|[q, p, b, a, no appender, stream is closed, invalid argument alias: must not be empty, boom, table not found]
+      #|[
+      #|  "q",
+      #|  "p",
+      #|  "b",
+      #|  "a",
+      #|  "no appender",
+      #|  "stream is closed",
+      #|  "invalid argument alias: must not be empty",
+      #|  "boom",
+      #|  "table not found",
+      #|]
     ),
   )
-  inspect(
+  debug_inspect(
     DuckDBError::DuckDB(error_type="catalog", message="x").error_type(),
-    content="Some(catalog)",
+    content=(
+      #|Some("catalog")
+    ),
   )
-  inspect(Query("x").error_type(), content="None")
+  debug_inspect(Query("x").error_type(), content="None")
 }

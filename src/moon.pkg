@@ -1,9 +1,23 @@
+// Imports are shared by every target, but several are only reachable from
+// target-specific or test-only files (`encoding/utf8` and `math` on native,
+// `double` and `json` in js tests, `quickcheck` in the native PBT files), so
+// `unused_package` reports false positives per target.
+//
+// `result_error_return` asks failable APIs to use `T raise E`. This package
+// returns `Result[T, DuckDBError]` on purpose: callers match on the error as
+// ordinary data (see MIGRATION.md), and the js backend forwards it across the
+// FFI boundary, so the error effect is not an option here.
+warnings = "-unused_package-result_error_return"
+
 import {
   "moonbitlang/quickcheck" @pbt,
   "moonbitlang/core/quickcheck" @gen,
   "moonbitlang/core/debug",
+  "moonbitlang/core/double",
+  "moonbitlang/core/encoding/utf8" @encoding/utf8,
   "moonbitlang/core/int",
   "moonbitlang/core/json",
+  "moonbitlang/core/math",
 }
 
 options(

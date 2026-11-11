@@ -53,12 +53,12 @@ fn assert_unsupported(
 
 ///|
 test "js backend detection for connections, statements, appenders" {
-  inspect(js_fake_connection(1).backend(), content="Node")
-  inspect(js_fake_connection(2).backend(), content="Wasm")
-  inspect(js_fake_statement(1).backend(), content="Node")
-  inspect(js_fake_statement(2).backend(), content="Wasm")
-  inspect(js_fake_appender(1).backend(), content="Node")
-  inspect(js_fake_appender(2).backend(), content="Wasm")
+  debug_inspect(js_fake_connection(1).backend(), content="Node")
+  debug_inspect(js_fake_connection(2).backend(), content="Wasm")
+  debug_inspect(js_fake_statement(1).backend(), content="Node")
+  debug_inspect(js_fake_statement(2).backend(), content="Wasm")
+  debug_inspect(js_fake_appender(1).backend(), content="Node")
+  debug_inspect(js_fake_appender(2).backend(), content="Wasm")
   let wasm_caps = js_fake_connection(2).capabilities()
   inspect(wasm_caps.appender, content="false")
   inspect(wasm_caps.blob_bind, content="false")
@@ -67,7 +67,7 @@ test "js backend detection for connections, statements, appenders" {
 
 ///|
 test "wasm appender is gated by capabilities before reaching the FFI" {
-  let result_ref : Ref[Result[@duckdb.Appender, @duckdb.DuckDBError]?] = Ref::new(
+  let result_ref : Ref[Result[@duckdb.Appender, @duckdb.DuckDBError]?] = Ref(
     None,
   )
   js_fake_connection(2).create_appender("", "t", on_done=result => {
@@ -95,7 +95,7 @@ test "wasm appender is gated by capabilities before reaching the FFI" {
 ///|
 test "wasm advanced-type binds are gated by capabilities" {
   let stmt = js_fake_statement(2)
-  inspect(stmt.capabilities().backend, content="Wasm")
+  debug_inspect(stmt.capabilities().backend, content="Wasm")
   assert_unsupported(
     stmt.bind_blob(1, b"xy"),
     feature="direct blob prepared parameters",
@@ -123,11 +123,23 @@ test "node capabilities do not gate supported binds" {
   // The same require() check the bind/appender wrappers run before the FFI:
   // it must succeed for every capability node reports as supported.
   let caps = js_fake_statement(1).capabilities()
-  inspect(caps.require(BackendFeature::BlobBind) is Ok(_), content="true")
-  inspect(caps.require(BackendFeature::ListBind) is Ok(_), content="true")
-  inspect(caps.require(BackendFeature::Appender) is Ok(_), content="true")
+  inspect(
+    caps.require(@duckdb.BackendFeature::BlobBind) is Ok(_),
+    content="true",
+  )
+  inspect(
+    caps.require(@duckdb.BackendFeature::ListBind) is Ok(_),
+    content="true",
+  )
+  inspect(
+    caps.require(@duckdb.BackendFeature::Appender) is Ok(_),
+    content="true",
+  )
   let wasm_caps = js_fake_statement(2).capabilities()
-  inspect(wasm_caps.require(BackendFeature::BlobBind) is Ok(_), content="false")
+  inspect(
+    wasm_caps.require(@duckdb.BackendFeature::BlobBind) is Ok(_),
+    content="false",
+  )
 }
 
 ///|

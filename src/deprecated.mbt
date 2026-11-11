@@ -319,7 +319,7 @@ fn arrow_row_int64(vector : Vector, row : Int32) -> Int64 {
   match vector.value_at(row) {
     Value::Int(n) => n.to_int64()
     Value::Int64(n) => n
-    Value::UInt64(n) => n.to_int64()
+    Value::UInt64(n) => n.reinterpret_as_int64()
     Value::Double(d) => d.to_int64()
     Value::Bool(b) => if b { 1L } else { 0L }
     _ => 0L

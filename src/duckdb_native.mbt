@@ -1,10 +1,10 @@
 ///|
 #external
-type NativeResult
+priv type NativeResult
 
 ///|
 #external
-type NativeChunk
+priv type NativeChunk
 
 ///|
 #borrow(path)
@@ -305,6 +305,7 @@ extern "C" fn native_result_destroy(result : NativeResult) = "duckdb_mb_result_d
 extern "C" fn native_result_column_count(result : NativeResult) -> Int32 = "duckdb_mb_result_column_count"
 
 ///|
+#warnings("-unused_value")
 #borrow(result)
 extern "C" fn native_result_row_count(result : NativeResult) -> Int32 = "duckdb_mb_result_row_count"
 
@@ -323,6 +324,7 @@ extern "C" fn native_result_column_type(
 ) -> Int32 = "duckdb_mb_result_column_type"
 
 ///|
+#warnings("-unused_value")
 #borrow(result)
 extern "C" fn native_result_is_null(
   result : NativeResult,
@@ -331,6 +333,7 @@ extern "C" fn native_result_is_null(
 ) -> Bool = "duckdb_mb_result_is_null"
 
 ///|
+#warnings("-unused_value")
 #borrow(result)
 extern "C" fn native_result_value(
   result : NativeResult,
@@ -370,6 +373,7 @@ extern "C" fn native_chunk_row_count(chunk : NativeChunk) -> Int32 = "duckdb_mb_
 extern "C" fn native_chunk_column_count(chunk : NativeChunk) -> Int32 = "duckdb_mb_chunk_column_count"
 
 ///|
+#warnings("-unused_value")
 #borrow(chunk, col, row)
 extern "C" fn native_chunk_is_null(
   chunk : NativeChunk,
@@ -378,6 +382,7 @@ extern "C" fn native_chunk_is_null(
 ) -> Bool = "duckdb_mb_chunk_is_null"
 
 ///|
+#warnings("-unused_value")
 #borrow(chunk, col, row)
 extern "C" fn native_chunk_value(
   chunk : NativeChunk,
@@ -428,6 +433,7 @@ extern "C" fn native_error_type_name(code : Int32) -> Bytes = "duckdb_mb_error_t
 ///|
 /// Whether this build targets DuckDB 2.0 headers. Whitebox tests use it to
 /// expect the 2.0-only type and error mappings without exposing a public API.
+#warnings("-unused_value")
 extern "C" fn native_has_duckdb2() -> Bool = "duckdb_mb_has_duckdb2"
 
 ///|
@@ -1370,7 +1376,7 @@ pub fn decimal_from_double(
   width : Int32,
   scale : Int32,
 ) -> Decimal {
-  let scaled = (value * Double::pow(10.0, scale.to_double())).to_int64()
+  let scaled = (value * @math.pow(10.0, scale.to_double())).to_int64()
   { width, scale, lower: scaled.reinterpret_as_uint64(), upper: scaled >> 63, }
 }
 
@@ -1381,7 +1387,7 @@ pub fn decimal_from_double(
 pub fn decimal_to_double(decimal : Decimal) -> Double {
   let two64 = 18446744073709551616.0
   let value = decimal.upper.to_double() * two64 + decimal.lower.to_double()
-  value / Double::pow(10.0, decimal.scale.to_double())
+  value / @math.pow(10.0, decimal.scale.to_double())
 }
 
 ///|
@@ -1757,27 +1763,29 @@ pub fn Appender::append_list_varchar_value(
 ) -> Result[Unit, DuckDBError] {
   // Build a list literal and rely on DuckDB's cast from VARCHAR to LIST.
   fn escape_list_item(s : String) -> String {
-    let sb = StringBuilder::new()
+    let sb = StringBuilder()
     for c in s {
       if c == '\'' {
-        sb..write_char('\'')..write_char('\'')
+        sb.write_char('\'')
+        sb.write_char('\'')
       } else {
-        sb..write_char(c)
+        sb.write_char(c)
       }
     }
     sb.to_string()
   }
 
-  let sb = StringBuilder::new()
-  sb..write_char('[')
+  let sb = StringBuilder()
+  sb.write_char('[')
   for i, v in values {
     if i > 0 {
-      sb..write_char(',')..write_char(' ')
+      sb.write_char(',')
+      sb.write_char(' ')
     }
-    sb..write_char('\'')
-    sb..write_view(escape_list_item(v))
-    sb..write_char('\'')
+    sb.write_char('\'')
+    sb.write_view(escape_list_item(v))
+    sb.write_char('\'')
   }
-  sb..write_char(']')
+  sb.write_char(']')
   self.append_varchar(sb.to_string())
 }

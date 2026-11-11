@@ -2,6 +2,11 @@ import {
   "f4ah6o/duckdb" @lib,
 }
 
+// `require_quack` returns `Result` to match the `f4ah6o/duckdb` API it wraps;
+// see the `result_error_return` note in `src/moon.pkg`.
+
+warnings = "-result_error_return"
+
 options(
   targets: { "quack_wbtest.mbt": [ "or", "native", "js" ] },
 )

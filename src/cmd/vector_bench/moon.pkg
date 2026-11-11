@@ -1,6 +1,11 @@
+// `encoding/utf8` is only reachable from `rss_native.mbt`, so the js build
+// reports it as unused.
+warnings = "-unused_package"
+
 import {
   "f4ah6o/duckdb" @lib,
   "moonbitlang/core/bench",
+  "moonbitlang/core/encoding/utf8" @encoding/utf8,
   "moonbitlang/core/env",
 }
 

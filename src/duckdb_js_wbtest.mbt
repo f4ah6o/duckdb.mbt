@@ -372,7 +372,7 @@ fn run_js_stream_count(
 
 ///|
 test "js node fixtures" {
-  let missing_ref : Ref[Bool] = Ref::new(false)
+  let missing_ref : Ref[Bool] = Ref(false)
   for case in fixture_cases {
     if missing_ref.val {
       ()
@@ -421,7 +421,7 @@ test "js node stream count" {
   match result {
     Ok((columns, count)) =>
       if columns.length() != 1 || columns[0] != "i" {
-        fail("unexpected columns: \{columns}")
+        fail("unexpected columns: \{Repr(columns)}")
       } else if count != 10000 {
         fail("expected 10000 rows, got \{count}")
       } else {
@@ -445,7 +445,7 @@ test "js wasm stream count" {
   match result {
     Ok((columns, count)) =>
       if columns.length() != 1 || columns[0] != "i" {
-        fail("unexpected columns: \{columns}")
+        fail("unexpected columns: \{Repr(columns)}")
       } else if count != 1000 {
         fail("expected 1000 rows, got \{count}")
       } else {

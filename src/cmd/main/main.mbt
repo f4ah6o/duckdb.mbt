@@ -6,8 +6,8 @@ fn main {
         conn.query("select 42 as answer", on_done=fn(query_result) {
           match query_result {
             Ok(result) => {
-              println("columns: \{result.columns}")
-              println("rows: \{result.rows}")
+              println("columns: \{Repr(result.columns)}")
+              println("rows: \{Repr(result.rows)}")
             }
             Err(err) => println("query failed: \{err.message()}")
           }

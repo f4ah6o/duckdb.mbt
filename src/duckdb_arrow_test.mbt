@@ -5,10 +5,10 @@
 // Helper to run an Arrow query synchronously
 
 ///|
-fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
-  let result_ref : Ref[ArrowResult?] = Ref::new(None)
-  let error_ref : Ref[String?] = Ref::new(None)
-  connect(on_ready=fn(conn_result) {
+fn run_native_arrow_query(sql : String) -> Result[@duckdb.ArrowResult, String] {
+  let result_ref : Ref[@duckdb.ArrowResult?] = Ref(None)
+  let error_ref : Ref[String?] = Ref(None)
+  @duckdb.connect(on_ready=fn(conn_result) {
     match conn_result {
       Ok(conn) =>
         conn.query_arrow(sql, on_done=fn(arrow_result) {
@@ -33,7 +33,9 @@ fn run_native_arrow_query(sql : String) -> Result[ArrowResult, String] {
 
 ///|
 /// Materialized chunks of `result` or a test failure.
-fn arrow_chunks_or_fail(result : ArrowResult) -> Array[VectorChunk] raise {
+fn arrow_chunks_or_fail(
+  result : @duckdb.ArrowResult,
+) -> Array[@duckdb.VectorChunk] raise {
   match result.to_chunks() {
     Ok(chunks) => chunks
     Err(err) => fail("to_chunks failed: \{err.message()}")
@@ -43,7 +45,7 @@ fn arrow_chunks_or_fail(result : ArrowResult) -> Array[VectorChunk] raise {
 ///|
 /// Concatenate `ints()` payloads of column `col` across all chunks.
 fn arrow_column_ints(
-  chunks : Array[VectorChunk],
+  chunks : Array[@duckdb.VectorChunk],
   col : Int32,
 ) -> Array[Int32] raise {
   let out : Array[Int32] = []
@@ -70,7 +72,7 @@ fn arrow_column_ints(
 ///|
 /// Concatenate `int64s()` payloads of column `col` across all chunks.
 fn arrow_column_int64s(
-  chunks : Array[VectorChunk],
+  chunks : Array[@duckdb.VectorChunk],
   col : Int32,
 ) -> Array[Int64] raise {
   let out : Array[Int64] = []
@@ -419,7 +421,7 @@ test "native arrow bool column data" {
       }
       result.close(on_done=fn(_) { () })
       if bools.length() != 2 || bools[0] != true || bools[1] != false {
-        fail("expected [true, false], got \{bools}")
+        fail("expected [true, false], got \{Repr(bools)}")
       }
     }
     Err(err) => fail("query failed: \{err}")
@@ -542,7 +544,7 @@ test "native arrow list column (nested)" {
       let nested_ok = match chunks[0].column(0) {
         Some(vector) =>
           match vector.value_at(0) {
-            Value::List(items) => items.length() == 3
+            @duckdb.Value::List(items) => items.length() == 3
             _ => false
           }
         None => false
@@ -601,7 +603,7 @@ test "native arrow struct column (nested)" {
 ///|
 /// Validity mask of column `col` across all chunks (true = non-NULL).
 fn arrow_column_validity(
-  chunks : Array[VectorChunk],
+  chunks : Array[@duckdb.VectorChunk],
   col : Int32,
 ) -> Array[Bool] raise {
   let out : Array[Bool] = []
@@ -638,7 +640,7 @@ test "native arrow int32 nulls via validity mask" {
       let values = arrow_column_ints(chunks, 0)
       result.close(on_done=fn(_) { () })
       if validity != [true, false, true, false, true] {
-        fail("expected [true, false, true, false, true], got \{validity}")
+        fail("expected [true, false, true, false, true], got \{Repr(validity)}")
       } else if !null_ok {
         fail("Vector::is_null disagrees with the validity mask")
       } else if values[0] != 1 || values[2] != 3 || values[4] != 5 {
@@ -662,7 +664,7 @@ test "native arrow all-nulls column" {
       let validity = arrow_column_validity(chunks, 0)
       result.close(on_done=fn(_) { () })
       if validity != [false, false, false] {
-        fail("expected all-invalid, got \{validity}")
+        fail("expected all-invalid, got \{Repr(validity)}")
       }
     }
     Err(err) => fail("query failed: \{err}")
@@ -688,7 +690,7 @@ test "native arrow string nulls via validity mask" {
       }
       result.close(on_done=fn(_) { () })
       if validity != [true, false, true, false, true] {
-        fail("expected [true, false, true, false, true], got \{validity}")
+        fail("expected [true, false, true, false, true], got \{Repr(validity)}")
       } else if values[0] != "a" || values[2] != "c" || values[4] != "e" {
         fail("non-null strings wrong")
       } else {
@@ -708,14 +710,14 @@ test "native arrow closed result reports Closed" {
   let result = run_native_arrow_query("SELECT 1 AS x")
   match result {
     Ok(result) => {
-      let first_close : Ref[Bool] = Ref::new(false)
+      let first_close : Ref[Bool] = Ref(false)
       result.close(on_done=fn(res) { first_close.val = res is Ok(_) })
       let chunks_err = result.to_chunks() is Err(_)
       let schema_err = result.get_schema() is Err(_)
-      let second_close : Ref[Bool] = Ref::new(false)
+      let second_close : Ref[Bool] = Ref(false)
       result.close(on_done=fn(res) {
         match res {
-          Err(DuckDBError::Closed(_)) => second_close.val = true
+          Err(@duckdb.DuckDBError::Closed(_)) => second_close.val = true
           _ => second_close.val = false
         }
       })
@@ -736,6 +738,9 @@ test "native arrow closed result reports Closed" {
 // ============================================================================
 
 ///|
+/// Exercises the deprecated getters on purpose: they are the documented
+/// migration path, so the deprecation warning is expected here.
+#warnings("-deprecated")
 test "native arrow deprecated getters still work" {
   let result = run_native_arrow_query(
     "SELECT v FROM (VALUES (1::INTEGER), (NULL::INTEGER), (3::INTEGER)) t(v)",
@@ -746,11 +751,11 @@ test "native arrow deprecated getters still work" {
       let (values, validity) = result.get_column_int32_nullable(0)
       result.close(on_done=fn(_) { () })
       if flat != [1, 0, 3] {
-        fail("expected [1, 0, 3], got \{flat}")
+        fail("expected [1, 0, 3], got \{Repr(flat)}")
       } else if values != [1, 0, 3] {
-        fail("expected nullable values [1, 0, 3], got \{values}")
+        fail("expected nullable values [1, 0, 3], got \{Repr(values)}")
       } else if validity != [true, false, true] {
-        fail("expected validity [true, false, true], got \{validity}")
+        fail("expected validity [true, false, true], got \{Repr(validity)}")
       } else {
         ()
       }

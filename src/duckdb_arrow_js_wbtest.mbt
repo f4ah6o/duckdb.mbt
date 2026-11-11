@@ -97,9 +97,7 @@ fn js_arrow_vector_chunks(
   if payload.has_prefix("ERR:") {
     return Err(payload)
   }
-  let parsed = try Ok(@json.parse(payload)) catch {
-    e => Err(e)
-  }
+  let parsed = Ok(@json.parse(payload)) catch { e => Err(e) }
   match parsed {
     Err(_) => Err("child output not json: " + payload)
     Ok(Json::Object(top)) =>
@@ -153,7 +151,7 @@ test "js arrow vectors: primitives stay typed" {
     ) {
     Ok((chunks, columns, type_ids, nullables)) => {
       if columns != ["i", "b", "d", "flag", "s"] {
-        fail("unexpected columns: \{columns}")
+        fail("unexpected columns: \{Repr(columns)}")
       }
       if type_ids.length() != 5 || nullables.length() != 5 {
         fail("expected 5 metadata entries")
@@ -267,7 +265,7 @@ test "js arrow vectors: decimal column typed" {
     ) {
     Ok((chunks, _, type_ids, _)) => {
       if type_ids.length() != 1 || type_ids[0] != 19 {
-        fail("expected decimal type id 19, got \{type_ids}")
+        fail("expected decimal type id 19, got \{Repr(type_ids)}")
       }
       match chunks[0].column(0) {
         Some(vector) =>

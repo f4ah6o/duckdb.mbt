@@ -426,7 +426,7 @@ pub fn gen_value_array() -> @gen.Generator[Array[Value]] {
   @gen.int_range(0, 50).flat_map(fn(len) {
     array_of(gen_value_non_null()).map(fn(arr) {
       if arr.length() > len {
-        arr.view(start_offset=0, end_offset=len).to_array()
+        arr.clamped_view(start=0, end=len).to_array()
       } else {
         arr
       }
@@ -517,7 +517,7 @@ pub fn gen_string_array() -> @gen.Generator[Array[String]] {
   @gen.int_range(0, 20).flat_map(fn(len) {
     array_of(@gen.int_range(0, 100)).map(fn(arr) {
       let strs = arr.map(fn(n) { "key_" + n.to_string() })
-      strs.view(start_offset=0, end_offset=Int::min(len, strs.length())).to_array()
+      strs.clamped_view(start=0, end=Int::min(len, strs.length())).to_array()
     })
   })
 }
@@ -529,10 +529,10 @@ pub fn gen_map_arrays() -> @gen.Generator[(Array[String], Array[String])] {
     array_of(@gen.int_range(0, 100)).flat_map(fn(keys_arr) {
       array_of(@gen.int_range(0, 100)).map(fn(vals_arr) {
         let keys = keys_arr.map(fn(n) { "key_" + n.to_string() })
-          .view(start_offset=0, end_offset=len)
+          .clamped_view(start=0, end=len)
           .to_array()
         let values = vals_arr.map(fn(n) { "val_" + n.to_string() })
-          .view(start_offset=0, end_offset=len)
+          .clamped_view(start=0, end=len)
           .to_array()
         (keys, values)
       })

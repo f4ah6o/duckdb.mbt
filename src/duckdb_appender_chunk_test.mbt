@@ -7,12 +7,12 @@
 ///|
 fn run_native_chunk_append(
   setup_sql : String,
-  append_fn : (Appender) -> Result[Unit, DuckDBError],
+  append_fn : (@duckdb.Appender) -> Result[Unit, @duckdb.DuckDBError],
   verify_sql : String,
-) -> Result[QueryResult, String] {
-  let result_ref : Ref[QueryResult?] = Ref::new(None)
-  let error_ref : Ref[String?] = Ref::new(None)
-  connect(on_ready=fn(result) {
+) -> Result[@duckdb.QueryResult, String] {
+  let result_ref : Ref[@duckdb.QueryResult?] = Ref(None)
+  let error_ref : Ref[String?] = Ref(None)
+  @duckdb.connect(on_ready=fn(result) {
     match result {
       Ok(conn) =>
         conn.query(setup_sql, on_done=fn(setup_result) {
@@ -68,16 +68,19 @@ fn run_native_chunk_append(
 }
 
 ///|
-fn int_vector(values : Array[Int32]) -> Vector {
-  Vector::all_valid(
-    ColumnType::Integer,
-    VectorData::Int32(FixedArray::from_array(values)),
+fn int_vector(values : Array[Int32]) -> @duckdb.Vector {
+  @duckdb.Vector::all_valid(
+    @duckdb.ColumnType::Integer,
+    @duckdb.VectorData::Int32(FixedArray::from_array(values)),
   )
 }
 
 ///|
-fn varchar_vector(values : Array[String]) -> Vector {
-  Vector::all_valid(ColumnType::Varchar, VectorData::Varchar(values))
+fn varchar_vector(values : Array[String]) -> @duckdb.Vector {
+  @duckdb.Vector::all_valid(
+    @duckdb.ColumnType::Varchar,
+    @duckdb.VectorData::Varchar(values),
+  )
 }
 
 ///|
@@ -93,18 +96,18 @@ test "native append_chunk basic flat types" {
     scores.push(i.to_double() * 1.5)
     actives.push(i % 2 == 0)
   }
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id", "name", "score", "active"],
     vectors: [
       int_vector(ids),
       varchar_vector(names),
-      Vector::all_valid(
-        ColumnType::Double,
-        VectorData::Double(FixedArray::from_array(scores)),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Double,
+        @duckdb.VectorData::Double(FixedArray::from_array(scores)),
       ),
-      Vector::all_valid(
-        ColumnType::Boolean,
-        VectorData::Bool(FixedArray::from_array(actives)),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Boolean,
+        @duckdb.VectorData::Bool(FixedArray::from_array(actives)),
       ),
     ],
   }
@@ -156,22 +159,22 @@ test "native append_chunk nulls and typed values" {
   let names_validity = FixedArray::from_array([true, false, true])
   let bigs = FixedArray::from_array([10000000000L, -5L, 0L])
   let bigs_validity = FixedArray::from_array([false, true, true])
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id", "name", "big"],
     vectors: [
-      Vector::{
-        logical_type: ColumnType::Integer,
-        data: VectorData::Int32(ids),
+      @duckdb.Vector::{
+        logical_type: @duckdb.ColumnType::Integer,
+        data: @duckdb.VectorData::Int32(ids),
         validity: FixedArray::make(3, true),
       },
-      Vector::{
-        logical_type: ColumnType::Varchar,
-        data: VectorData::Varchar(Array::from_fixed_array(names)),
+      @duckdb.Vector::{
+        logical_type: @duckdb.ColumnType::Varchar,
+        data: @duckdb.VectorData::Varchar(Array::from_fixed_array(names)),
         validity: names_validity,
       },
-      Vector::{
-        logical_type: ColumnType::BigInt,
-        data: VectorData::Int64(bigs),
+      @duckdb.Vector::{
+        logical_type: @duckdb.ColumnType::BigInt,
+        data: @duckdb.VectorData::Int64(bigs),
         validity: bigs_validity,
       },
     ],
@@ -210,36 +213,51 @@ test "native append_chunk nulls and typed values" {
 ///|
 test "native append_chunk advanced typed values" {
   let dates = FixedArray::from_array([
-    date_from_ymd(2024, 1, 15),
-    date_from_ymd(1999, 12, 31),
+    @duckdb.date_from_ymd(2024, 1, 15),
+    @duckdb.date_from_ymd(1999, 12, 31),
   ])
   let tss = FixedArray::from_array([
-    timestamp_from_ymd_hms(2024, 1, 15, 10, 30, 0),
-    timestamp_from_ymd_hms(2000, 6, 30, 23, 59, 59),
+    @duckdb.timestamp_from_ymd_hms(2024, 1, 15, 10, 30, 0),
+    @duckdb.timestamp_from_ymd_hms(2000, 6, 30, 23, 59, 59),
   ])
   let decimals = FixedArray::from_array([
-    decimal_from_hugeint(12345UL, 0L, 10, 2), // 123.45
-    decimal_from_hugeint(100UL, 0L, 10, 2), // 1.00
+    @duckdb.decimal_from_hugeint(12345UL, 0L, 10, 2), // 123.45
+    @duckdb.decimal_from_hugeint(100UL, 0L, 10, 2), // 1.00
   ])
   let intervals = FixedArray::from_array([
-    interval_from_parts(1, 2, 3000000L),
-    interval_from_parts(0, 0, 0L),
+    @duckdb.interval_from_parts(1, 2, 3000000L),
+    @duckdb.interval_from_parts(0, 0, 0L),
   ])
-  let huges : VectorData = VectorData::HugeInt(
+  let huges : @duckdb.VectorData = @duckdb.VectorData::HugeInt(
     lower=FixedArray::from_array([1UL, 2UL]),
     upper=FixedArray::from_array([0L, 0L]),
   )
   let blob_a = b"blob-a"
   let blob_b = b"blob-b"
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["d", "ts", "dec", "iv", "h", "b"],
     vectors: [
-      Vector::all_valid(ColumnType::Date, VectorData::Int32(dates)),
-      Vector::all_valid(ColumnType::Timestamp, VectorData::Int64(tss)),
-      Vector::all_valid(ColumnType::Decimal, VectorData::Decimal(decimals)),
-      Vector::all_valid(ColumnType::Interval, VectorData::Interval(intervals)),
-      Vector::all_valid(ColumnType::HugeInt, huges),
-      Vector::all_valid(ColumnType::Blob, VectorData::Blob([blob_a, blob_b])),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Date,
+        @duckdb.VectorData::Int32(dates),
+      ),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Timestamp,
+        @duckdb.VectorData::Int64(tss),
+      ),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Decimal,
+        @duckdb.VectorData::Decimal(decimals),
+      ),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Interval,
+        @duckdb.VectorData::Interval(intervals),
+      ),
+      @duckdb.Vector::all_valid(@duckdb.ColumnType::HugeInt, huges),
+      @duckdb.Vector::all_valid(
+        @duckdb.ColumnType::Blob,
+        @duckdb.VectorData::Blob([blob_a, blob_b]),
+      ),
     ],
   }
   let result = run_native_chunk_append(
@@ -252,76 +270,76 @@ test "native append_chunk advanced typed values" {
       if value.row_count() != 2 {
         fail("expected 2 rows, got \{value.row_count()}")
       }
-      inspect(
+      debug_inspect(
         value.cell(0, 0),
         content=(
-          #|Some(2024-01-15)
+          #|Some("2024-01-15")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(0, 1),
         content=(
-          #|Some(2024-01-15 10:30:00)
+          #|Some("2024-01-15 10:30:00")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(0, 2),
         content=(
-          #|Some(123.45)
+          #|Some("123.45")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(0, 3),
         content=(
-          #|Some(1 month 2 days 00:00:03)
+          #|Some("1 month 2 days 00:00:03")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(0, 4),
         content=(
-          #|Some(1)
+          #|Some("1")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(0, 5),
         content=(
-          #|Some(blob-a)
+          #|Some("blob-a")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 0),
         content=(
-          #|Some(1999-12-31)
+          #|Some("1999-12-31")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 1),
         content=(
-          #|Some(2000-06-30 23:59:59)
+          #|Some("2000-06-30 23:59:59")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 2),
         content=(
-          #|Some(1.00)
+          #|Some("1.00")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 3),
         content=(
-          #|Some(00:00:00)
+          #|Some("00:00:00")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 4),
         content=(
-          #|Some(2)
+          #|Some("2")
         ),
       )
-      inspect(
+      debug_inspect(
         value.cell(1, 5),
         content=(
-          #|Some(blob-b)
+          #|Some("blob-b")
         ),
       )
     }
@@ -341,7 +359,7 @@ test "native append_chunk splits inputs larger than vector capacity" {
     ids.push(i)
     names.push("name_\{i}")
   }
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id", "name"],
     vectors: [int_vector(ids), varchar_vector(names)],
   }
@@ -377,11 +395,11 @@ test "native append_chunk splits inputs larger than vector capacity" {
 
 ///|
 test "native append_chunk interoperates with row-wise appends" {
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id", "name"],
     vectors: [int_vector([1, 2, 3]), varchar_vector(["one", "two", "three"])],
   }
-  fn mixed(app : Appender) -> Result[Unit, DuckDBError] {
+  fn mixed(app : @duckdb.Appender) -> Result[Unit, @duckdb.DuckDBError] {
     match app.append_chunk(chunk) {
       Ok(_) =>
         match app.begin_row() {
@@ -423,7 +441,10 @@ test "native append_chunk interoperates with row-wise appends" {
 
 ///|
 test "native append_chunk rejects malformed chunks" {
-  fn expect_invalid(chunk : VectorChunk, case_name : String) -> Unit raise {
+  fn expect_invalid(
+    chunk : @duckdb.VectorChunk,
+    case_name : String,
+  ) -> Unit raise {
     match
       run_native_chunk_append(
         "CREATE TABLE test_table (a VARCHAR)",
@@ -458,9 +479,9 @@ test "native append_chunk rejects malformed chunks" {
     {
       columns: ["a"],
       vectors: [
-        Vector::{
-          logical_type: ColumnType::Integer,
-          data: VectorData::Int32(FixedArray::from_array([1, 2])),
+        @duckdb.Vector::{
+          logical_type: @duckdb.ColumnType::Integer,
+          data: @duckdb.VectorData::Int32(FixedArray::from_array([1, 2])),
           validity: FixedArray::make(3, true),
         },
       ],
@@ -472,9 +493,9 @@ test "native append_chunk rejects malformed chunks" {
     {
       columns: ["a"],
       vectors: [
-        Vector::all_valid(
-          ColumnType::Varchar,
-          VectorData::Int32(FixedArray::from_array([1])),
+        @duckdb.Vector::all_valid(
+          @duckdb.ColumnType::Varchar,
+          @duckdb.VectorData::Int32(FixedArray::from_array([1])),
         ),
       ],
     },
@@ -484,15 +505,15 @@ test "native append_chunk rejects malformed chunks" {
 
 ///|
 test "native append_chunk reports Unsupported for nested and Any columns" {
-  let list_vector = Vector::all_valid(
-    ColumnType::List,
-    VectorData::List(
+  let list_vector = @duckdb.Vector::all_valid(
+    @duckdb.ColumnType::List,
+    @duckdb.VectorData::List(
       child=int_vector([1, 2, 3]),
       offsets=FixedArray::from_array([0UL]),
       lengths=FixedArray::from_array([3UL]),
     ),
   )
-  let chunk : VectorChunk = { columns: ["l"], vectors: [list_vector], }
+  let chunk : @duckdb.VectorChunk = { columns: ["l"], vectors: [list_vector], }
   match
     run_native_chunk_append(
       "CREATE TABLE test_table (l INTEGER[])",
@@ -509,11 +530,11 @@ test "native append_chunk reports Unsupported for nested and Any columns" {
 
 ///|
 test "native append_chunk while a row is in progress" {
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id", "name"],
     vectors: [int_vector([9, 10]), varchar_vector(["nine", "ten"])],
   }
-  fn mid_row(app : Appender) -> Result[Unit, DuckDBError] {
+  fn mid_row(app : @duckdb.Appender) -> Result[Unit, @duckdb.DuckDBError] {
     match app.begin_row() {
       Ok(_) =>
         match app.append_int(5) {
@@ -539,7 +560,7 @@ test "native append_chunk while a row is in progress" {
 
 ///|
 test "native append_chunk type mismatch against table" {
-  let chunk : VectorChunk = {
+  let chunk : @duckdb.VectorChunk = {
     columns: ["id"],
     vectors: [varchar_vector(["not-an-int"])],
   }
@@ -559,7 +580,7 @@ test "native append_chunk type mismatch against table" {
 
 ///|
 test "native append_chunk empty chunk is a no-op error" {
-  let empty : VectorChunk = { columns: [], vectors: [], }
+  let empty : @duckdb.VectorChunk = { columns: [], vectors: [], }
   match
     run_native_chunk_append(
       "CREATE TABLE test_table (id INTEGER)",

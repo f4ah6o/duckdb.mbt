@@ -216,7 +216,7 @@ pub fn shrink_value(v: Value) -> Iter[Value] {
       if s.length() > 1 {
         candidates.push(Value::String("x"))
         candidates.push(Value::String(
-          s.view(start_offset=0, end_offset=s.length() / 2).to_string(),
+          s.clamped_view(start=0, end=s.length() / 2).to_string(),
         ))
       }
     }
@@ -304,7 +304,7 @@ pub fn shrink_list(l: List) -> Iter[List] {
     if len > 2 {
       let half = len / 2
       candidates.push(List::{
-        elements: l.elements.view(start_offset=0, end_offset=half).to_array(),
+        elements: l.elements.clamped_view(start=0, end=half).to_array(),
       })
     }
   }
@@ -337,8 +337,8 @@ pub fn shrink_struct(s: Struct) -> Iter[Struct] {
     if field_count > 2 {
       let half = field_count / 2
       candidates.push(Struct::{
-        fields: s.fields.view(start_offset=0, end_offset=half).to_array(),
-        values: s.values.view(start_offset=0, end_offset=half).to_array(),
+        fields: s.fields.clamped_view(start=0, end=half).to_array(),
+        values: s.values.clamped_view(start=0, end=half).to_array(),
       })
     }
   }
@@ -371,8 +371,8 @@ pub fn shrink_map(m: Map) -> Iter[Map] {
     if size > 2 {
       let half = size / 2
       candidates.push(Map::{
-        keys: m.keys.view(start_offset=0, end_offset=half).to_array(),
-        values: m.values.view(start_offset=0, end_offset=half).to_array(),
+        keys: m.keys.clamped_view(start=0, end=half).to_array(),
+        values: m.values.clamped_view(start=0, end=half).to_array(),
       })
     }
   }
@@ -401,7 +401,7 @@ pub fn shrink_string_array(arr: Array[String]) -> Iter[Array[String]] {
   // Try half
   if len > 2 {
     let half = len / 2
-    candidates.push(arr.view(start_offset=0, end_offset=half).to_array())
+    candidates.push(arr.clamped_view(start=0, end=half).to_array())
   }
 
   candidates.iter()

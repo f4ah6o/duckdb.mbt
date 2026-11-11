@@ -90,6 +90,16 @@ job logs so failures can be attributed to a backend/version combination.
 | JS (Node) | `moon check --target js` + `moon test --target js` | `ubuntu-latest`, Node 24 | `@duckdb/node-api` `1.4.3-r.3` (minimum), `1.5.6-r.2` (pinned) |
 | JS (WASM) | `pnpm test:wasm-browser` (Playwright Chromium) | `ubuntu-latest` | `@duckdb/duckdb-wasm` `1.33.1-dev18.0` (minimum), `1.33.1-dev110.0` (pinned) |
 
+### MoonBit toolchain
+
+The MoonBit toolchain is pinned in [`.tool-versions`](.tool-versions) and CI
+installs exactly that version, so a toolchain bump is a deliberate PR rather
+than a surprise breakage. The current pin is `0.1.20261104`; `moon check`
+passes with no warnings on `native`, `js`, `wasm`, and `wasm-gc`.
+
+To upgrade, change the pin, then run `moon check --deny-warn` for each target,
+`moon fmt`, `moon info`, and `moon test` for `native` and `js`.
+
 ### Updating DuckDB dependencies
 
 All DuckDB versions — `libduckdb`, `@duckdb/node-api`, and

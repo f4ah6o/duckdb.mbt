@@ -1137,7 +1137,7 @@ test "prop_parse_time_to_micros_fractional" {
             let mut trimmed = padded
             while trimmed.length() > 0 && trimmed[trimmed.length() - 1] == '0' {
               trimmed = trimmed
-                .view(start_offset=0, end_offset=trimmed.length() - 1)
+                .clamped_view(start=0, end=trimmed.length() - 1)
                 .to_string()
             }
             if trimmed.length() > 0 {
@@ -1886,7 +1886,7 @@ test "prop_parse_date_leap_day_boundaries" {
     "parse_date handles leap day correctly",
     gen,
     fn(s) {
-      let year_str = s.view(start_offset=0, end_offset=4).to_string()
+      let year_str = s.clamped_view(start=0, end=4).to_string()
       let year = parse_int(year_str)
       let is_leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
       match parse_date(s) {
@@ -1921,10 +1921,10 @@ fn shrink_string(s : String) -> Iter[String] {
   }
   let candidates : Array[String] = [""]
   if len > 1 {
-    candidates.push(s.view(start_offset=0, end_offset=1).to_string())
+    candidates.push(s.clamped_view(start=0, end=1).to_string())
   }
   if len > 2 {
-    candidates.push(s.view(start_offset=0, end_offset=len / 2).to_string())
+    candidates.push(s.clamped_view(start=0, end=len / 2).to_string())
   }
   candidates.iter()
 }

@@ -2,6 +2,11 @@
 /// QuickCheck compatibility helpers for legacy PBT tests.
 
 ///|
+/// Legacy QuickCheck knobs. `moonbitlang/quickcheck` exposes no per-run
+/// configuration, so only `seed` is consumed; the remaining fields are kept
+/// so existing `CheckConfig::new(cases, max_size, seed, max_shrinks)` call
+/// sites keep compiling.
+#warnings("-unused_field")
 struct CheckConfig {
   cases : Int32
   max_size : Int32

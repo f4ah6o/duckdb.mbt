@@ -34,16 +34,21 @@ test "js_pack_chunk pools flat columns" {
     pool_str,
     pool_bytes,
   ) = js_pack_chunk(chunk, 0, 2)
-  inspect(Array::from_fixed_array(kinds), content="[0, 1, 6, 2]")
-  inspect(Array::from_fixed_array(offsets), content="[0, 2, 0, 0]")
-  inspect(
+  debug_inspect(Array::from_fixed_array(kinds), content="[0, 1, 6, 2]")
+  debug_inspect(Array::from_fixed_array(offsets), content="[0, 2, 0, 0]")
+  debug_inspect(
     Array::from_fixed_array(null_flags),
     content="[0, 0, 0, 0, 0, 0, 0, 1]",
   )
-  inspect(Array::from_fixed_array(pool_i32), content="[1, 0, 10, 20]")
-  inspect(Array::from_fixed_array(pool_i64), content="[1, 2]")
-  inspect(Array::from_fixed_array(pool_f64), content="[]")
-  inspect(Array::from_fixed_array(pool_str), content="[x, y]")
+  debug_inspect(Array::from_fixed_array(pool_i32), content="[1, 0, 10, 20]")
+  debug_inspect(Array::from_fixed_array(pool_i64), content="[1, 2]")
+  debug_inspect(Array::from_fixed_array(pool_f64), content="[]")
+  debug_inspect(
+    Array::from_fixed_array(pool_str),
+    content=(
+      #|["x", "y"]
+    ),
+  )
   inspect(pool_bytes.length(), content="0")
 }
 
@@ -81,10 +86,10 @@ test "js_pack_chunk packs 128-bit and structured payload columns" {
     _pool_str,
     _pool_bytes,
   ) = js_pack_chunk(chunk, 0, 2)
-  inspect(Array::from_fixed_array(kinds), content="[9, 10, 8]")
+  debug_inspect(Array::from_fixed_array(kinds), content="[9, 10, 8]")
   // Decimal pairs, interval triples, then hugeint pairs share pool_i64.
-  inspect(Array::from_fixed_array(offsets), content="[0, 4, 10]")
-  inspect(
+  debug_inspect(Array::from_fixed_array(offsets), content="[0, 4, 10]")
+  debug_inspect(
     Array::from_fixed_array(pool_i64),
     content="[-1, 10, 0, 5, 3, 4, 500, 0, 1, 0, 7, 9, 6, 8]",
   )
@@ -118,11 +123,16 @@ test "js_pack_chunk packs a row slice at an offset" {
     pool_str,
     _pool_bytes,
   ) = js_pack_chunk(chunk, 2, 2)
-  inspect(Array::from_fixed_array(kinds), content="[1, 6]")
-  inspect(Array::from_fixed_array(offsets), content="[0, 0]")
-  inspect(Array::from_fixed_array(null_flags), content="[0, 1, 0, 0]")
-  inspect(Array::from_fixed_array(pool_i32), content="[30, 40]")
-  inspect(Array::from_fixed_array(pool_str), content="[c, d]")
+  debug_inspect(Array::from_fixed_array(kinds), content="[1, 6]")
+  debug_inspect(Array::from_fixed_array(offsets), content="[0, 0]")
+  debug_inspect(Array::from_fixed_array(null_flags), content="[0, 1, 0, 0]")
+  debug_inspect(Array::from_fixed_array(pool_i32), content="[30, 40]")
+  debug_inspect(
+    Array::from_fixed_array(pool_str),
+    content=(
+      #|["c", "d"]
+    ),
+  )
 }
 
 ///|

@@ -324,7 +324,7 @@ fn chunk_from_json(json : Json) -> VectorChunk {
         pool_str,
         pool_bytes,
       }
-      let ncols = columns.length()
+      let _ = columns.length()
       let vectors : Array[Vector] = []
       for slot in js_top_level_slots(pools) {
         vectors.push(js_vector_from_pools(pools, slot))
@@ -344,7 +344,12 @@ test "js stream vectors: primitives stay typed" {
     ) {
     Ok(chunks) => {
       let chunk = chunks[0]
-      inspect(chunk.columns, content="[i, b, d, flag, s]")
+      debug_inspect(
+        chunk.columns,
+        content=(
+          #|["i", "b", "d", "flag", "s"]
+        ),
+      )
       inspect(chunk.row_count(), content="1")
       match chunk.get_value(0, 0) {
         Some(Value::Int(42)) => ()
@@ -471,20 +476,30 @@ test "js stream vectors: nested types decode without string round-trips" {
       // Real pooled variants, not the tagged-JSON Any fallback.
       match chunk.column(0).unwrap().data {
         VectorData::List(child~, offsets~, lengths~) => {
-          inspect(Array::from_fixed_array(offsets), content="[0]")
-          inspect(Array::from_fixed_array(lengths), content="[3]")
+          debug_inspect(Array::from_fixed_array(offsets), content="[0]")
+          debug_inspect(Array::from_fixed_array(lengths), content="[3]")
           inspect(child.data is VectorData::Int32(_), content="true")
         }
         _ => fail("expected List vector data")
       }
       match chunk.get_value(0, 0) {
         Some(Value::List(items)) =>
-          inspect(items.map(fn(v) { v.to_string() }), content="[1, 2, 3]")
+          debug_inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|["1", "2", "3"]
+            ),
+          )
         _ => fail("expected List")
       }
       match chunk.column(1).unwrap().data {
         VectorData::Struct(fields~, children~) => {
-          inspect(fields, content="[a, b]")
+          debug_inspect(
+            fields,
+            content=(
+              #|["a", "b"]
+            ),
+          )
           inspect(children.length(), content="2")
           inspect(children[0].data is VectorData::Int32(_), content="true")
           inspect(children[1].data is VectorData::Varchar(_), content="true")
@@ -493,15 +508,25 @@ test "js stream vectors: nested types decode without string round-trips" {
       }
       match chunk.get_value(0, 1) {
         Some(Value::Struct(fields~, values~)) => {
-          inspect(fields, content="[a, b]")
-          inspect(values.map(fn(v) { v.to_string() }), content="[1, x]")
+          debug_inspect(
+            fields,
+            content=(
+              #|["a", "b"]
+            ),
+          )
+          debug_inspect(
+            values.map(fn(v) { v.to_string() }),
+            content=(
+              #|["1", "x"]
+            ),
+          )
         }
         _ => fail("expected Struct")
       }
       match chunk.column(2).unwrap().data {
         VectorData::Map(offsets~, lengths~, keys~, values~) => {
-          inspect(Array::from_fixed_array(offsets), content="[0]")
-          inspect(Array::from_fixed_array(lengths), content="[2]")
+          debug_inspect(Array::from_fixed_array(offsets), content="[0]")
+          debug_inspect(Array::from_fixed_array(lengths), content="[2]")
           inspect(keys.data is VectorData::Varchar(_), content="true")
           inspect(values.data is VectorData::Int32(_), content="true")
         }
@@ -509,8 +534,18 @@ test "js stream vectors: nested types decode without string round-trips" {
       }
       match chunk.get_value(0, 2) {
         Some(Value::Map(keys~, values~)) => {
-          inspect(keys.map(fn(v) { v.to_string() }), content="[x, y]")
-          inspect(values.map(fn(v) { v.to_string() }), content="[10, 20]")
+          debug_inspect(
+            keys.map(fn(v) { v.to_string() }),
+            content=(
+              #|["x", "y"]
+            ),
+          )
+          debug_inspect(
+            values.map(fn(v) { v.to_string() }),
+            content=(
+              #|["10", "20"]
+            ),
+          )
         }
         _ => fail("expected Map")
       }
@@ -536,10 +571,16 @@ test "js stream vectors: nested lists across rows and null cells" {
       inspect(chunk.row_count(), content="5")
       match chunk.column(0).unwrap().data {
         VectorData::List(child~, offsets~, lengths~) => {
-          inspect(Array::from_fixed_array(offsets), content="[0, 2, 3, 3, 6]")
-          inspect(Array::from_fixed_array(lengths), content="[2, 1, 0, 3, 0]")
+          debug_inspect(
+            Array::from_fixed_array(offsets),
+            content="[0, 2, 3, 3, 6]",
+          )
+          debug_inspect(
+            Array::from_fixed_array(lengths),
+            content="[2, 1, 0, 3, 0]",
+          )
           inspect(child.len(), content="6")
-          inspect(
+          debug_inspect(
             Array::from_fixed_array(child.validity),
             content="[true, true, true, true, false, true]",
           )
@@ -553,10 +594,10 @@ test "js stream vectors: nested lists across rows and null cells" {
       }
       match chunk.get_value(3, 0) {
         Some(Value::List(items)) =>
-          inspect(
+          debug_inspect(
             items.map(fn(v) { v.to_string() }),
             content=(
-              #|[4, NULL, 6]
+              #|["4", "NULL", "6"]
             ),
           )
         _ => fail("expected List with NULL element")
@@ -590,13 +631,23 @@ test "js stream vectors: nested list across chunks" {
       )
       match chunks[0].get_value(0, 0) {
         Some(Value::List(items)) =>
-          inspect(items.map(fn(v) { v.to_string() }), content="[0, 10]")
+          debug_inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|["0", "10"]
+            ),
+          )
         _ => fail("expected first List")
       }
       let last = chunks[chunks.length() - 1]
       match last.get_value(last.row_count() - 1, 0) {
         Some(Value::List(items)) =>
-          inspect(items.map(fn(v) { v.to_string() }), content="[4999, 5009]")
+          debug_inspect(
+            items.map(fn(v) { v.to_string() }),
+            content=(
+              #|["4999", "5009"]
+            ),
+          )
         _ => fail("expected last List")
       }
     }
@@ -622,8 +673,8 @@ test "js stream vectors: fixed-size array decodes as list with array type" {
       inspect(vector.logical_type is ColumnType::Array, content="true")
       match vector.data {
         VectorData::List(child~, offsets~, lengths~) => {
-          inspect(Array::from_fixed_array(offsets), content="[0, 3, 6]")
-          inspect(Array::from_fixed_array(lengths), content="[3, 3, 0]")
+          debug_inspect(Array::from_fixed_array(offsets), content="[0, 3, 6]")
+          debug_inspect(Array::from_fixed_array(lengths), content="[3, 3, 0]")
           inspect(child.len(), content="6")
         }
         _ => fail("expected List vector data for ARRAY")
@@ -631,10 +682,10 @@ test "js stream vectors: fixed-size array decodes as list with array type" {
       inspect(chunk.is_null(2, 0), content="true")
       match chunk.get_value(1, 0) {
         Some(Value::List(items)) =>
-          inspect(
+          debug_inspect(
             items.map(fn(v) { v.to_string() }),
             content=(
-              #|[4, 5, NULL]
+              #|["4", "5", "NULL"]
             ),
           )
         _ => fail("expected List")
@@ -662,17 +713,23 @@ test "js stream vectors: nested-in-nested decodes recursively" {
       match chunk.column(0).unwrap().data {
         VectorData::List(child~, ..) =>
           match child.data {
-            VectorData::Struct(fields~, ..) => inspect(fields, content="[a, b]")
+            VectorData::Struct(fields~, ..) =>
+              debug_inspect(
+                fields,
+                content=(
+                  #|["a", "b"]
+                ),
+              )
             _ => fail("expected Struct child vector")
           }
         _ => fail("expected List vector data")
       }
       match chunk.get_value(0, 0) {
         Some(Value::List(items)) =>
-          inspect(
+          debug_inspect(
             items.map(fn(v) { v.to_string() }),
             content=(
-              #|[{a: 1, b: x}, {a: 2, b: y}]
+              #|["{a: 1, b: x}", "{a: 2, b: y}"]
             ),
           )
         _ => fail("expected List of Struct")
@@ -682,19 +739,24 @@ test "js stream vectors: nested-in-nested decodes recursively" {
       // so interleaved emission decodes the wrong slot ids.
       match chunk.column(1).unwrap().data {
         VectorData::Struct(fields~, children~) => {
-          inspect(fields, content="[list, map]")
+          debug_inspect(
+            fields,
+            content=(
+              #|["list", "map"]
+            ),
+          )
           match children[0].data {
             VectorData::List(child~, offsets~, lengths~) => {
-              inspect(Array::from_fixed_array(offsets), content="[0]")
-              inspect(Array::from_fixed_array(lengths), content="[2]")
+              debug_inspect(Array::from_fixed_array(offsets), content="[0]")
+              debug_inspect(Array::from_fixed_array(lengths), content="[2]")
               inspect(child.len(), content="2")
             }
             _ => fail("expected List child vector")
           }
           match children[1].data {
             VectorData::Map(offsets~, lengths~, keys~, ..) => {
-              inspect(Array::from_fixed_array(offsets), content="[0]")
-              inspect(Array::from_fixed_array(lengths), content="[1]")
+              debug_inspect(Array::from_fixed_array(offsets), content="[0]")
+              debug_inspect(Array::from_fixed_array(lengths), content="[1]")
               inspect(keys.len(), content="1")
             }
             _ => fail("expected Map child vector")
@@ -733,10 +795,20 @@ test "js stream vectors: struct-in-struct keeps field names aligned" {
       inspect(chunk.column_count(), content="1")
       match chunk.column(0).unwrap().data {
         VectorData::Struct(fields~, children~) => {
-          inspect(fields, content="[inner, b]")
+          debug_inspect(
+            fields,
+            content=(
+              #|["inner", "b"]
+            ),
+          )
           match children[0].data {
             VectorData::Struct(fields=inner_fields, ..) =>
-              inspect(inner_fields, content="[x, y]")
+              debug_inspect(
+                inner_fields,
+                content=(
+                  #|["x", "y"]
+                ),
+              )
             _ => fail("expected inner Struct child vector")
           }
         }
@@ -826,7 +898,12 @@ test "js stream vectors: empty result keeps column schema" {
       inspect(chunk.row_count(), content="0")
       inspect(chunk.column_count(), content="3")
       let result = chunks_to_query_result(chunks)
-      inspect(result.columns, content="[a, b, s]")
+      debug_inspect(
+        result.columns,
+        content=(
+          #|["a", "b", "s"]
+        ),
+      )
       inspect(result.column_types.length(), content="3")
       inspect(result.rows.length(), content="0")
       inspect(result.column_types[2] is ColumnType::Struct, content="true")

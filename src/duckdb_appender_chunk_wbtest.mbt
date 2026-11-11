@@ -77,8 +77,8 @@ test "append_chunk_specs maps logical/storage pairs to type ids" {
   match append_chunk_specs(chunk, backend) {
     Ok((rows, type_ids, aux)) => {
       inspect(rows, content="2")
-      inspect(Array::from_fixed_array(type_ids), content="[4, 17, 11]")
-      inspect(Array::from_fixed_array(aux), content="[0, 0, 0]")
+      debug_inspect(Array::from_fixed_array(type_ids), content="[4, 17, 11]")
+      debug_inspect(Array::from_fixed_array(aux), content="[0, 0, 0]")
     }
     Err(err) => fail("expected specs, got \{err.message()}")
   }
@@ -136,8 +136,8 @@ test "append_chunk_specs decimal meta" {
   match append_chunk_specs(chunk, backend) {
     Ok((rows, type_ids, aux)) => {
       inspect(rows, content="2")
-      inspect(Array::from_fixed_array(type_ids), content="[19]")
-      inspect(Array::from_fixed_array(aux), content="[655362]") // (10<<16)|2
+      debug_inspect(Array::from_fixed_array(type_ids), content="[19]")
+      debug_inspect(Array::from_fixed_array(aux), content="[655362]") // (10<<16)|2
     }
     Err(err) => fail("expected decimal specs, got \{err.message()}")
   }

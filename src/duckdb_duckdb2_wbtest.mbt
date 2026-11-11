@@ -13,7 +13,7 @@
 
 ///|
 fn ddb2_query(conn : Connection, sql : String) -> Result[QueryResult, String] {
-  let response : Ref[Result[QueryResult, String]?] = Ref::new(None)
+  let response : Ref[Result[QueryResult, String]?] = Ref(None)
   conn.query(sql, on_done=fn(result) {
     match result {
       Ok(rows) => response.val = Some(Ok(rows))
@@ -45,8 +45,8 @@ fn ddb2_is_20(conn : Connection) -> Bool {
 
 ///|
 test "native build and engine major version agree" {
-  let failure : Ref[String?] = Ref::new(None)
-  let version_ref : Ref[String?] = Ref::new(None)
+  let failure : Ref[String?] = Ref(None)
+  let version_ref : Ref[String?] = Ref(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
@@ -79,11 +79,11 @@ test "native build and engine major version agree" {
 ///|
 test "duckdb 2.0: TIMESTAMPTZ_NS renders engine text" {
   let sql = "SELECT CAST('2024-06-03 12:34:56.123456789+00' AS TIMESTAMPTZ_NS) AS v"
-  let failure : Ref[String?] = Ref::new(None)
-  let is_20_ref : Ref[Bool?] = Ref::new(None)
-  let text_ref : Ref[String?] = Ref::new(None)
-  let column_type_ref : Ref[ColumnType?] = Ref::new(None)
-  let error_ref : Ref[String?] = Ref::new(None)
+  let failure : Ref[String?] = Ref(None)
+  let is_20_ref : Ref[Bool?] = Ref(None)
+  let text_ref : Ref[String?] = Ref(None)
+  let column_type_ref : Ref[ColumnType?] = Ref(None)
+  let error_ref : Ref[String?] = Ref(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
@@ -133,10 +133,10 @@ test "duckdb 2.0: TIMESTAMPTZ_NS renders engine text" {
 ///|
 test "duckdb 2.0: TIMESTAMPTZ_NS streams" {
   let sql = "SELECT CAST('2024-06-03 12:34:56.123456789+00' AS TIMESTAMPTZ_NS) AS v"
-  let failure : Ref[String?] = Ref::new(None)
-  let is_20_ref : Ref[Bool?] = Ref::new(None)
-  let text_ref : Ref[String?] = Ref::new(None)
-  let error_ref : Ref[String?] = Ref::new(None)
+  let failure : Ref[String?] = Ref(None)
+  let is_20_ref : Ref[Bool?] = Ref(None)
+  let text_ref : Ref[String?] = Ref(None)
+  let error_ref : Ref[String?] = Ref(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
@@ -182,9 +182,9 @@ test "duckdb 2.0: TIMESTAMPTZ_NS streams" {
 
 ///|
 test "duckdb 2.0: appender flush needs a drained stream" {
-  let failure : Ref[String?] = Ref::new(None)
-  let is_20_ref : Ref[Bool?] = Ref::new(None)
-  let flush_ref : Ref[Result[Unit, DuckDBError]?] = Ref::new(None)
+  let failure : Ref[String?] = Ref(None)
+  let is_20_ref : Ref[Bool?] = Ref(None)
+  let flush_ref : Ref[Result[Unit, DuckDBError]?] = Ref(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
@@ -253,8 +253,8 @@ test "duckdb 2.0: appender flush needs a drained stream" {
 
 ///|
 test "storage_compatibility_version round-trips a database file" {
-  let failure : Ref[String?] = Ref::new(None)
-  let version_ref : Ref[String?] = Ref::new(None)
+  let failure : Ref[String?] = Ref(None)
+  let version_ref : Ref[String?] = Ref(None)
   connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
@@ -282,7 +282,7 @@ test "storage_compatibility_version round-trips a database file" {
         // 2.0 lanes both accept it.
         Err(_) => ()
         Ok(_) => {
-          let created : Ref[String?] = Ref::new(None)
+          let created : Ref[String?] = Ref(None)
           connect_with_config(
             on_ready=fn(created_result) {
               match created_result {
@@ -305,7 +305,7 @@ test "storage_compatibility_version round-trips a database file" {
           match created.val {
             Some(message) => fail("write failed: " + message)
             None => {
-              let read_back : Ref[String?] = Ref::new(None)
+              let read_back : Ref[String?] = Ref(None)
               connect(
                 on_ready=fn(read_result) {
                   match read_result {

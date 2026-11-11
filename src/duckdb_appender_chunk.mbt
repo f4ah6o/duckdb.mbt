@@ -356,6 +356,7 @@ fn column_write_spec(
 /// Validate `chunk` for `append_chunk` on `backend` and precompute the
 /// per-column `(type id, aux)` write spec in one pass. On success returns
 /// `(rows, type_ids, aux)` with `type_ids.length() == vectors.length()`.
+#warnings("-unused_value")
 fn append_chunk_specs(
   chunk : VectorChunk,
   backend : Backend,

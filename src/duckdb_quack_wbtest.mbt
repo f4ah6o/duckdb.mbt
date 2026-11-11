@@ -58,7 +58,7 @@ test "quack attach SQL" {
 ///|
 test "quack attach rejects unsafe aliases" {
   match quack_identifier("") {
-    Ok(alias) => fail("expected empty alias error, got \{alias}")
+    Ok(alias_name) => fail("expected empty alias error, got \{alias_name}")
     Err(err) =>
       inspect(
         err.message(),
@@ -68,7 +68,7 @@ test "quack attach rejects unsafe aliases" {
       )
   }
   match quack_identifier("remote-db") {
-    Ok(alias) => fail("expected invalid alias error, got \{alias}")
+    Ok(alias_name) => fail("expected invalid alias error, got \{alias_name}")
     Err(err) =>
       inspect(
         err.message(),

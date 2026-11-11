@@ -4,6 +4,7 @@
 
 ///|
 /// Appender state representation
+#derive(Debug)
 pub enum AppenderState {
   NotCreated
   Ready
@@ -11,10 +12,11 @@ pub enum AppenderState {
   Flushed
   Closed
   Error
-} derive(Show)
+}
 
 ///|
 /// Appender command type
+#derive(Debug)
 pub enum AppenderCommand {
   Create(String) // table name
   BeginRow
@@ -26,17 +28,18 @@ pub enum AppenderCommand {
   AppendChunk(Int32) // bulk-append a chunk of this many rows
   Flush
   Close
-} derive(Show)
+}
 
 ///|
 /// Appender model for state machine testing
+#derive(Debug)
 pub struct AppenderModel {
   state : AppenderState
   column_count : Int32
   expected_columns : Int32
   row_count : Int32
   flushed_row_count : Int32
-} derive(Show)
+}
 
 ///|
 /// Initial appender model

@@ -2,9 +2,9 @@
 /// Runtime conformance for `Connection::capabilities` on the native backend:
 /// the capability table must agree with what the backend actually does.
 test "native connection reports native backend capabilities" {
-  let caps_ref : Ref[BackendCapabilities?] = Ref::new(None)
-  let error_ref : Ref[String?] = Ref::new(None)
-  connect(on_ready=fn(result) {
+  let caps_ref : Ref[@duckdb.BackendCapabilities?] = Ref(None)
+  let error_ref : Ref[String?] = Ref(None)
+  @duckdb.connect(on_ready=fn(result) {
     match result {
       Ok(conn) => {
         caps_ref.val = Some(conn.capabilities())
@@ -18,10 +18,10 @@ test "native connection reports native backend capabilities" {
   }
   match caps_ref.val {
     Some(caps) => {
-      inspect(caps.backend, content="Native")
+      debug_inspect(caps.backend, content="Native")
       inspect(caps.backend.name(), content="native")
-      inspect(caps.supports(BackendFeature::Appender), content="true")
-      inspect(caps.supports(BackendFeature::Streaming), content="true")
+      inspect(caps.supports(@duckdb.BackendFeature::Appender), content="true")
+      inspect(caps.supports(@duckdb.BackendFeature::Streaming), content="true")
       inspect(caps.persistent_storage, content="true")
     }
     None => fail("connection reported no capabilities")
@@ -30,11 +30,11 @@ test "native connection reports native backend capabilities" {
 
 ///|
 test "native appender works where capabilities report it" {
-  let done_ref : Ref[String?] = Ref::new(None)
-  connect(on_ready=fn(result) {
+  let done_ref : Ref[String?] = Ref(None)
+  @duckdb.connect(on_ready=fn(result) {
     match result {
       Ok(conn) =>
-        if !conn.capabilities().supports(BackendFeature::Appender) {
+        if !conn.capabilities().supports(@duckdb.BackendFeature::Appender) {
           done_ref.val = Some("appender unexpectedly gated")
           conn.close(on_done=fn(_) { () })
         } else {
@@ -80,10 +80,10 @@ test "native appender works where capabilities report it" {
       Err(err) => done_ref.val = Some("connect failed: \{err.message()}")
     }
   })
-  inspect(
+  debug_inspect(
     done_ref.val,
     content=(
-      #|Some(ok)
+      #|Some("ok")
     ),
   )
 }

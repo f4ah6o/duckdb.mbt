@@ -129,7 +129,7 @@ let duckdb_error_closed_sentinel = "ERR_CLOSED:"
 /// Input Error", ...) to snake_case without the "error" suffix
 /// ("parser", "invalid_input", ...).
 fn normalize_error_type(name : String) -> String {
-  let sb = StringBuilder::new()
+  let sb = StringBuilder()
   for c in name {
     if c == ' ' || c == '-' {
       ignore(sb.write_char('_'))
@@ -275,24 +275,32 @@ fn classify_duckdb_error(
 ///|
 /// A query/stream failure reported by the DuckDB engine (classified by the
 /// `"<Type> Error:"` message prefix) or a plain `Query` binding error.
+///
+/// The `#warnings` suppression on this group covers the wasm/wasm-gc stubs,
+/// which route every call through `duckdb_unsupported.mbt` and never reach
+/// these helpers.
+#warnings("-unused_value")
 fn query_error(message : String) -> DuckDBError {
   classify_duckdb_error(message, fallback=fn(m) { Query(m) })
 }
 
 ///|
 /// A prepare failure, classified like `query_error`.
+#warnings("-unused_value")
 fn prepare_error(message : String) -> DuckDBError {
   classify_duckdb_error(message, fallback=fn(m) { Prepare(m) })
 }
 
 ///|
 /// A bind failure, classified like `query_error`.
+#warnings("-unused_value")
 fn bind_error(message : String) -> DuckDBError {
   classify_duckdb_error(message, fallback=fn(m) { Bind(m) })
 }
 
 ///|
 /// An appender failure, classified like `query_error`.
+#warnings("-unused_value")
 fn append_error(message : String) -> DuckDBError {
   classify_duckdb_error(message, fallback=fn(m) { Append(m) })
 }
@@ -300,6 +308,7 @@ fn append_error(message : String) -> DuckDBError {
 ///|
 /// A backend/runtime failure outside the query path, classified like
 /// `query_error` but falling back to `Backend`.
+#warnings("-unused_value")
 fn backend_error(backend : String, message : String) -> DuckDBError {
   classify_duckdb_error(message, fallback=fn(m) { Backend(backend~, message=m) })
 }
@@ -323,6 +332,7 @@ pub struct DataChunk {
 
 ///|
 /// DuckDB column type identifiers.
+#derive(Eq)
 pub(all) enum ColumnType {
   Invalid
   Boolean
@@ -365,7 +375,7 @@ pub(all) enum ColumnType {
   IntegerLiteral
   TimeNs
   Unknown(Int32)
-} derive(Eq)
+}
 
 ///|
 pub extend ColumnType with Eq::{not_equal, equal}

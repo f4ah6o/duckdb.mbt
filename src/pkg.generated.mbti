@@ -3,32 +3,33 @@ package "f4ah6o/duckdb"
 
 import {
   "moonbitlang/core/bigint",
+  "moonbitlang/core/debug",
 }
 
 // Values
 pub fn chunks_to_query_result(Array[VectorChunk]) -> QueryResult
 
-pub fn column_type_from_id(Int) -> ColumnType
+pub fn column_type_from_id(Int32) -> ColumnType
 
-pub fn column_type_to_id(ColumnType) -> Int
+pub fn column_type_to_id(ColumnType) -> Int32
 
 pub fn connect(on_ready~ : (Result[Connection, DuckDBError]) -> Unit, path? : String, backend? : JsBackend) -> Unit
 
-pub fn date_from_ymd(Int, Int, Int) -> Int
+pub fn date_from_ymd(Int32, Int32, Int32) -> Int32
 
-pub fn date_to_days(Int, Int, Int) -> Int
+pub fn date_to_days(Int32, Int32, Int32) -> Int32
 
-pub fn date_to_ymd(Int) -> (Int, Int, Int)
+pub fn date_to_ymd(Int32) -> (Int32, Int32, Int32)
 
-pub fn days_in_month(Int, Int) -> Int
+pub fn days_in_month(Int32, Int32) -> Int32
 
-pub fn days_to_ymd(Int) -> (Int, Int, Int)
+pub fn days_to_ymd(Int32) -> (Int32, Int32, Int32)
 
-pub fn decimal_from_double(Double, Int, Int) -> Decimal
+pub fn decimal_from_double(Double, Int32, Int32) -> Decimal
 
-pub fn decimal_from_hugeint(UInt64, Int64, Int, Int) -> Decimal
+pub fn decimal_from_hugeint(UInt64, Int64, Int32, Int32) -> Decimal
 
-pub fn decimal_from_parts(Int64, Int64, Int) -> Decimal
+pub fn decimal_from_parts(Int64, Int64, Int32) -> Decimal
 
 pub fn decimal_to_double(Decimal) -> Double
 
@@ -43,19 +44,19 @@ pub fn expect_query_result(FixtureCase, QueryResult) -> Unit raise
 
 pub let fixture_cases : Array[FixtureCase]
 
-pub fn int_pow10(Int) -> Int64
+pub fn int_pow10(Int32) -> Int64
 
-pub fn interval_from_days(Int) -> Interval
+pub fn interval_from_days(Int32) -> Interval
 
-pub fn interval_from_hours(Int) -> Interval
+pub fn interval_from_hours(Int32) -> Interval
 
-pub fn interval_from_minutes(Int) -> Interval
+pub fn interval_from_minutes(Int32) -> Interval
 
-pub fn interval_from_months(Int) -> Interval
+pub fn interval_from_months(Int32) -> Interval
 
-pub fn interval_from_parts(Int, Int, Int64) -> Interval
+pub fn interval_from_parts(Int32, Int32, Int64) -> Interval
 
-pub fn interval_from_seconds(Int) -> Interval
+pub fn interval_from_seconds(Int32) -> Interval
 
 pub fn interval_to_micros(Interval) -> Int64
 
@@ -63,15 +64,15 @@ pub fn is_double(String) -> Bool
 
 pub fn is_integer(String) -> Bool
 
-pub fn is_leap_year(Int) -> Bool
+pub fn is_leap_year(Int32) -> Bool
 
 pub fn is_special_float_string(String) -> Bool
 
 pub fn list_from_strings(Array[String]) -> List
 
-pub fn list_get(List, Int) -> String?
+pub fn list_get(List, Int32) -> String?
 
-pub fn list_length(List) -> Int
+pub fn list_length(List) -> Int32
 
 pub fn map_from_arrays(Array[String], Array[String]) -> Map
 
@@ -79,15 +80,15 @@ pub fn map_from_pairs(Array[(String, String)]) -> Map
 
 pub fn map_get(Map, String) -> String?
 
-pub fn map_size(Map) -> Int
+pub fn map_size(Map) -> Int32
 
-pub fn parse_date(String) -> Result[Int, String]
+pub fn parse_date(String) -> Result[Int32, String]
 
 pub fn parse_double(String) -> Double
 
-pub fn parse_fraction_to_micros(String) -> Int
+pub fn parse_fraction_to_micros(String) -> Int32
 
-pub fn parse_int(String) -> Int
+pub fn parse_int(String) -> Int32
 
 pub fn parse_time_to_micros(String) -> Result[Int64, String]
 
@@ -95,7 +96,7 @@ pub fn parse_timestamp(String) -> Result[Int64, String]
 
 pub fn parse_value(String) -> Value
 
-pub fn struct_field_count(Struct) -> Int
+pub fn struct_field_count(Struct) -> Int32
 
 pub fn struct_from_arrays(Array[String], Array[String]) -> Struct
 
@@ -105,9 +106,9 @@ pub fn struct_get(Struct, String) -> String?
 
 pub fn support_matrix_markdown() -> String
 
-pub fn timestamp_from_ymd_hms(Int, Int, Int, Int, Int, Int) -> Int64
+pub fn timestamp_from_ymd_hms(Int32, Int32, Int32, Int32, Int32, Int32) -> Int64
 
-pub fn timestamp_to_ymd_hms(Int64) -> (Int, Int, Int, Int, Int, Int)
+pub fn timestamp_to_ymd_hms(Int64) -> (Int32, Int32, Int32, Int32, Int32, Int32)
 
 // Errors
 pub suberror DuckDBError {
@@ -128,14 +129,14 @@ pub fn DuckDBError::to_message(Self) -> String
 
 // Types and methods
 pub type Appender
-pub fn Appender::append_bigint(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_bigint(Self, Int32) -> Result[Unit, DuckDBError]
 pub fn Appender::append_blob(Self, Bytes) -> Result[Unit, DuckDBError]
 pub fn Appender::append_bool(Self, Bool) -> Result[Unit, DuckDBError]
 pub fn Appender::append_chunk(Self, VectorChunk) -> Result[Unit, DuckDBError]
-pub fn Appender::append_date(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_date(Self, Int32) -> Result[Unit, DuckDBError]
 pub fn Appender::append_decimal(Self, Decimal) -> Result[Unit, DuckDBError]
 pub fn Appender::append_double(Self, Double) -> Result[Unit, DuckDBError]
-pub fn Appender::append_int(Self, Int) -> Result[Unit, DuckDBError]
+pub fn Appender::append_int(Self, Int32) -> Result[Unit, DuckDBError]
 pub fn Appender::append_interval(Self, Interval) -> Result[Unit, DuckDBError]
 pub fn Appender::append_null(Self) -> Result[Unit, DuckDBError]
 pub fn Appender::append_timestamp(Self, Int64) -> Result[Unit, DuckDBError]
@@ -158,44 +159,53 @@ pub struct ArrowResult {
   // private fields
 }
 pub fn ArrowResult::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
-pub fn ArrowResult::column_count(Self) -> Int
+pub fn ArrowResult::column_count(Self) -> Int32
 #deprecated
-pub fn ArrowResult::get_column_bool(Self, Int) -> Array[Bool]
+pub fn ArrowResult::get_column_bool(Self, Int32) -> Array[Bool]
 #deprecated
-pub fn ArrowResult::get_column_bool_nullable(Self, Int) -> (Array[Bool], Array[Bool])
+pub fn ArrowResult::get_column_bool_nullable(Self, Int32) -> (Array[Bool], Array[Bool])
 #deprecated
-pub fn ArrowResult::get_column_double(Self, Int) -> Array[Double]
+pub fn ArrowResult::get_column_double(Self, Int32) -> Array[Double]
 #deprecated
-pub fn ArrowResult::get_column_double_nullable(Self, Int) -> (Array[Double], Array[Bool])
+pub fn ArrowResult::get_column_double_nullable(Self, Int32) -> (Array[Double], Array[Bool])
 #deprecated
-pub fn ArrowResult::get_column_int32(Self, Int) -> Array[Int]
+pub fn ArrowResult::get_column_int32(Self, Int32) -> Array[Int32]
 #deprecated
-pub fn ArrowResult::get_column_int32_nullable(Self, Int) -> (Array[Int], Array[Bool])
+pub fn ArrowResult::get_column_int32_nullable(Self, Int32) -> (Array[Int32], Array[Bool])
 #deprecated
-pub fn ArrowResult::get_column_int64(Self, Int) -> Array[Int64]
+pub fn ArrowResult::get_column_int64(Self, Int32) -> Array[Int64]
 #deprecated
-pub fn ArrowResult::get_column_int64_nullable(Self, Int) -> (Array[Int64], Array[Bool])
+pub fn ArrowResult::get_column_int64_nullable(Self, Int32) -> (Array[Int64], Array[Bool])
 #deprecated
-pub fn ArrowResult::get_column_string(Self, Int) -> Array[String]
+pub fn ArrowResult::get_column_string(Self, Int32) -> Array[String]
 #deprecated
-pub fn ArrowResult::get_column_string_nullable(Self, Int) -> (Array[String], Array[Bool])
+pub fn ArrowResult::get_column_string_nullable(Self, Int32) -> (Array[String], Array[Bool])
 pub fn ArrowResult::get_schema(Self) -> Result[ArrowSchemaInfo, DuckDBError]
-pub fn ArrowResult::row_count(Self) -> Int
+pub fn ArrowResult::row_count(Self) -> Int32
 pub fn ArrowResult::to_chunks(Self) -> Result[Array[VectorChunk], DuckDBError]
 
 pub struct ArrowSchemaInfo {
   fields : Array[ArrowField]
 }
 
+#derive(Compare, Eq, @debug.Debug)
 pub(all) enum Backend {
   Native
   Node
   Wasm
   Unsupported
-} derive(Compare, Eq, Show)
+}
 pub fn Backend::all() -> Array[Self]
 pub fn Backend::capabilities(Self) -> BackendCapabilities
+pub fn Backend::compare(Self, Self) -> Int32
+pub fn Backend::equal(Self, Self) -> Bool
 pub fn Backend::name(Self) -> String
+pub fn Backend::not_equal(Self, Self) -> Bool
+pub fn Backend::op_ge(Self, Self) -> Bool
+pub fn Backend::op_gt(Self, Self) -> Bool
+pub fn Backend::op_le(Self, Self) -> Bool
+pub fn Backend::op_lt(Self, Self) -> Bool
+pub fn Backend::to_repr(Self) -> @debug.Repr
 
 pub struct BackendCapabilities {
   backend : Backend
@@ -223,6 +233,7 @@ pub fn BackendCapabilities::supports(Self, BackendFeature) -> Bool
 pub fn BackendCapabilities::unsupported(Self, String) -> DuckDBError
 pub fn BackendCapabilities::unsupported_error(Self, BackendFeature) -> DuckDBError
 
+#derive(Compare, Eq, @debug.Debug)
 pub(all) enum BackendFeature {
   Connect
   PreparedStatements
@@ -244,10 +255,19 @@ pub(all) enum BackendFeature {
   MapBind
   NestedAppend
   NestedTyped
-} derive(Compare, Eq, Show)
+}
 pub fn BackendFeature::all() -> Array[Self]
+pub fn BackendFeature::compare(Self, Self) -> Int32
+pub fn BackendFeature::equal(Self, Self) -> Bool
 pub fn BackendFeature::name(Self) -> String
+pub fn BackendFeature::not_equal(Self, Self) -> Bool
+pub fn BackendFeature::op_ge(Self, Self) -> Bool
+pub fn BackendFeature::op_gt(Self, Self) -> Bool
+pub fn BackendFeature::op_le(Self, Self) -> Bool
+pub fn BackendFeature::op_lt(Self, Self) -> Bool
+pub fn BackendFeature::to_repr(Self) -> @debug.Repr
 
+#derive(Eq)
 pub(all) enum ColumnType {
   Invalid
   Boolean
@@ -289,8 +309,8 @@ pub(all) enum ColumnType {
   StringLiteral
   IntegerLiteral
   TimeNs
-  Unknown(Int)
-} derive(Eq)
+  Unknown(Int32)
+}
 pub fn ColumnType::equal(Self, Self) -> Bool
 pub fn ColumnType::not_equal(Self, Self) -> Bool
 
@@ -330,13 +350,13 @@ pub struct DataChunk {
   rows : Array[Array[String]]
   nulls : Array[Array[Bool]]
 }
-pub fn DataChunk::cell(Self, Int, Int) -> String?
-pub fn DataChunk::column_count(Self) -> Int
-pub fn DataChunk::row_count(Self) -> Int
+pub fn DataChunk::cell(Self, Int32, Int32) -> String?
+pub fn DataChunk::column_count(Self) -> Int32
+pub fn DataChunk::row_count(Self) -> Int32
 
 pub struct Decimal {
-  width : Int
-  scale : Int
+  width : Int32
+  scale : Int32
   lower : UInt64
   upper : Int64
 }
@@ -350,8 +370,8 @@ pub struct FixtureCase {
 }
 
 pub struct Interval {
-  months : Int
-  days : Int
+  months : Int32
+  days : Int32
   micros : Int64
 }
 
@@ -381,20 +401,20 @@ pub type NativeVector
 
 pub type PreparedStatement
 pub fn PreparedStatement::backend(Self) -> Backend
-pub fn PreparedStatement::bind_bigint(Self, Int, Int) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_blob(Self, Int, Bytes) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_bool(Self, Int, Bool) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_date(Self, Int, Int) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_decimal(Self, Int, Decimal) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_double(Self, Int, Double) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_int(Self, Int, Int) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_interval(Self, Int, Interval) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_list_varchar(Self, Int, Array[String]) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_map(Self, Int, Map) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_null(Self, Int) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_struct(Self, Int, Struct) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_timestamp(Self, Int, Int64) -> Result[Unit, DuckDBError]
-pub fn PreparedStatement::bind_varchar(Self, Int, String) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_bigint(Self, Int32, Int32) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_blob(Self, Int32, Bytes) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_bool(Self, Int32, Bool) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_date(Self, Int32, Int32) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_decimal(Self, Int32, Decimal) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_double(Self, Int32, Double) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_int(Self, Int32, Int32) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_interval(Self, Int32, Interval) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_list_varchar(Self, Int32, Array[String]) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_map(Self, Int32, Map) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_null(Self, Int32) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_struct(Self, Int32, Struct) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_timestamp(Self, Int32, Int64) -> Result[Unit, DuckDBError]
+pub fn PreparedStatement::bind_varchar(Self, Int32, String) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::capabilities(Self) -> BackendCapabilities
 pub fn PreparedStatement::clear_bindings(Self) -> Result[Unit, DuckDBError]
 pub fn PreparedStatement::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
@@ -408,23 +428,23 @@ pub struct QueryResult {
   rows : Array[Array[String]]
   nulls : Array[Array[Bool]]
 }
-pub fn QueryResult::cell(Self, Int, Int) -> String?
-pub fn QueryResult::column_count(Self) -> Int
-pub fn QueryResult::get_blob(Self, Int, Int) -> Bytes?
-pub fn QueryResult::get_bool(Self, Int, Int) -> Bool?
-pub fn QueryResult::get_date(Self, Int, Int) -> Int?
-pub fn QueryResult::get_decimal(Self, Int, Int) -> Decimal?
-pub fn QueryResult::get_double(Self, Int, Int) -> Double?
-pub fn QueryResult::get_int(Self, Int, Int) -> Int?
-pub fn QueryResult::get_string(Self, Int, Int) -> String?
-pub fn QueryResult::get_timestamp(Self, Int, Int) -> Int64?
-pub fn QueryResult::get_value(Self, Int, Int) -> Value?
-pub fn QueryResult::row_count(Self) -> Int
+pub fn QueryResult::cell(Self, Int32, Int32) -> String?
+pub fn QueryResult::column_count(Self) -> Int32
+pub fn QueryResult::get_blob(Self, Int32, Int32) -> Bytes?
+pub fn QueryResult::get_bool(Self, Int32, Int32) -> Bool?
+pub fn QueryResult::get_date(Self, Int32, Int32) -> Int32?
+pub fn QueryResult::get_decimal(Self, Int32, Int32) -> Decimal?
+pub fn QueryResult::get_double(Self, Int32, Int32) -> Double?
+pub fn QueryResult::get_int(Self, Int32, Int32) -> Int32?
+pub fn QueryResult::get_string(Self, Int32, Int32) -> String?
+pub fn QueryResult::get_timestamp(Self, Int32, Int32) -> Int64?
+pub fn QueryResult::get_value(Self, Int32, Int32) -> Value?
+pub fn QueryResult::row_count(Self) -> Int32
 pub fn QueryResult::to_typed(Self) -> TypedQueryResult
 
 pub type ResultStream
 pub fn ResultStream::close(Self, on_done~ : (Result[Unit, DuckDBError]) -> Unit) -> Unit
-pub fn ResultStream::column_count(Self) -> Int
+pub fn ResultStream::column_count(Self) -> Int32
 pub fn ResultStream::columns(Self) -> Array[String]
 pub fn ResultStream::next(Self, on_done~ : (Result[DataChunk?, DuckDBError]) -> Unit) -> Unit
 pub fn ResultStream::next_chunk(Self, on_done~ : (Result[VectorChunk?, DuckDBError]) -> Unit) -> Unit
@@ -438,35 +458,35 @@ pub struct TypedQueryResult {
   columns : Array[String]
   data : Array[Array[Value]]
 }
-pub fn TypedQueryResult::column_count(Self) -> Int
-pub fn TypedQueryResult::get_blob(Self, Int, Int) -> Bytes?
-pub fn TypedQueryResult::get_bool(Self, Int, Int) -> Bool?
-pub fn TypedQueryResult::get_bool_column(Self, Int) -> Array[Bool?]?
-pub fn TypedQueryResult::get_column(Self, Int) -> Array[Value]?
-pub fn TypedQueryResult::get_date(Self, Int, Int) -> Int?
-pub fn TypedQueryResult::get_date_column(Self, Int) -> Array[Int?]?
-pub fn TypedQueryResult::get_decimal(Self, Int, Int) -> Decimal?
-pub fn TypedQueryResult::get_decimal_column(Self, Int) -> Array[Decimal?]?
-pub fn TypedQueryResult::get_double(Self, Int, Int) -> Double?
-pub fn TypedQueryResult::get_double_column(Self, Int) -> Array[Double?]?
-pub fn TypedQueryResult::get_int(Self, Int, Int) -> Int?
-pub fn TypedQueryResult::get_int_column(Self, Int) -> Array[Int?]?
-pub fn TypedQueryResult::get_string(Self, Int, Int) -> String?
-pub fn TypedQueryResult::get_string_column(Self, Int) -> Array[String?]?
-pub fn TypedQueryResult::get_timestamp(Self, Int, Int) -> Int64?
-pub fn TypedQueryResult::get_timestamp_column(Self, Int) -> Array[Int64?]?
-pub fn TypedQueryResult::get_value(Self, Int, Int) -> Value?
-pub fn TypedQueryResult::is_null(Self, Int, Int) -> Bool
-pub fn TypedQueryResult::row_count(Self) -> Int
+pub fn TypedQueryResult::column_count(Self) -> Int32
+pub fn TypedQueryResult::get_blob(Self, Int32, Int32) -> Bytes?
+pub fn TypedQueryResult::get_bool(Self, Int32, Int32) -> Bool?
+pub fn TypedQueryResult::get_bool_column(Self, Int32) -> Array[Bool?]?
+pub fn TypedQueryResult::get_column(Self, Int32) -> Array[Value]?
+pub fn TypedQueryResult::get_date(Self, Int32, Int32) -> Int32?
+pub fn TypedQueryResult::get_date_column(Self, Int32) -> Array[Int32?]?
+pub fn TypedQueryResult::get_decimal(Self, Int32, Int32) -> Decimal?
+pub fn TypedQueryResult::get_decimal_column(Self, Int32) -> Array[Decimal?]?
+pub fn TypedQueryResult::get_double(Self, Int32, Int32) -> Double?
+pub fn TypedQueryResult::get_double_column(Self, Int32) -> Array[Double?]?
+pub fn TypedQueryResult::get_int(Self, Int32, Int32) -> Int32?
+pub fn TypedQueryResult::get_int_column(Self, Int32) -> Array[Int32?]?
+pub fn TypedQueryResult::get_string(Self, Int32, Int32) -> String?
+pub fn TypedQueryResult::get_string_column(Self, Int32) -> Array[String?]?
+pub fn TypedQueryResult::get_timestamp(Self, Int32, Int32) -> Int64?
+pub fn TypedQueryResult::get_timestamp_column(Self, Int32) -> Array[Int64?]?
+pub fn TypedQueryResult::get_value(Self, Int32, Int32) -> Value?
+pub fn TypedQueryResult::is_null(Self, Int32, Int32) -> Bool
+pub fn TypedQueryResult::row_count(Self) -> Int32
 
 pub(all) enum Value {
-  Int(Int)
+  Int(Int32)
   Int64(Int64)
   UInt64(UInt64)
   Double(Double)
   Bool(Bool)
   String(String)
-  Date(Int)
+  Date(Int32)
   Timestamp(Int64)
   TimestampNs(Int64)
   Decimal(Decimal)
@@ -480,10 +500,10 @@ pub(all) enum Value {
 }
 pub fn Value::as_blob(Self) -> Bytes?
 pub fn Value::as_bool(Self) -> Bool?
-pub fn Value::as_date(Self) -> Int?
+pub fn Value::as_date(Self) -> Int32?
 pub fn Value::as_decimal(Self) -> Decimal?
 pub fn Value::as_double(Self) -> Double?
-pub fn Value::as_int(Self) -> Int?
+pub fn Value::as_int(Self) -> Int32?
 pub fn Value::as_string(Self) -> String?
 pub fn Value::as_timestamp(Self) -> Int64?
 pub fn Value::as_timestamp_ns(Self) -> Int64?
@@ -503,36 +523,36 @@ pub fn Vector::decimals(Self) -> FixedArray[Decimal]?
 pub fn Vector::doubles(Self) -> FixedArray[Double]?
 pub fn Vector::int64s(Self) -> FixedArray[Int64]?
 pub fn Vector::intervals(Self) -> FixedArray[Interval]?
-pub fn Vector::ints(Self) -> FixedArray[Int]?
-pub fn Vector::is_null(Self, Int) -> Bool
-pub fn Vector::len(Self) -> Int
+pub fn Vector::ints(Self) -> FixedArray[Int32]?
+pub fn Vector::is_null(Self, Int32) -> Bool
+pub fn Vector::len(Self) -> Int32
 pub fn Vector::list_parts(Self) -> (Self, FixedArray[UInt64], FixedArray[UInt64])?
 pub fn Vector::map_parts(Self) -> (FixedArray[UInt64], FixedArray[UInt64], Self, Self)?
-pub fn Vector::string_at(Self, Int) -> String
+pub fn Vector::string_at(Self, Int32) -> String
 pub fn Vector::strings(Self) -> Array[String]?
 pub fn Vector::struct_parts(Self) -> (Array[String], Array[Self])?
 pub fn Vector::uint64s(Self) -> FixedArray[UInt64]?
-pub fn Vector::value_at(Self, Int) -> Value
+pub fn Vector::value_at(Self, Int32) -> Value
 
 pub(all) struct VectorChunk {
   columns : Array[String]
   vectors : Array[Vector]
 }
-pub fn VectorChunk::column(Self, Int) -> Vector?
+pub fn VectorChunk::column(Self, Int32) -> Vector?
 pub fn VectorChunk::column_by_name(Self, String) -> Vector?
-pub fn VectorChunk::column_count(Self) -> Int
-pub fn VectorChunk::column_type(Self, Int) -> ColumnType
-pub fn VectorChunk::get_value(Self, Int, Int) -> Value?
-pub fn VectorChunk::is_null(Self, Int, Int) -> Bool
+pub fn VectorChunk::column_count(Self) -> Int32
+pub fn VectorChunk::column_type(Self, Int32) -> ColumnType
+pub fn VectorChunk::get_value(Self, Int32, Int32) -> Value?
+pub fn VectorChunk::is_null(Self, Int32, Int32) -> Bool
 pub fn VectorChunk::new(Array[String], Array[Vector]) -> Result[Self, DuckDBError]
-pub fn VectorChunk::row_count(Self) -> Int
+pub fn VectorChunk::row_count(Self) -> Int32
 pub fn VectorChunk::to_data_chunk(Self) -> DataChunk
 pub fn VectorChunk::to_query_result(Self) -> QueryResult
 pub fn VectorChunk::to_typed(Self) -> TypedQueryResult
 
 pub(all) enum VectorData {
   Bool(FixedArray[Bool])
-  Int32(FixedArray[Int])
+  Int32(FixedArray[Int32])
   Int64(FixedArray[Int64])
   UInt64(FixedArray[UInt64])
   Float(FixedArray[Float])
@@ -547,7 +567,7 @@ pub(all) enum VectorData {
   Map(offsets~ : FixedArray[UInt64], lengths~ : FixedArray[UInt64], keys~ : Vector, values~ : Vector)
   Any(Array[Value])
 }
-pub fn VectorData::len(Self) -> Int
+pub fn VectorData::len(Self) -> Int32
 
 // Type aliases
 

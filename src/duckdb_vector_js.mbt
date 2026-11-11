@@ -80,6 +80,7 @@ const JS_KIND_DECIMAL = 9
 const JS_KIND_INTERVAL = 10
 
 ///|
+#warnings("-unused_value")
 const JS_KIND_JSON = 11
 
 ///|
