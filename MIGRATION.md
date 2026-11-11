@@ -13,6 +13,30 @@ This guide was produced by diffing the published `f4ah6o/duckdb@0.6.4`
 every symbol-level change listed below is verified against the actual
 published package.
 
+## 0.9.0: MoonBit 0.1.20261104
+
+0.9.0 ports the package to MoonBit `0.1.20261104` and pins the toolchain in
+`.tool-versions`, which CI now installs instead of `latest`. The only
+interface change is that `Backend` and `BackendFeature` derive `Debug`
+instead of the deprecated `derive(Show)`.
+
+- **`Backend` / `BackendFeature`.** `Show` is gone; `Debug` replaces it.
+  `Backend::name()` still returns the stable lowercase name (`"native"`,
+  `"node"`, `"wasm"`, `"unsupported"`), and `@debug.to_string(backend)`
+  produces the structural form. `Eq` and `Compare` are unchanged, and their
+  methods plus `Debug::to_repr` stay reachable as dot-syntax through
+  explicit `extend` declarations.
+- **`pkg.generated.mbti`.** `Int32` parameters and results are now rendered
+  as `Int32` rather than `Int`. The types are unchanged — the old toolchain
+  collapsed `Int32` to `Int` for the wasm interface.
+- **Warnings.** `moon check --deny-warn` is clean on `native`, `js`, `wasm`,
+  and `wasm-gc`. `result_error_return` and `unused_package` are disabled per
+  package with the reasons recorded in `src/moon.pkg`: the `Result` API is
+  the published contract, and imports are shared across targets.
+- **Test snapshots.** Composed values now go through `debug_inspect`, so
+  `Array[String]` snapshots quote their elements (`["a", "b"]` instead of
+  `[a, b]`). This affects test expectations only, not the library.
+
 ## 0.8.0: DuckDB 2.0 support and the end of 1.4
 
 0.8.0 adds DuckDB 2.0.0 to the supported native engines and drops 1.4.x ahead
